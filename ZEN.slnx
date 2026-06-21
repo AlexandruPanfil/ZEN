@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="ZEN.ApiService/ZEN.ApiService.csproj" />
+  <Project Path="ZEN.AppHost/ZEN.AppHost.csproj" />
+  <Project Path="ZEN.ServiceDefaults/ZEN.ServiceDefaults.csproj" />
+  <Project Path="ZEN.Web/ZEN.Web.csproj" />
+</Solution>
