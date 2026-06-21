@@ -1,0 +1,38 @@
+<MudCard Class="mb-2">
+    <MudCardContent>
+        <MudText Typo="Typo.body1">@ProductName</MudText>
+        <MudText Typo="Typo.body2">Quantity: @Quantity | Price: @Price.ToString("C")</MudText>
+        <MudText Typo="Typo.h6">Total: @Total.ToString("C")</MudText>
+    </MudCardContent>
+    <MudCardActions>
+        <MudIconButton Icon="@Icons.Material.Filled.Add" Color="Color.Primary" OnClick="@IncrementQuantity" Size="Size.Small" />
+        <MudIconButton Icon="@Icons.Material.Filled.Remove" Color="Color.Warning" OnClick="@DecrementQuantity" Size="Size.Small" />
+        <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" OnClick="@RemoveItem" Size="Size.Small" />
+    </MudCardActions>
+</MudCard>
+
+@code {
+    [Parameter]
+    public string ProductName { get; set; } = string.Empty;
+
+    [Parameter]
+    public decimal Quantity { get; set; }
+
+    [Parameter]
+    public decimal Price { get; set; }
+
+    [Parameter]
+    public EventCallback OnIncrement { get; set; }
+
+    [Parameter]
+    public EventCallback OnDecrement { get; set; }
+
+    [Parameter]
+    public EventCallback OnRemove { get; set; }
+
+    private decimal Total => Quantity * Price;
+
+    private async Task IncrementQuantity() => await OnIncrement.InvokeAsync();
+    private async Task DecrementQuantity() => await OnDecrement.InvokeAsync();
+    private async Task RemoveItem() => await OnRemove.InvokeAsync();
+}

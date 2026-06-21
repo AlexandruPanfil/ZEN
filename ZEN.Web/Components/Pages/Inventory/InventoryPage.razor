@@ -1,0 +1,11 @@
+@page "/inventory"
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Roles = "Administrator,Manager,InventoryManager")]
+
+<PageTitle>Inventory - ZEN POS</PageTitle>
+
+<MudText Typo="Typo.h3" GutterBottom="true">Inventory Management</MudText>
+
+<MudPaper Class="pa-4">
+    <MudText>TODO: Stock levels, low stock alerts, warehouse inventory views</MudText>
+</MudPaper>

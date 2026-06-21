@@ -1,0 +1,169 @@
+@page "/pin-login"
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Authentication
+@using Microsoft.AspNetCore.Authentication.Cookies
+@using ZEN.Application.DTOs.Auth
+@using ZEN.Application.Services.Interfaces
+@inject IAuthService AuthService
+@inject NavigationManager NavigationManager
+@inject IHttpContextAccessor HttpContextAccessor
+
+<MudContainer MaxWidth="MaxWidth.Small" Class="mt-8">
+    <MudPaper Elevation="3" Class="pa-6">
+        <MudText Typo="Typo.h4" Align="Align.Center" GutterBottom="true">PIN Login</MudText>
+
+        @if (!string.IsNullOrEmpty(_errorMessage))
+        {
+            <MudAlert Severity="Severity.Error" Class="mb-4">@_errorMessage</MudAlert>
+        }
+
+        <MudTextField Value="@_pinValue" ValueChanged="@((string value) => _pinValue = value)" 
+                      Label="Enter PIN" 
+                      Variant="Variant.Outlined" 
+                      ReadOnly="true"
+                      Class="mb-4"
+                      InputType="InputType.Password" />
+
+        <MudGrid Spacing="2" Class="mb-4">
+            @for (int i = 1; i <= 9; i++)
+            {
+                var number = i;
+                <MudItem xs="4">
+                    <MudButton Variant="Variant.Filled" 
+                               Color="Color.Primary" 
+                               FullWidth="true" 
+                               OnClick="@(() => AddDigit(number.ToString()))"
+                               Size="Size.Large">
+                        @number
+                    </MudButton>
+                </MudItem>
+            }
+            <MudItem xs="4">
+                <MudButton Variant="Variant.Outlined" 
+                           Color="Color.Secondary" 
+                           FullWidth="true" 
+                           OnClick="@ClearPin"
+                           Size="Size.Large">
+                    Clear
+                </MudButton>
+            </MudItem>
+            <MudItem xs="4">
+                <MudButton Variant="Variant.Filled" 
+                           Color="Color.Primary" 
+                           FullWidth="true" 
+                           OnClick="@(() => AddDigit("0"))"
+                           Size="Size.Large">
+                    0
+                </MudButton>
+            </MudItem>
+            <MudItem xs="4">
+                <MudButton Variant="Variant.Outlined" 
+                           Color="Color.Warning" 
+                           FullWidth="true" 
+                           OnClick="@Backspace"
+                           Size="Size.Large">
+                    ⌫
+                </MudButton>
+            </MudItem>
+        </MudGrid>
+
+        <MudButton Variant="Variant.Filled" 
+                   Color="Color.Success" 
+                   FullWidth="true"
+                   OnClick="@HandlePinLogin"
+                   Disabled="@(_isLoading || string.IsNullOrEmpty(_pinValue))">
+            @if (_isLoading)
+            {
+                <MudProgressCircular Size="Size.Small" Indeterminate="true" />
+            }
+            else
+            {
+                <span>Login</span>
+            }
+        </MudButton>
+
+        <MudDivider Class="my-4" />
+
+        <MudButton Href="/login" 
+                   Variant="Variant.Text" 
+                   Color="Color.Secondary" 
+                   FullWidth="true">
+            Login with Email
+        </MudButton>
+    </MudPaper>
+</MudContainer>
+
+@code {
+    private string _pinValue = string.Empty;
+    private string? _errorMessage;
+    private bool _isLoading;
+
+    private void AddDigit(string digit)
+    {
+        if (_pinValue.Length < 6)
+        {
+            _pinValue += digit;
+        }
+    }
+
+    private void Backspace()
+    {
+        if (_pinValue.Length > 0)
+        {
+            _pinValue = _pinValue[..^1];
+        }
+    }
+
+    private void ClearPin()
+    {
+        _pinValue = string.Empty;
+    }
+
+    private async Task HandlePinLogin()
+    {
+        _isLoading = true;
+        _errorMessage = null;
+
+        try
+        {
+            var request = new PinLoginRequest(_pinValue);
+            var response = await AuthService.PinLoginAsync(request);
+
+            var claims = new List<Claim>
+            {
+                new Claim(ClaimTypes.NameIdentifier, response.UserId),
+                new Claim(ClaimTypes.Name, response.UserName),
+                new Claim(ClaimTypes.Email, response.Email)
+            };
+
+            foreach (var role in response.Roles)
+            {
+                claims.Add(new Claim(ClaimTypes.Role, role));
+            }
+
+            var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
+            var principal = new ClaimsPrincipal(identity);
+
+            var httpContext = HttpContextAccessor.HttpContext;
+            if (httpContext != null)
+            {
+                await httpContext.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, principal);
+                NavigationManager.NavigateTo("/pos", forceLoad: true);
+            }
+        }
+        catch (UnauthorizedAccessException)
+        {
+            _errorMessage = "Invalid PIN.";
+            _pinValue = string.Empty;
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Login failed: {ex.Message}";
+            _pinValue = string.Empty;
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+}

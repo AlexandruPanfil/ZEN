@@ -1,0 +1,46 @@
+<MudLayout>
+    <MudAppBar Elevation="1">
+        <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start" OnClick="@ToggleDrawer" />
+        <MudText Typo="Typo.h5" Class="ml-3">ZEN POS</MudText>
+        <MudSpacer />
+        <MudText Typo="Typo.body1">@UserName</MudText>
+        <MudIconButton Icon="@Icons.Material.Filled.Logout" Color="Color.Inherit" OnClick="@Logout" />
+    </MudAppBar>
+    <MudDrawer @bind-Open="@_drawerOpen" Elevation="1" ClipMode="DrawerClipMode.Always">
+        <MudNavMenu>
+            <MudNavLink Href="/pos" Icon="@Icons.Material.Filled.PointOfSale" IconColor="Color.Primary">POS</MudNavLink>
+            <MudNavLink Href="/products" Icon="@Icons.Material.Filled.Inventory" IconColor="Color.Primary">Products</MudNavLink>
+            <MudNavLink Href="/customers" Icon="@Icons.Material.Filled.People" IconColor="Color.Primary">Customers</MudNavLink>
+            <MudNavLink Href="/reports" Icon="@Icons.Material.Filled.Assessment" IconColor="Color.Primary">Reports</MudNavLink>
+            <MudNavLink Href="/admin" Icon="@Icons.Material.Filled.Settings" IconColor="Color.Primary">Admin</MudNavLink>
+        </MudNavMenu>
+    </MudDrawer>
+    <MudMainContent>
+        <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-4">
+            @Body
+        </MudContainer>
+    </MudMainContent>
+</MudLayout>
+
+@code {
+    private bool _drawerOpen = true;
+
+    [Parameter]
+    public RenderFragment? Body { get; set; }
+
+    [Parameter]
+    public string UserName { get; set; } = "User";
+
+    [Parameter]
+    public EventCallback OnLogout { get; set; }
+
+    private void ToggleDrawer()
+    {
+        _drawerOpen = !_drawerOpen;
+    }
+
+    private async Task Logout()
+    {
+        await OnLogout.InvokeAsync();
+    }
+}

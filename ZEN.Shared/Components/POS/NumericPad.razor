@@ -1,0 +1,33 @@
+<MudGrid Spacing="2">
+    @foreach (var button in _buttons)
+    {
+        <MudItem xs="4">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" OnClick="@(() => OnNumberClick(button))">
+                @button
+            </MudButton>
+        </MudItem>
+    }
+    <MudItem xs="8">
+        <MudButton Variant="Variant.Filled" Color="Color.Secondary" FullWidth="true" OnClick="@OnClear">Clear</MudButton>
+    </MudItem>
+    <MudItem xs="4">
+        <MudButton Variant="Variant.Filled" Color="Color.Success" FullWidth="true" OnClick="@OnEnter">Enter</MudButton>
+    </MudItem>
+</MudGrid>
+
+@code {
+    private readonly string[] _buttons = ["1", "2", "3", "4", "5", "6", "7", "8", "9", ".", "0", "00"];
+
+    [Parameter]
+    public EventCallback<string> OnNumberPressed { get; set; }
+
+    [Parameter]
+    public EventCallback OnClearPressed { get; set; }
+
+    [Parameter]
+    public EventCallback OnEnterPressed { get; set; }
+
+    private async Task OnNumberClick(string number) => await OnNumberPressed.InvokeAsync(number);
+    private async Task OnClear() => await OnClearPressed.InvokeAsync();
+    private async Task OnEnter() => await OnEnterPressed.InvokeAsync();
+}

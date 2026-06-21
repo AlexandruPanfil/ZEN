@@ -1,0 +1,10 @@
+<MudCard Class="mb-4">
+    <MudCardContent>
+        <MudText Typo="Typo.h4">@Title</MudText>
+    </MudCardContent>
+</MudCard>
+
+@code {
+    [Parameter]
+    public string Title { get; set; } = string.Empty;
+}

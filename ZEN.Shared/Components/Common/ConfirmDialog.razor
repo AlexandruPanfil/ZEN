@@ -1,0 +1,19 @@
+@inject IDialogService DialogService
+
+@code {
+    public static async Task<bool> ShowAsync(IDialogService dialogService, string title, string message)
+    {
+        var parameters = new DialogParameters
+        {
+            { "ContentText", message },
+            { "ButtonText", "Confirm" },
+            { "Color", Color.Primary }
+        };
+
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small };
+        var dialog = await dialogService.ShowAsync<MudDialog>(title, parameters, options);
+        var result = await dialog.Result;
+
+        return result != null && !result.Canceled;
+    }
+}

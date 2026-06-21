@@ -2,8 +2,13 @@ var builder = DistributedApplication.CreateBuilder(args);
 
 var cache = builder.AddRedis("cache");
 
+var sql = builder.AddSqlServer("sql");
+var zendb = sql.AddDatabase("zendb");
+
 var apiService = builder.AddProject<Projects.ZEN_ApiService>("apiservice")
-    .WithHttpHealthCheck("/health");
+    .WithHttpHealthCheck("/health")
+    .WithReference(zendb)
+    .WaitFor(zendb);
 
 builder.AddProject<Projects.ZEN_Web>("webfrontend")
     .WithExternalHttpEndpoints()
@@ -11,6 +16,8 @@ builder.AddProject<Projects.ZEN_Web>("webfrontend")
     .WithReference(cache)
     .WaitFor(cache)
     .WithReference(apiService)
-    .WaitFor(apiService);
+    .WaitFor(apiService)
+    .WithReference(zendb)
+    .WaitFor(zendb);
 
 builder.Build().Run();

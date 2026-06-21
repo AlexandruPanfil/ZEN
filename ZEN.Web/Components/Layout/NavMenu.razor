@@ -1,29 +1,64 @@
-﻿<div class="top-row ps-3 navbar navbar-dark">
-    <div class="container-fluid">
-        <a class="navbar-brand" href="">ZEN</a>
-    </div>
-</div>
+﻿<MudNavMenu>
+    <MudNavLink Href="/" Icon="@Icons.Material.Filled.Dashboard" IconColor="Color.Primary">
+        Dashboard
+    </MudNavLink>
 
-<input type="checkbox" title="Navigation menu" class="navbar-toggler" />
+    <AuthorizeView Roles="Administrator,Cashier,Manager">
+        <MudNavGroup Title="Sales" Icon="@Icons.Material.Filled.PointOfSale" Expanded="false">
+            <MudNavLink Href="/pos" Icon="@Icons.Material.Filled.ShoppingCart">POS</MudNavLink>
+            <MudNavLink Href="/shifts" Icon="@Icons.Material.Filled.Schedule">Shifts</MudNavLink>
+            <MudNavLink Href="/held-sales" Icon="@Icons.Material.Filled.Pause">Held Sales</MudNavLink>
+        </MudNavGroup>
+    </AuthorizeView>
 
-<div class="nav-scrollable" onclick="document.querySelector('.navbar-toggler').click()">
-    <nav class="nav flex-column">
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
-                <span class="bi bi-house-door-fill" aria-hidden="true"></span> Home
-            </NavLink>
-        </div>
+    <AuthorizeView Roles="Administrator,Manager,InventoryManager">
+        <MudNavGroup Title="Products" Icon="@Icons.Material.Filled.Inventory" Expanded="false">
+            <MudNavLink Href="/products" Icon="@Icons.Material.Filled.Category">Products</MudNavLink>
+            <MudNavLink Href="/categories" Icon="@Icons.Material.Filled.Label">Categories</MudNavLink>
+            <MudNavLink Href="/brands" Icon="@Icons.Material.Filled.Loyalty">Brands</MudNavLink>
+            <MudNavLink Href="/discounts" Icon="@Icons.Material.Filled.LocalOffer">Discounts</MudNavLink>
+            <MudNavLink Href="/promotions" Icon="@Icons.Material.Filled.Campaign">Promotions</MudNavLink>
+        </MudNavGroup>
+    </AuthorizeView>
 
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="counter">
-                <span class="bi bi-plus-square-fill" aria-hidden="true"></span> Counter
-            </NavLink>
-        </div>
+    <AuthorizeView Roles="Administrator,Manager,InventoryManager">
+        <MudNavGroup Title="Inventory" Icon="@Icons.Material.Filled.Warehouse" Expanded="false">
+            <MudNavLink Href="/inventory" Icon="@Icons.Material.Filled.Inventory2">Stock</MudNavLink>
+            <MudNavLink Href="/warehouses" Icon="@Icons.Material.Filled.Store">Warehouses</MudNavLink>
+            <MudNavLink Href="/purchase-orders" Icon="@Icons.Material.Filled.ShoppingBag">Purchase Orders</MudNavLink>
+            <MudNavLink Href="/stock-transfers" Icon="@Icons.Material.Filled.LocalShipping">Transfers</MudNavLink>
+            <MudNavLink Href="/inventory-counts" Icon="@Icons.Material.Filled.Checklist">Counts</MudNavLink>
+        </MudNavGroup>
+    </AuthorizeView>
 
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="weather">
-                <span class="bi bi-list-nested" aria-hidden="true"></span> Weather
-            </NavLink>
-        </div>
-    </nav>
-</div>
+    <AuthorizeView Roles="Administrator,Manager,Cashier">
+        <MudNavLink Href="/customers" Icon="@Icons.Material.Filled.People" IconColor="Color.Primary">
+            Customers
+        </MudNavLink>
+    </AuthorizeView>
+
+    <AuthorizeView Roles="Administrator,Manager,InventoryManager,Accountant">
+        <MudNavLink Href="/suppliers" Icon="@Icons.Material.Filled.Business" IconColor="Color.Primary">
+            Suppliers
+        </MudNavLink>
+    </AuthorizeView>
+
+    <AuthorizeView Roles="Administrator,Manager,Accountant">
+        <MudNavGroup Title="Reports" Icon="@Icons.Material.Filled.Assessment" Expanded="false">
+            <MudNavLink Href="/reports/sales" Icon="@Icons.Material.Filled.TrendingUp">Sales Reports</MudNavLink>
+            <MudNavLink Href="/reports/inventory" Icon="@Icons.Material.Filled.Inventory">Inventory Reports</MudNavLink>
+            <MudNavLink Href="/reports/financial" Icon="@Icons.Material.Filled.AttachMoney">Financial Reports</MudNavLink>
+            <MudNavLink Href="/reports/employee" Icon="@Icons.Material.Filled.PersonSearch">Employee Reports</MudNavLink>
+        </MudNavGroup>
+    </AuthorizeView>
+
+    <AuthorizeView Roles="Administrator">
+        <MudNavGroup Title="Admin" Icon="@Icons.Material.Filled.Settings" Expanded="false">
+            <MudNavLink Href="/admin/users" Icon="@Icons.Material.Filled.ManageAccounts">Users</MudNavLink>
+            <MudNavLink Href="/admin/roles" Icon="@Icons.Material.Filled.AdminPanelSettings">Roles</MudNavLink>
+            <MudNavLink Href="/admin/stores" Icon="@Icons.Material.Filled.Storefront">Stores</MudNavLink>
+            <MudNavLink Href="/admin/settings" Icon="@Icons.Material.Filled.Tune">Settings</MudNavLink>
+            <MudNavLink Href="/admin/audit-logs" Icon="@Icons.Material.Filled.History">Audit Logs</MudNavLink>
+        </MudNavGroup>
+    </AuthorizeView>
+</MudNavMenu>

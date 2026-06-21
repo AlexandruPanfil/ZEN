@@ -1,0 +1,113 @@
+@page "/login"
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Authentication
+@using Microsoft.AspNetCore.Authentication.Cookies
+@using ZEN.Application.DTOs.Auth
+@using ZEN.Application.Services.Interfaces
+@inject IAuthService AuthService
+@inject NavigationManager NavigationManager
+@inject IHttpContextAccessor HttpContextAccessor
+
+<MudContainer MaxWidth="MaxWidth.Small" Class="mt-8">
+    <MudPaper Elevation="3" Class="pa-6">
+        <MudText Typo="Typo.h4" Align="Align.Center" GutterBottom="true">ZEN POS Login</MudText>
+
+        @if (!string.IsNullOrEmpty(_errorMessage))
+        {
+            <MudAlert Severity="Severity.Error" Class="mb-4">@_errorMessage</MudAlert>
+        }
+
+        <EditForm Model="@_loginRequest" OnValidSubmit="@HandleLogin">
+            <DataAnnotationsValidator />
+
+            <MudTextField Value="@_loginRequest.Email" ValueChanged="@(value => _loginRequest = _loginRequest with { Email = value })" 
+                          Label="Email" 
+                          Variant="Variant.Outlined" 
+                          Class="mb-3"
+                          Required="true"
+                          InputType="InputType.Email" />
+
+            <MudTextField Value="@_loginRequest.Password" ValueChanged="@(value => _loginRequest = _loginRequest with { Password = value })" 
+                          Label="Password" 
+                          Variant="Variant.Outlined" 
+                          Class="mb-3"
+                          Required="true"
+                          InputType="InputType.Password" />
+
+            <MudButton ButtonType="ButtonType.Submit" 
+                       Variant="Variant.Filled" 
+                       Color="Color.Primary" 
+                       FullWidth="true"
+                       Disabled="@_isLoading">
+                @if (_isLoading)
+                {
+                    <MudProgressCircular Size="Size.Small" Indeterminate="true" />
+                }
+                else
+                {
+                    <span>Login</span>
+                }
+            </MudButton>
+        </EditForm>
+
+        <MudDivider Class="my-4" />
+
+        <MudButton Href="/pin-login" 
+                   Variant="Variant.Text" 
+                   Color="Color.Secondary" 
+                   FullWidth="true">
+            Login with PIN
+        </MudButton>
+    </MudPaper>
+</MudContainer>
+
+@code {
+    private LoginRequest _loginRequest = new("", "");
+    private string? _errorMessage;
+    private bool _isLoading;
+
+    private async Task HandleLogin()
+    {
+        _isLoading = true;
+        _errorMessage = null;
+
+        try
+        {
+            var response = await AuthService.LoginAsync(_loginRequest);
+
+            var claims = new List<Claim>
+            {
+                new Claim(ClaimTypes.NameIdentifier, response.UserId),
+                new Claim(ClaimTypes.Name, response.UserName),
+                new Claim(ClaimTypes.Email, response.Email)
+            };
+
+            foreach (var role in response.Roles)
+            {
+                claims.Add(new Claim(ClaimTypes.Role, role));
+            }
+
+            var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
+            var principal = new ClaimsPrincipal(identity);
+
+            var httpContext = HttpContextAccessor.HttpContext;
+            if (httpContext != null)
+            {
+                await httpContext.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, principal);
+                NavigationManager.NavigateTo("/", forceLoad: true);
+            }
+        }
+        catch (UnauthorizedAccessException)
+        {
+            _errorMessage = "Invalid email or password.";
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Login failed: {ex.Message}";
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+}

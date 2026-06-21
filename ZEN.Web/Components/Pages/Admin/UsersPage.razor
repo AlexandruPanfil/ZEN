@@ -1,0 +1,11 @@
+@page "/admin/users"
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Roles = "Administrator")]
+
+<PageTitle>User Management - ZEN POS</PageTitle>
+
+<MudText Typo="Typo.h3" GutterBottom="true">User Management</MudText>
+
+<MudPaper Class="pa-4">
+    <MudText>TODO: User list, create/edit users, assign roles, set PINs</MudText>
+</MudPaper>

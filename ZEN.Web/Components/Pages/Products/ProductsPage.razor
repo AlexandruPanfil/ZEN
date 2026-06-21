@@ -1,0 +1,11 @@
+@page "/products"
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Roles = "Administrator,Manager,InventoryManager")]
+
+<PageTitle>Products - ZEN POS</PageTitle>
+
+<MudText Typo="Typo.h3" GutterBottom="true">Products</MudText>
+
+<MudPaper Class="pa-4">
+    <MudText>TODO: Product list with search, filter, CRUD operations</MudText>
+</MudPaper>

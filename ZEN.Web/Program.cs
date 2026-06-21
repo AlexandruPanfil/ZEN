@@ -1,4 +1,12 @@
-using ZEN.Web;
+using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Identity;
+using MudBlazor.Services;
+using ZEN.Application;
+using ZEN.Infrastructure;
+using ZEN.Infrastructure.Identity;
+using ZEN.Infrastructure.Persistence;
+using ZEN.Infrastructure.Persistence.Seeders;
+using ZEN.Shared;
 using ZEN.Web.Components;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -11,14 +19,39 @@ builder.AddRedisOutputCache("cache");
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
-builder.Services.AddHttpClient<WeatherApiClient>(client =>
+// Add Infrastructure and Application layers
+builder.Services.AddInfrastructure(builder.Configuration);
+builder.Services.AddApplication();
+builder.Services.AddSharedComponents();
+
+// MudBlazor
+builder.Services.AddMudServices();
+
+// HttpContextAccessor for CurrentUserService
+builder.Services.AddHttpContextAccessor();
+
+// Cookie Authentication
+builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
+    .AddCookie(options =>
     {
-        // This URL uses "https+http://" to indicate HTTPS is preferred over HTTP.
-        // Learn more about service discovery scheme resolution at https://aka.ms/dotnet/sdschemes.
-        client.BaseAddress = new("https+http://apiservice");
+        options.LoginPath = "/login";
+        options.LogoutPath = "/logout";
+        options.ExpireTimeSpan = TimeSpan.FromHours(8);
+        options.SlidingExpiration = true;
     });
 
+builder.Services.AddAuthorization();
+
 var app = builder.Build();
+
+// Seed database
+using (var scope = app.Services.CreateScope())
+{
+    var context = scope.ServiceProvider.GetRequiredService<ZenDbContext>();
+    var userManager = scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>();
+    var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<AppRole>>();
+    await DbSeeder.SeedAsync(context, userManager, roleManager);
+}
 
 if (!app.Environment.IsDevelopment())
 {
@@ -31,6 +64,9 @@ app.UseHttpsRedirection();
 
 app.UseAntiforgery();
 
+app.UseAuthentication();
+app.UseAuthorization();
+
 app.UseOutputCache();
 
 app.MapStaticAssets();
@@ -41,3 +77,4 @@ app.MapRazorComponents<App>()
 app.MapDefaultEndpoints();
 
 app.Run();
+

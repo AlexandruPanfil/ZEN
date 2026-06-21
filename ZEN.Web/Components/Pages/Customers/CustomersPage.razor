@@ -1,0 +1,11 @@
+@page "/customers"
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Roles = "Administrator,Manager,Cashier")]
+
+<PageTitle>Customers - ZEN POS</PageTitle>
+
+<MudText Typo="Typo.h3" GutterBottom="true">Customers</MudText>
+
+<MudPaper Class="pa-4">
+    <MudText>TODO: Customer list, search, loyalty points, purchase history</MudText>
+</MudPaper>

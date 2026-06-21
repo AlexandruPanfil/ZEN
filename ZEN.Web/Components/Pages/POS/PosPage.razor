@@ -1,0 +1,11 @@
+@page "/pos"
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Roles = "Administrator,Cashier,Manager")]
+
+<PageTitle>Point of Sale - ZEN POS</PageTitle>
+
+<MudText Typo="Typo.h3" GutterBottom="true">Point of Sale</MudText>
+
+<MudPaper Class="pa-4">
+    <MudText>TODO: Implement POS interface with product search, cart, payment processing, receipt printing</MudText>
+</MudPaper>

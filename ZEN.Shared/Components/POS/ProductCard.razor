@@ -1,0 +1,21 @@
+<MudCard Class="product-card" OnClick="@OnClick">
+    <MudCardContent>
+        <MudText Typo="Typo.h6">@ProductName</MudText>
+        <MudText Typo="Typo.body2">@Description</MudText>
+        <MudText Typo="Typo.h5" Color="Color.Primary">@Price.ToString("C")</MudText>
+    </MudCardContent>
+</MudCard>
+
+@code {
+    [Parameter]
+    public string ProductName { get; set; } = string.Empty;
+
+    [Parameter]
+    public string? Description { get; set; }
+
+    [Parameter]
+    public decimal Price { get; set; }
+
+    [Parameter]
+    public EventCallback OnClick { get; set; }
+}
