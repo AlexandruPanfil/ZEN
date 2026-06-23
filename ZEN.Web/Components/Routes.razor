@@ -17,16 +17,3 @@
         </Found>
     </Router>
 </CascadingAuthenticationState>
-
-@code {
-    private class RedirectToLogin : ComponentBase
-    {
-        [Inject]
-        protected NavigationManager NavigationManager { get; set; } = default!;
-
-        protected override void OnInitialized()
-        {
-            NavigationManager.NavigateTo("/login", forceLoad: true);
-        }
-    }
-}

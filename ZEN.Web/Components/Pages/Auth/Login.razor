@@ -20,14 +20,14 @@
         <EditForm Model="@_loginRequest" OnValidSubmit="@HandleLogin">
             <DataAnnotationsValidator />
 
-            <MudTextField Value="@_loginRequest.Email" ValueChanged="@(value => _loginRequest = _loginRequest with { Email = value })" 
+            <MudTextField T="string" Value="@_loginRequest.Email" ValueChanged="@((string value) => _loginRequest = _loginRequest with { Email = value })" 
                           Label="Email" 
                           Variant="Variant.Outlined" 
                           Class="mb-3"
                           Required="true"
                           InputType="InputType.Email" />
 
-            <MudTextField Value="@_loginRequest.Password" ValueChanged="@(value => _loginRequest = _loginRequest with { Password = value })" 
+            <MudTextField T="string" Value="@_loginRequest.Password" ValueChanged="@((string value) => _loginRequest = _loginRequest with { Password = value })" 
                           Label="Password" 
                           Variant="Variant.Outlined" 
                           Class="mb-3"

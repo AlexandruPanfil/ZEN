@@ -2,7 +2,8 @@ var builder = DistributedApplication.CreateBuilder(args);
 
 var cache = builder.AddRedis("cache");
 
-var sql = builder.AddSqlServer("sql");
+var sql = builder.AddSqlServer("sql")
+    .WithImageTag("2019-latest");
 var zendb = sql.AddDatabase("zendb");
 
 var apiService = builder.AddProject<Projects.ZEN_ApiService>("apiservice")

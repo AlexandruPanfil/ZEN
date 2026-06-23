@@ -17,7 +17,7 @@ public static class DependencyInjection
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
         // Database with Aspire SQL Server
-        services.AddDbContextPool<ZenDbContext>(options =>
+        services.AddDbContext<ZenDbContext>(options =>
             options.UseSqlServer(configuration.GetConnectionString("zendb")));
 
         // ASP.NET Core Identity
@@ -51,7 +51,7 @@ public static class DependencyInjection
     public static IServiceCollection AddInfrastructureWindows(this IServiceCollection services, string sqlitePath)
     {
         // SQLite for MAUI Windows client
-        services.AddDbContextPool<ZenDbContext>(options =>
+        services.AddDbContext<ZenDbContext>(options =>
             options.UseSqlite($"Data Source={sqlitePath}"));
 
         // ASP.NET Core Identity
