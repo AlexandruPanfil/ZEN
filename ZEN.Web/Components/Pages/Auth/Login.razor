@@ -1,12 +1,8 @@
 @page "/login"
-@using System.Security.Claims
-@using Microsoft.AspNetCore.Authentication
-@using Microsoft.AspNetCore.Authentication.Cookies
 @using ZEN.Application.DTOs.Auth
 @using ZEN.Application.Services.Interfaces
 @inject IAuthService AuthService
 @inject NavigationManager NavigationManager
-@inject IHttpContextAccessor HttpContextAccessor
 
 <MudContainer MaxWidth="MaxWidth.Small" Class="mt-8">
     <MudPaper Elevation="3" Class="pa-6">
@@ -20,23 +16,27 @@
         <EditForm Model="@_loginRequest" OnValidSubmit="@HandleLogin">
             <DataAnnotationsValidator />
 
-            <MudTextField T="string" Value="@_loginRequest.Email" ValueChanged="@((string value) => _loginRequest = _loginRequest with { Email = value })" 
-                          Label="Email" 
-                          Variant="Variant.Outlined" 
+            <MudTextField T="string"
+                          Value="@_loginRequest.Email"
+                          ValueChanged="@((string v) => _loginRequest = _loginRequest with { Email = v })"
+                          Label="Email"
+                          Variant="Variant.Outlined"
                           Class="mb-3"
                           Required="true"
                           InputType="InputType.Email" />
 
-            <MudTextField T="string" Value="@_loginRequest.Password" ValueChanged="@((string value) => _loginRequest = _loginRequest with { Password = value })" 
-                          Label="Password" 
-                          Variant="Variant.Outlined" 
+            <MudTextField T="string"
+                          Value="@_loginRequest.Password"
+                          ValueChanged="@((string v) => _loginRequest = _loginRequest with { Password = v })"
+                          Label="Password"
+                          Variant="Variant.Outlined"
                           Class="mb-3"
                           Required="true"
                           InputType="InputType.Password" />
 
-            <MudButton ButtonType="ButtonType.Submit" 
-                       Variant="Variant.Filled" 
-                       Color="Color.Primary" 
+            <MudButton ButtonType="ButtonType.Submit"
+                       Variant="Variant.Filled"
+                       Color="Color.Primary"
                        FullWidth="true"
                        Disabled="@_isLoading">
                 @if (_isLoading)
@@ -52,9 +52,9 @@
 
         <MudDivider Class="my-4" />
 
-        <MudButton Href="/pin-login" 
-                   Variant="Variant.Text" 
-                   Color="Color.Secondary" 
+        <MudButton Href="/pin-login"
+                   Variant="Variant.Text"
+                   Color="Color.Secondary"
                    FullWidth="true">
             Login with PIN
         </MudButton>
@@ -75,27 +75,14 @@
         {
             var response = await AuthService.LoginAsync(_loginRequest);
 
-            var claims = new List<Claim>
-            {
-                new Claim(ClaimTypes.NameIdentifier, response.UserId),
-                new Claim(ClaimTypes.Name, response.UserName),
-                new Claim(ClaimTypes.Email, response.Email)
-            };
+            var rolesParam = Uri.EscapeDataString(string.Join(",", response.Roles));
+            var userIdParam = Uri.EscapeDataString(response.UserId);
+            var userNameParam = Uri.EscapeDataString(response.UserName);
+            var emailParam = Uri.EscapeDataString(response.Email);
 
-            foreach (var role in response.Roles)
-            {
-                claims.Add(new Claim(ClaimTypes.Role, role));
-            }
-
-            var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
-            var principal = new ClaimsPrincipal(identity);
-
-            var httpContext = HttpContextAccessor.HttpContext;
-            if (httpContext != null)
-            {
-                await httpContext.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, principal);
-                NavigationManager.NavigateTo("/", forceLoad: true);
-            }
+            NavigationManager.NavigateTo(
+                $"/login-handler?userId={userIdParam}&userName={userNameParam}&email={emailParam}&roles={rolesParam}&returnUrl=/",
+                forceLoad: true);
         }
         catch (UnauthorizedAccessException)
         {

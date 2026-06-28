@@ -129,27 +129,14 @@
             var request = new PinLoginRequest(_pinValue);
             var response = await AuthService.PinLoginAsync(request);
 
-            var claims = new List<Claim>
-            {
-                new Claim(ClaimTypes.NameIdentifier, response.UserId),
-                new Claim(ClaimTypes.Name, response.UserName),
-                new Claim(ClaimTypes.Email, response.Email)
-            };
+            var rolesParam = Uri.EscapeDataString(string.Join(",", response.Roles));
+            var userIdParam = Uri.EscapeDataString(response.UserId);
+            var userNameParam = Uri.EscapeDataString(response.UserName);
+            var emailParam = Uri.EscapeDataString(response.Email);
 
-            foreach (var role in response.Roles)
-            {
-                claims.Add(new Claim(ClaimTypes.Role, role));
-            }
-
-            var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
-            var principal = new ClaimsPrincipal(identity);
-
-            var httpContext = HttpContextAccessor.HttpContext;
-            if (httpContext != null)
-            {
-                await httpContext.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, principal);
-                NavigationManager.NavigateTo("/pos", forceLoad: true);
-            }
+            NavigationManager.NavigateTo(
+                $"/login-handler?userId={userIdParam}&userName={userNameParam}&email={emailParam}&roles={rolesParam}&returnUrl=/pos",
+                forceLoad: true);
         }
         catch (UnauthorizedAccessException)
         {

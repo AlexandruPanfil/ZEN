@@ -20,6 +20,8 @@ builder.AddRedisOutputCache("cache");
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
+builder.Services.AddRazorPages();
+
 // Add Infrastructure and Application layers
 builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddApplication();
@@ -69,6 +71,8 @@ app.UseAntiforgery();
 
 app.UseAuthentication();
 app.UseAuthorization();
+
+app.MapRazorPages();
 
 app.UseOutputCache();
 
