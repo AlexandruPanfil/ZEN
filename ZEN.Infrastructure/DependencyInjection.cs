@@ -16,9 +16,17 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
+        var connectionString = configuration.GetConnectionString("zendb");
+
+        if (string.IsNullOrWhiteSpace(connectionString))
+        {
+            throw new InvalidOperationException(
+                "Connection string 'zendb' is not configured. Run the application through ZEN.AppHost or add ConnectionStrings:zendb to configuration.");
+        }
+
         // Database with Aspire SQL Server
         services.AddDbContext<ZenDbContext>(options =>
-            options.UseSqlServer(configuration.GetConnectionString("zendb")));
+            options.UseSqlServer(connectionString));
 
         // ASP.NET Core Identity
         services.AddIdentity<AppUser, AppRole>(options =>

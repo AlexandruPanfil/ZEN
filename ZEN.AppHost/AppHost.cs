@@ -6,10 +6,12 @@ var sql = builder.AddSqlServer("sql")
     .WithImageTag("2019-latest");
 var zendb = sql.AddDatabase("zendb");
 
+var jwtKeyParam = builder.AddParameter("jwt-key", secret: true);
 var apiService = builder.AddProject<Projects.ZEN_ApiService>("apiservice")
     .WithHttpHealthCheck("/health")
     .WithReference(zendb)
-    .WaitFor(zendb);
+    .WaitFor(zendb)
+    .WithEnvironment("Jwt__Key", jwtKeyParam);
 
 builder.AddProject<Projects.ZEN_Web>("webfrontend")
     .WithExternalHttpEndpoints()

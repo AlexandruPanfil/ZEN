@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using MudBlazor.Services;
 using ZEN.Application;
 using ZEN.Infrastructure;
@@ -47,7 +48,9 @@ var app = builder.Build();
 // Seed database
 using (var scope = app.Services.CreateScope())
 {
+    var services = scope.ServiceProvider;
     var context = scope.ServiceProvider.GetRequiredService<ZenDbContext>();
+    await context.Database.MigrateAsync();
     var userManager = scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>();
     var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<AppRole>>();
     await DbSeeder.SeedAsync(context, userManager, roleManager);

@@ -11,12 +11,10 @@ public class ZenDbContext : IdentityDbContext<AppUser, AppRole, string>
     private readonly ICurrentUserService? _currentUserService;
     private readonly IAuditService? _auditService;
 
-    public ZenDbContext(DbContextOptions<ZenDbContext> options) : base(options) { }
-
     public ZenDbContext(
         DbContextOptions<ZenDbContext> options,
-        ICurrentUserService currentUserService,
-        IAuditService auditService) : base(options)
+        ICurrentUserService currentUserService = null,
+        IAuditService auditService = null) : base(options)
     {
         _currentUserService = currentUserService;
         _auditService = auditService;
@@ -84,6 +82,8 @@ public class ZenDbContext : IdentityDbContext<AppUser, AppRole, string>
 
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(ZenDbContext).Assembly);
 
+        ConfigureDefaultDecimalPrecision(modelBuilder);
+
         // Global query filter for soft delete
         foreach (var entityType in modelBuilder.Model.GetEntityTypes())
         {
@@ -129,5 +129,21 @@ public class ZenDbContext : IdentityDbContext<AppUser, AppRole, string>
         // TODO: Implement audit logging via _auditService when needed
 
         return await base.SaveChangesAsync(cancellationToken);
+    }
+
+    private static void ConfigureDefaultDecimalPrecision(ModelBuilder modelBuilder)
+    {
+        foreach (var property in modelBuilder.Model.GetEntityTypes().SelectMany(entityType => entityType.GetProperties()))
+        {
+            var propertyType = Nullable.GetUnderlyingType(property.ClrType) ?? property.ClrType;
+
+            if (propertyType == typeof(decimal)
+                && property.GetPrecision() is null
+                && property.GetColumnType() is null)
+            {
+                property.SetPrecision(18);
+                property.SetScale(2);
+            }
+        }
     }
 }
