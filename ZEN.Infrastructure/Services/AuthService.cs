@@ -1,16 +1,24 @@
-using System.IdentityModel.Tokens.Jwt;
-using System.Security.Claims;
-using System.Text;
 using AutoMapper;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
+using System.Text;
 using ZEN.Application.DTOs.Auth;
 using ZEN.Application.Services.Interfaces;
 using ZEN.Infrastructure.Identity;
 
 namespace ZEN.Infrastructure.Services;
+
+public class JwtSettings
+{
+    public string Key { get; set; } = string.Empty;
+    public string Issuer { get; set; } = string.Empty;
+    public string Audience { get; set; } = string.Empty;
+}
 
 public class AuthService : IAuthService
 {
@@ -18,17 +26,21 @@ public class AuthService : IAuthService
     private readonly SignInManager<AppUser> _signInManager;
     private readonly IMapper _mapper;
     private readonly IConfiguration _configuration;
+    private readonly JwtSettings _jwtSettings;
 
     public AuthService(
         UserManager<AppUser> userManager,
         SignInManager<AppUser> signInManager,
         IMapper mapper,
-        IConfiguration configuration)
+        IConfiguration configuration
+        //IOptions<JwtSettings> jwtOptions
+        )
     {
         _userManager = userManager;
         _signInManager = signInManager;
         _mapper = mapper;
         _configuration = configuration;
+        //_jwtSettings = jwtOptions.Value;
     }
 
     public async Task<LoginResponse> LoginAsync(LoginRequest request, CancellationToken cancellationToken = default)
@@ -138,6 +150,11 @@ public class AuthService : IAuthService
 
     private string GenerateJwtToken(AppUser user, IList<string> roles)
     {
+
+        var keyString = _configuration["Jwt:Key"];
+        if (string.IsNullOrEmpty(keyString))
+            throw new InvalidOperationException("JWT Key is missing from configuration!");
+
         var claims = new List<Claim>
         {
             new(ClaimTypes.NameIdentifier, user.Id),
@@ -148,7 +165,9 @@ public class AuthService : IAuthService
 
         claims.AddRange(roles.Select(role => new Claim(ClaimTypes.Role, role)));
 
-        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["Jwt:Key"] ?? throw new InvalidOperationException("JWT key not configured")));
+        //var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_jwtSettings.Key));
+        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(keyString));
+        //var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["Jwt:Key"] ?? throw new InvalidOperationException("JWT key not configured")));
         var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
         var token = new JwtSecurityToken(

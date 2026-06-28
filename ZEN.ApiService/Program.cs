@@ -1,9 +1,10 @@
-using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
+using System.Text;
 using ZEN.ApiService.Endpoints;
 using ZEN.Application;
 using ZEN.Infrastructure;
+using ZEN.Infrastructure.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -15,6 +16,19 @@ builder.Services.AddProblemDetails();
 
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
+
+
+//builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection("Jwt"));
+var jwtSection = builder.Configuration.GetSection("Jwt");
+builder.Services.Configure<JwtSettings>(jwtSection);
+
+var jwtSettings = jwtSection.Get<JwtSettings>();
+if (string.IsNullOrEmpty(jwtSettings?.Key))
+{
+    throw new InvalidOperationException("JWT Key is missing or empty in appsettings.json!");
+}
+
+
 
 // Add Infrastructure and Application layers
 builder.Services.AddInfrastructure(builder.Configuration);
