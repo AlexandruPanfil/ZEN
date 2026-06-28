@@ -8,4 +8,16 @@ public record PinLoginRequest(string PIN);
 
 public record RegisterUserRequest(string Email, string FullName, string Password, string? PIN, IEnumerable<string> Roles);
 
-public record UserDto(string Id, string Email, string FullName, string? PIN, bool IsActive, IEnumerable<string> Roles);
+public record UserDto(string Id, string Email, string FullName, string? PIN, bool IsActive, IEnumerable<string> Roles)
+{
+    // Add this parameterless constructor
+    public UserDto() : this(
+        string.Empty,
+        string.Empty,
+        string.Empty,
+        null,
+        false,
+        Enumerable.Empty<string>())
+    {
+    }
+}

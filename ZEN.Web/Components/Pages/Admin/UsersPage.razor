@@ -1,11 +1,373 @@
 @page "/admin/users"
+@using System.Linq
 @using Microsoft.AspNetCore.Authorization
+@using MudBlazor
+@using ZEN.Application.DTOs.Auth
+@using ZEN.Application.Services.Interfaces
 @* @attribute [Authorize(Roles = "Administrator")] *@
+@inject IAuthService AuthService
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
 
 <PageTitle>User Management - ZEN POS</PageTitle>
 
-<MudText Typo="Typo.h3" GutterBottom="true">User Management</MudText>
+<MudText Typo="Typo.h4" GutterBottom="true">User management</MudText>
 
-<MudPaper Class="pa-4">
-    <MudText>TODO: User list, create/edit users, assign roles, set PINs</MudText>
+<MudPaper Elevation="0" Class="pa-4" Style="border: 1px solid var(--mud-palette-divider); border-radius: 12px;">
+
+    <MudToolBar DisableGutters="true" Class="mb-4" Style="gap: 12px;">
+        <MudTextField @bind-Value="_searchTerm"
+                      Placeholder="Search by name or email…"
+                      Adornment="Adornment.Start"
+                      AdornmentIcon="@Icons.Material.Filled.Search"
+                      Immediate="true"
+                      Variant="Variant.Outlined"
+                      Margin="Margin.Dense"
+                      Style="max-width: 320px;" />
+
+        <MudToggleGroup T="string" @bind-Value="_filter" Mandatory="true" Size="Size.Small" Outlined="true">
+            <MudToggleItem Value="@("All")" Text="All" />
+            <MudToggleItem Value="@("Active")" Text="Active" />
+            <MudToggleItem Value="@("Inactive")" Text="Inactive" />
+        </MudToggleGroup>
+
+        <MudSpacer />
+
+        <MudButton Variant="Variant.Filled"
+                   Color="Color.Primary"
+                   StartIcon="@Icons.Material.Filled.PersonAdd"
+                   OnClick="@OpenCreateDialog">
+            Add user
+        </MudButton>
+    </MudToolBar>
+
+    <MudTable Items="@FilteredUsers"
+              Dense="true"
+              Hover="true"
+              Loading="@_loading"
+              LoadingProgressColor="Color.Primary"
+              Elevation="0">
+        <HeaderContent>
+            <MudTh>User</MudTh>
+            <MudTh>Role</MudTh>
+            <MudTh>PIN</MudTh>
+            <MudTh>Status</MudTh>
+            <MudTh Style="width: 100px;"></MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd>
+                <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                    <MudAvatar Color="Color.Primary" Size="Size.Small">
+                        @GetInitials(context.FullName)
+                    </MudAvatar>
+                    <div>
+                        <MudText Typo="Typo.body2" Style="font-weight: 500;">@context.FullName</MudText>
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">@context.Email</MudText>
+                    </div>
+                </MudStack>
+            </MudTd>
+            <MudTd>
+                @foreach (var role in context.Roles)
+                {
+                    <MudChip T="string" Size="Size.Small" Color="@GetRoleColor(role)" Variant="Variant.Filled">@role</MudChip>
+                }
+            </MudTd>
+            <MudTd>
+                @if (!string.IsNullOrEmpty(context.PIN))
+                {
+                    <MudText Typo="Typo.caption" Style="font-family: monospace; letter-spacing: 2px;">••••</MudText>
+                }
+                else
+                {
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">—</MudText>
+                }
+            </MudTd>
+            <MudTd>
+                <MudChip T="string" Size="Size.Small"
+                         Color="@(context.IsActive ? Color.Success : Color.Error)"
+                         Variant="Variant.Filled">
+                    @(context.IsActive ? "Active" : "Inactive")
+                </MudChip>
+            </MudTd>
+            <MudTd>
+                <MudIconButton Icon="@Icons.Material.Filled.Edit"
+                               Size="Size.Small"
+                               Title="Edit user"
+                               OnClick="@(() => OpenEditDialog(context))" />
+                <MudIconButton Icon="@(context.IsActive ? Icons.Material.Filled.Lock : Icons.Material.Filled.LockOpen)"
+                               Size="Size.Small"
+                               Color="@(context.IsActive ? Color.Warning : Color.Success)"
+                               Title="@(context.IsActive ? "Deactivate" : "Reactivate")"
+                               OnClick="@(() => ToggleUserActive(context))" />
+            </MudTd>
+        </RowTemplate>
+        <NoRecordsContent>
+            <MudText Typo="Typo.body2" Color="Color.Secondary" Class="pa-4">No users match your search.</MudText>
+        </NoRecordsContent>
+    </MudTable>
+
+    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-2">
+        @FilteredUsers.Count() user@(FilteredUsers.Count() == 1 ? "" : "s")
+    </MudText>
+
 </MudPaper>
+
+@* Note the change to @bind-Visible here! *@
+<MudDialog @bind-Visible="_dialogOpen" Options="_dialogOptions">
+    <TitleContent>
+        <MudText Typo="Typo.h6">@(_editingUser == null ? "Add user" : "Edit user")</MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudStack Spacing="3">
+            <MudTextField @bind-Value="_form.FullName" Label="Full name" Variant="Variant.Outlined" Required="true" />
+
+            <MudTextField @bind-Value="_form.Email" Label="Email" Variant="Variant.Outlined" InputType="InputType.Email" Required="true" />
+
+            @if (_editingUser == null)
+            {
+                <MudTextField @bind-Value="_form.Password" Label="Password" Variant="Variant.Outlined" InputType="InputType.Password" Required="true" HelperText="Min. 6 characters, including uppercase and digit." />
+            }
+
+            <MudTextField @bind-Value="_form.PIN" Label="PIN (optional)" Variant="Variant.Outlined" InputType="InputType.Password" MaxLength="6" HelperText="4–6 digit PIN for quick login." />
+
+            @* Clean, native MudBlazor binding using @bind-SelectedValues *@
+            <MudSelect T="string"
+                       Label="Roles"
+                       Variant="Variant.Outlined"
+                       MultiSelection="true"
+                       SelectedValues="_form.SelectedRoles"
+                       SelectedValuesChanged="@(values => _form.SelectedRoles = values)">
+                @foreach (var role in _availableRoles)
+                {
+                    <MudSelectItem Value="@role">@role</MudSelectItem>
+                }
+            </MudSelect>
+        </MudStack>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@CloseDialog">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="@SaveUser" Disabled="@_saving">
+            @if (_saving)
+            {
+                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+            }
+            @(_editingUser == null ? "Create user" : "Save changes")
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private bool _loading = true;
+    private bool _dialogOpen;
+    private bool _saving;
+    private string _searchTerm = string.Empty;
+    private string _filter = "All";
+    private UserDto? _editingUser;
+    private List<UserDto> _users = [];
+
+    private readonly string[] _availableRoles =
+        ["Administrator", "Manager", "Cashier", "Accountant", "InventoryManager", "Technician"];
+
+    private readonly DialogOptions _dialogOptions = new()
+    {
+        MaxWidth = MaxWidth.Small,
+        FullWidth = true,
+        CloseOnEscapeKey = true
+    };
+
+    private UserFormModel _form = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadUsers();
+    }
+
+    private async Task LoadUsers()
+    {
+        _loading = true;
+        try
+        {
+            var result = await AuthService.GetAllUsersAsync();
+            _users = result.ToList();
+        }
+        catch
+        {
+            Snackbar.Add("Could not load users.", Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private IEnumerable<UserDto> FilteredUsers
+    {
+        get
+        {
+            var query = _users.AsEnumerable();
+
+            query = _filter switch
+            {
+                "Active"   => query.Where(u => u.IsActive),
+                "Inactive" => query.Where(u => !u.IsActive),
+                _          => query
+            };
+
+            if (!string.IsNullOrWhiteSpace(_searchTerm))
+            {
+                var term = _searchTerm.Trim().ToLower();
+                query = query.Where(u =>
+                    u.FullName.ToLower().Contains(term) ||
+                    u.Email.ToLower().Contains(term));
+            }
+
+            return query;
+        }
+    }
+
+    private void OpenCreateDialog()
+    {
+        _editingUser = null;
+        _form = new UserFormModel();
+        _dialogOpen = true;
+        StateHasChanged(); // <-- Forces the UI to evaluate _dialogOpen immediately
+    }
+
+    private void OpenEditDialog(UserDto user)
+    {
+        _editingUser = user;
+        _form = new UserFormModel
+        {
+            FullName = user.FullName,
+            Email = user.Email,
+            PIN = user.PIN ?? string.Empty,
+            // Convert to list to satisfy IReadOnlyCollection
+            SelectedRoles = user.Roles?.ToList() ?? new List<string>()
+        };
+        _dialogOpen = true;
+        StateHasChanged();
+    }
+
+    private void CloseDialog()
+    {
+        _dialogOpen = false;
+        _editingUser = null;
+        _form = new();
+    }
+
+    private async Task SaveUser()
+    {
+        if (string.IsNullOrWhiteSpace(_form.FullName) || string.IsNullOrWhiteSpace(_form.Email))
+        {
+            Snackbar.Add("Name and email are required.", Severity.Warning);
+            return;
+        }
+
+        _saving = true;
+        try
+        {
+            // Now you can pass _form.SelectedRoles directly!
+            var request = new RegisterUserRequest(
+                _form.Email,
+                _form.FullName,
+                _editingUser == null ? _form.Password : "Placeholder1",
+                string.IsNullOrEmpty(_form.PIN) ? null : _form.PIN,
+                _form.SelectedRoles
+            );
+
+            if (_editingUser == null)
+            {
+                await AuthService.RegisterUserAsync(request);
+                Snackbar.Add("User created.", Severity.Success);
+            }
+            else
+            {
+                await AuthService.UpdateUserAsync(_editingUser.Id, request);
+                Snackbar.Add("User updated.", Severity.Success);
+            }
+
+            CloseDialog();
+            await LoadUsers();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Could not save: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private async Task ToggleUserActive(UserDto user)
+    {
+        var verb = user.IsActive ? "deactivate" : "reactivate";
+
+        bool? confirmed = await DialogService.ShowMessageBoxAsync(
+                title: $"Confirm {verb}",
+                message: $"Are you sure you want to {verb} {user.FullName}?",
+                yesText: char.ToUpper(verb[0]) + verb[1..],
+                noText: "Cancel"
+            );
+
+        if (confirmed != true) return;
+
+        try
+        {
+            if (user.IsActive)
+            {
+                await AuthService.DeactivateUserAsync(user.Id);
+            }
+            else
+            {
+                // Force evaluation to an array
+                IReadOnlyCollection<string> rolesCollection = user.Roles?.ToArray() ?? Array.Empty<string>();
+
+                var updateRequest = new RegisterUserRequest(
+                    user.Email,
+                    user.FullName,
+                    "Placeholder1!",
+                    user.PIN,
+                    rolesCollection
+                );
+                await AuthService.UpdateUserAsync(user.Id, updateRequest);
+            }
+
+            Snackbar.Add($"User {verb}d.", Severity.Success);
+            await LoadUsers();
+        }
+        catch
+        {
+            Snackbar.Add($"Could not {verb} user.", Severity.Error);
+        }
+    }
+
+    private static string GetInitials(string name)
+    {
+        var parts = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return parts.Length >= 2
+            ? $"{parts[0][0]}{parts[^1][0]}".ToUpper()
+            : name.Length >= 2 ? name[..2].ToUpper() : name.ToUpper();
+    }
+
+    private static Color GetRoleColor(string role) => role switch
+    {
+        "Administrator"    => Color.Secondary,
+        "Manager"          => Color.Primary,
+        "Cashier"          => Color.Success,
+        "Accountant"       => Color.Info,
+        "InventoryManager" => Color.Warning,
+        _                  => Color.Default
+    };
+
+    private class UserFormModel
+    {
+        public string FullName { get; set; } = string.Empty;
+        public string Email { get; set; } = string.Empty;
+        public string Password { get; set; } = string.Empty;
+        public string PIN { get; set; } = string.Empty;
+
+        // Use IReadOnlyCollection so the API call is a direct assignment
+        public IReadOnlyCollection<string> SelectedRoles { get; set; } = new List<string>();
+    }
+}
