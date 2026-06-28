@@ -121,9 +121,12 @@ public class AuthService : IAuthService
         if (user == null)
             return false;
 
+        // Split FullName into first/last
+        var parts = request.FullName.Split(' ', 2);
+        user.FirstName = parts[0];
+        user.LastName = parts.Length > 1 ? parts[1] : string.Empty;
         user.Email = request.Email;
-        user.FirstName = request.FullName;
-        user.LastName = string.Empty;
+        user.UserName = request.Email;
         user.PIN = request.PIN;
 
         var result = await _userManager.UpdateAsync(user);
@@ -132,7 +135,8 @@ public class AuthService : IAuthService
 
         var currentRoles = await _userManager.GetRolesAsync(user);
         await _userManager.RemoveFromRolesAsync(user, currentRoles);
-        await _userManager.AddToRolesAsync(user, request.Roles);
+        if (request.Roles.Any())
+            await _userManager.AddToRolesAsync(user, request.Roles);
 
         return true;
     }
