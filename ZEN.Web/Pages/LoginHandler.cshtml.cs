@@ -1,8 +1,8 @@
 ﻿using Microsoft.AspNetCore.Authentication;
-using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using System.Security.Claims;
+using Microsoft.AspNetCore.Identity;
 
 namespace ZEN.Web.Pages;
 
@@ -26,10 +26,10 @@ public class LoginHandlerModel : PageModel
 
         claims.AddRange(roleList.Select(r => new Claim(ClaimTypes.Role, r.Trim())));
 
-        var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
+        var identity = new ClaimsIdentity(claims, IdentityConstants.ApplicationScheme);
         var principal = new ClaimsPrincipal(identity);
 
-        await HttpContext.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, principal);
+        await HttpContext.SignInAsync(IdentityConstants.ApplicationScheme, principal);
 
         if (string.IsNullOrEmpty(returnUrl) || !Url.IsLocalUrl(returnUrl))
             returnUrl = "/";

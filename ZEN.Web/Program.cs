@@ -34,16 +34,26 @@ builder.Services.AddMudServices();
 builder.Services.AddHttpContextAccessor();
 
 // Cookie Authentication
-builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
-    .AddCookie(options =>
-    {
-        options.LoginPath = "/login";
-        options.LogoutPath = "/logout";
-        options.ExpireTimeSpan = TimeSpan.FromHours(8);
-        options.SlidingExpiration = true;
-    });
+//builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
+//    .AddCookie(options =>
+//    {
+//        options.LoginPath = "/login";
+//        options.LogoutPath = "/logout";
+//        options.ExpireTimeSpan = TimeSpan.FromHours(8);
+//        options.SlidingExpiration = true;
+//    });
+
+builder.Services.ConfigureApplicationCookie(options =>
+{
+    options.LoginPath = "/login";
+    options.LogoutPath = "/logout";
+    options.ExpireTimeSpan = TimeSpan.FromHours(8);
+    options.SlidingExpiration = true;
+});
 
 builder.Services.AddAuthorization();
+
+builder.Services.AddCascadingAuthenticationState();
 
 builder.Services.AddRazorPages()
     .AddRazorPagesOptions(options =>
@@ -73,10 +83,11 @@ if (!app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
-app.UseAntiforgery();
-
 app.UseAuthentication();
 app.UseAuthorization();
+
+app.UseAntiforgery();
+
 
 app.MapRazorPages();
 
