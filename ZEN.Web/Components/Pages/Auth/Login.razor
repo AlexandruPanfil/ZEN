@@ -75,14 +75,19 @@
         {
             var response = await AuthService.LoginAsync(_loginRequest);
 
-            var rolesParam = Uri.EscapeDataString(string.Join(",", response.Roles));
-            var userIdParam = Uri.EscapeDataString(response.UserId);
-            var userNameParam = Uri.EscapeDataString(response.UserName);
-            var emailParam = Uri.EscapeDataString(response.Email);
+            var query = new Dictionary<string, string?>
+            {
+                ["userId"] = response.UserId,
+                ["userName"] = response.UserName,
+                ["email"] = response.Email,
+                ["roles"] = string.Join(",", response.Roles),
+                ["returnUrl"] = "/"
+            };
 
-            NavigationManager.NavigateTo(
-                $"/login-handler?userId={userIdParam}&userName={userNameParam}&email={emailParam}&roles={rolesParam}&returnUrl=/",
-                forceLoad: true);
+            var url = Microsoft.AspNetCore.WebUtilities.QueryHelpers.AddQueryString(
+                "/login-handler", query);
+
+            NavigationManager.NavigateTo(url, forceLoad: true);
         }
         catch (UnauthorizedAccessException)
         {

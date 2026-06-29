@@ -12,7 +12,10 @@ public class LoginHandlerModel : PageModel
         string userId, string userName, string email,
         string roles, string returnUrl = "/")
     {
-        var roleList = roles.Split(',', StringSplitOptions.RemoveEmptyEntries);
+        if (string.IsNullOrEmpty(userId) || string.IsNullOrEmpty(email))
+            return RedirectToPage("/login");
+
+        var roleList = roles?.Split(',', StringSplitOptions.RemoveEmptyEntries) ?? [];
 
         var claims = new List<Claim>
         {
@@ -21,13 +24,17 @@ public class LoginHandlerModel : PageModel
             new(ClaimTypes.Email, email)
         };
 
-        claims.AddRange(roleList.Select(r => new Claim(ClaimTypes.Role, r)));
+        claims.AddRange(roleList.Select(r => new Claim(ClaimTypes.Role, r.Trim())));
 
         var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
         var principal = new ClaimsPrincipal(identity);
 
         await HttpContext.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, principal);
 
-        return LocalRedirect(returnUrl);
+        // Validate the return URL to prevent open redirect attacks
+        if (string.IsNullOrEmpty(returnUrl) || !Url.IsLocalUrl(returnUrl))
+            returnUrl = "/";
+
+        return Redirect(returnUrl);
     }
 }

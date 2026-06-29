@@ -129,14 +129,19 @@
             var request = new PinLoginRequest(_pinValue);
             var response = await AuthService.PinLoginAsync(request);
 
-            var rolesParam = Uri.EscapeDataString(string.Join(",", response.Roles));
-            var userIdParam = Uri.EscapeDataString(response.UserId);
-            var userNameParam = Uri.EscapeDataString(response.UserName);
-            var emailParam = Uri.EscapeDataString(response.Email);
+            var query = new Dictionary<string, string?>
+            {
+                ["userId"] = response.UserId,
+                ["userName"] = response.UserName,
+                ["email"] = response.Email,
+                ["roles"] = string.Join(",", response.Roles),
+                ["returnUrl"] = "/pos"
+            };
 
-            NavigationManager.NavigateTo(
-                $"/login-handler?userId={userIdParam}&userName={userNameParam}&email={emailParam}&roles={rolesParam}&returnUrl=/pos",
-                forceLoad: true);
+            var url = Microsoft.AspNetCore.WebUtilities.QueryHelpers.AddQueryString(
+                "/login-handler", query);
+
+            NavigationManager.NavigateTo(url, forceLoad: true);
         }
         catch (UnauthorizedAccessException)
         {
