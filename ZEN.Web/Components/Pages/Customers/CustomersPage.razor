@@ -1,5 +1,11 @@
 @page "/customers"
 @using Microsoft.AspNetCore.Authorization
+@using ZEN.Application.Services.Interfaces
+@using ZEN.Application.DTOs.Customers
+@using ZEN.Web.Components.Dialogs
+@inject ICustomerService CustomerService
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
 @attribute [Authorize(Roles = "Administrator,Manager,Cashier")]
 
 <PageTitle>Customers - ZEN POS</PageTitle>
@@ -7,5 +13,240 @@
 <MudText Typo="Typo.h3" GutterBottom="true">Customers</MudText>
 
 <MudPaper Class="pa-4">
-    <MudText>TODO: Customer list, search, loyalty points, purchase history</MudText>
+    <div class="d-flex align-center justify-space-between mb-4">
+        <MudTextField @bind-Value="_searchTerm" 
+                      Label="Search Customers" 
+                      Variant="Variant.Outlined" 
+                      Adornment="Adornment.Start" 
+                      AdornmentIcon="@Icons.Material.Filled.Search" 
+                      OnKeyDown="@HandleKeyDown" 
+                      Class="flex-grow-1 mr-4" />
+
+        <MudButton Variant="Variant.Filled" 
+                   Color="Color.Primary" 
+                   StartIcon="@Icons.Material.Filled.Add" 
+                   OnClick="OpenCreateDialog">
+            Add Customer
+        </MudButton>
+    </div>
+
+    <MudTable Items="@_customers" Hover="true" Breakpoint="Breakpoint.Sm" Loading="@_isLoading" LoadingProgressColor="Color.Info">
+        <ToolBarContent>
+            <MudText Typo="Typo.h6">Customer List</MudText>
+        </ToolBarContent>
+        <HeaderContent>
+            <MudTh>Name</MudTh>
+            <MudTh>Email</MudTh>
+            <MudTh>Phone</MudTh>
+            <MudTh>Loyalty Points</MudTh>
+            <MudTh>Total Spent</MudTh>
+            <MudTh>Status</MudTh>
+            <MudTh>Actions</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="Name">@context.Name</MudTd>
+            <MudTd DataLabel="Email">@context.Email</MudTd>
+            <MudTd DataLabel="Phone">@context.Phone</MudTd>
+            <MudTd DataLabel="Loyalty Points">@context.LoyaltyPoints</MudTd>
+            <MudTd DataLabel="Total Spent">@context.TotalSpent.ToString("C")</MudTd>
+            <MudTd DataLabel="Status">
+                <MudChip T="string" Color="@(context.IsActive ? Color.Success : Color.Error)" Size="Size.Small">
+                    @(context.IsActive ? "Active" : "Inactive")
+                </MudChip>
+            </MudTd>
+            <MudTd DataLabel="Actions">
+                <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Info" OnClick="@(() => OpenEditDialog(context))" />
+                <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" OnClick="@(() => DeleteCustomer(context))" />
+            </MudTd>
+        </RowTemplate>
+        <PagerContent>
+            <MudTablePager />
+        </PagerContent>
+    </MudTable>
 </MudPaper>
+
+<MudDialog @bind-IsVisible="_isDialogOpen">
+    <TitleContent>
+        <MudText Typo="Typo.h6">@( _isEditMode ? "Edit Customer" : "Create Customer" )</MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudForm @ref="_form" @bind-IsValid="@_formIsValid">
+            <MudGrid>
+                <MudItem xs="12" sm="6">
+                    <MudTextField Label="Name" @bind-Value="_editingCustomer.Name" Required="true" For="@(() => _editingCustomer.Name)" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudTextField Label="Email" @bind-Value="_editingCustomer.Email" For="@(() => _editingCustomer.Email)" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudTextField Label="Phone" @bind-Value="_editingCustomer.Phone" For="@(() => _editingCustomer.Phone)" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudTextField Label="Address" @bind-Value="_editingCustomer.Address" For="@(() => _editingCustomer.Address)" />
+                </MudItem>
+                @if (_isEditMode)
+                {
+                    <MudItem xs="12">
+                        <MudSwitch @bind-Value="_editingCustomer.IsActive" Color="Color.Primary" Label="Active" />
+                    </MudItem>
+                }
+            </MudGrid>
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="CloseDialog">Cancel</MudButton>
+        <MudButton Color="Color.Primary" OnClick="SaveCustomer" Disabled="@(!_formIsValid)">Save</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private IEnumerable<CustomerDto> _customers = new List<CustomerDto>();
+    private string _searchTerm = string.Empty;
+    private bool _isLoading = true;
+    private bool _isDialogOpen = false;
+    private bool _isEditMode = false;
+    private bool _formIsValid = false;
+    private MudForm _form = default!;
+    private UpdateCustomerRequest _editingCustomer = new(Guid.Empty, "", null, null, null, null, true);
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadCustomers();
+    }
+
+    private async Task LoadCustomers()
+    {
+        _isLoading = true;
+        try
+        {
+            _customers = await CustomerService.GetAllAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await SearchCustomers();
+        }
+    }
+
+    private async Task SearchCustomers()
+    {
+        _isLoading = true;
+        try
+        {
+            if (string.IsNullOrWhiteSpace(_searchTerm))
+            {
+                _customers = await CustomerService.GetAllAsync();
+            }
+            else
+            {
+                _customers = await CustomerService.SearchAsync(_searchTerm);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private void OpenCreateDialog()
+    {
+        _isEditMode = false;
+        _editingCustomer = new UpdateCustomerRequest(Guid.Empty, "", null, null, null, null, true);
+        _isDialogOpen = true;
+    }
+
+    private void OpenEditDialog(CustomerDto customer)
+    {
+        _isEditMode = true;
+        _editingCustomer = new UpdateCustomerRequest(
+            customer.Id,
+            customer.Name,
+            customer.Email,
+            customer.Phone,
+            customer.Address,
+            customer.CustomerGroupId,
+            customer.IsActive
+        );
+        _isDialogOpen = true;
+    }
+
+    private async Task SaveCustomer()
+    {
+        try
+        {
+            if (_isEditMode)
+            {
+                await CustomerService.UpdateAsync(_editingCustomer);
+                Snackbar.Add("Customer updated successfully", Severity.Success);
+            }
+            else
+            {
+                var createRequest = new CreateCustomerRequest(
+                    _editingCustomer.Name,
+                    _editingCustomer.Email,
+                    _editingCustomer.Phone,
+                    _editingCustomer.Address,
+                    _editingCustomer.CustomerGroupId
+                );
+                await CustomerService.CreateAsync(createRequest);
+                Snackbar.Add("Customer created successfully", Severity.Success);
+            }
+            await LoadCustomers();
+            CloseDialog();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private async Task DeleteCustomer(CustomerDto customer)
+    {
+        var parameters = new DialogParameters { ["Text"] = $"Are you sure you want to delete {customer.Name}?" };
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small, FullScreen = false };
+
+        var dialog = await DialogService.ShowAsync<ConfirmationDialog>("Delete Customer", parameters, options);
+        var result = await dialog.Result;
+
+        if (result?.Data is bool confirmed && confirmed)
+        {
+            try
+            {
+                var success = await CustomerService.DeleteAsync(customer.Id);
+                if (success)
+                {
+                    Snackbar.Add("Customer deleted successfully", Severity.Success);
+                    await LoadCustomers();
+                }
+                else
+                {
+                    Snackbar.Add("Failed to delete customer", Severity.Error);
+                }
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add(ex.Message, Severity.Error);
+            }
+        }
+    }
+
+    private void CloseDialog()
+    {
+        _isDialogOpen = false;
+    }
+}

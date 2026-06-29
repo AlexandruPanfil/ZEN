@@ -19,14 +19,29 @@ public record CreateCustomerRequest(
     string? Address,
     Guid? CustomerGroupId);
 
-public record UpdateCustomerRequest(
-    Guid Id,
-    string Name,
-    string? Email,
-    string? Phone,
-    string? Address,
-    Guid? CustomerGroupId,
-    bool IsActive);
+public class UpdateCustomerRequest
+{
+    public UpdateCustomerRequest() { }
+
+    public UpdateCustomerRequest(Guid id, string name, string? email, string? phone, string? address, Guid? customerGroupId, bool isActive)
+    {
+        Id = id;
+        Name = name;
+        Email = email;
+        Phone = phone;
+        Address = address;
+        CustomerGroupId = customerGroupId;
+        IsActive = isActive;
+    }
+
+    public Guid Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string? Email { get; set; }
+    public string? Phone { get; set; }
+    public string? Address { get; set; }
+    public Guid? CustomerGroupId { get; set; }
+    public bool IsActive { get; set; }
+}
 
 public record CustomerGroupDto(
     Guid Id,

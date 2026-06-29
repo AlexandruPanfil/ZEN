@@ -1,0 +1,14 @@
+@inherits ComponentBase
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">Confirmation</MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudText>@Text</MudText>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="No">No</MudButton>
+        <MudButton Color="Color.Primary" OnClick="Yes">Yes</MudButton>
+    </DialogActions>
+</MudDialog>
