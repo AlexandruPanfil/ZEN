@@ -135,7 +135,7 @@
                 ["userName"] = response.UserName,
                 ["email"] = response.Email,
                 ["roles"] = string.Join(",", response.Roles),
-                ["returnUrl"] = "/pos"
+                ["returnUrl"] = "/"
             };
 
             var url = Microsoft.AspNetCore.WebUtilities.QueryHelpers.AddQueryString(

@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using System.Security.Claims;
 
-namespace ZEN.Web.Components.Pages.Auth;
+namespace ZEN.Web.Pages;
 
 public class LoginHandlerModel : PageModel
 {
@@ -31,7 +31,6 @@ public class LoginHandlerModel : PageModel
 
         await HttpContext.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, principal);
 
-        // Validate the return URL to prevent open redirect attacks
         if (string.IsNullOrEmpty(returnUrl) || !Url.IsLocalUrl(returnUrl))
             returnUrl = "/";
 

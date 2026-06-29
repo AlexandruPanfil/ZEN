@@ -45,6 +45,12 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
 
 builder.Services.AddAuthorization();
 
+builder.Services.AddRazorPages()
+    .AddRazorPagesOptions(options =>
+    {
+        options.RootDirectory = "/Pages";
+    });
+
 var app = builder.Build();
 
 // Seed database
