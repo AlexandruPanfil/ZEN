@@ -1,0 +1,338 @@
+@page "/suppliers"
+@using Microsoft.AspNetCore.Authorization
+@using ZEN.Application.Services.Interfaces
+@using ZEN.Application.DTOs.Suppliers
+@using ZEN.Application.DTOs.Inventory
+@using ZEN.Web.Components.Dialogs
+@inject ISupplierService SupplierService
+@inject IInventoryService InventoryService
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+
+@attribute [Authorize(Roles = "Administrator,Manager,InventoryManager")]
+
+<PageTitle>Suppliers - ZEN POS</PageTitle>
+
+<MudText Typo="Typo.h3" GutterBottom="true">Suppliers</MudText>
+
+<MudPaper Class="pa-4 mb-4">
+    <div class="d-flex align-center justify-space-between mb-4">
+        <MudTextField @bind-Value="_searchTerm" 
+                      Label="Search Suppliers" 
+                      Variant="Variant.Outlined" 
+                      Adornment="Adornment.Start" 
+                      AdornmentIcon="@Icons.Material.Filled.Search" 
+                      OnKeyDown="@HandleKeyDown" 
+                      Class="flex-grow-1 mr-4" />
+
+        <MudButton Variant="Variant.Filled" 
+                   Color="Color.Primary" 
+                   StartIcon="@Icons.Material.Filled.Add" 
+                   OnClick="OpenCreateDialog">
+            Add Supplier
+        </MudButton>
+    </div>
+
+    <MudTable Items="@_suppliers" Hover="true" Breakpoint="Breakpoint.Sm" Loading="@_isLoading" LoadingProgressColor="Color.Info">
+        <ToolBarContent>
+            <MudText Typo="Typo.h6">Supplier List</MudText>
+        </ToolBarContent>
+        <HeaderContent>
+            <MudTh>Name</MudTh>
+            <MudTh>Contact Person</MudTh>
+            <MudTh>Email</MudTh>
+            <MudTh>Phone</MudTh>
+            <MudTh>Balance</MudTh>
+            <MudTh>Status</MudTh>
+            <MudTh>Actions</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="Name">@context.Name</MudTd>
+            <MudTd DataLabel="Contact Person">@context.ContactPerson</MudTd>
+            <MudTd DataLabel="Email">@context.Email</MudTd>
+            <MudTd DataLabel="Phone">@context.Phone</MudTd>
+            <MudTd DataLabel="Balance">@context.Balance.ToString("C")</MudTd>
+            <MudTd DataLabel="Status">
+                <MudChip T="string" Color="@(context.IsActive ? Color.Success : Color.Error)" Size="Size.Small">
+                    @(context.IsActive ? "Active" : "Inactive")
+                </MudChip>
+            </MudTd>
+            <MudTd DataLabel="Actions">
+                <MudIconButton Icon="@Icons.Material.Filled.History" Color="Color.Info" OnClick="@(() => OpenHistoryDialog(context))" />
+                <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" OnClick="@(() => OpenEditDialog(context))" />
+                <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" OnClick="@(() => DeleteSupplier(context))" />
+            </MudTd>
+        </RowTemplate>
+        <PagerContent>
+            <MudTablePager />
+        </PagerContent>
+    </MudTable>
+</MudPaper>
+
+<!-- Create/Edit Dialog -->
+<MudDialog @bind-IsVisible="_isDialogOpen">
+    <TitleContent>
+        <MudText Typo="Typo.h6">@( _isEditMode ? "Edit Supplier" : "Create Supplier" )</MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudForm @ref="_form" @bind-IsValid="@_formIsValid">
+            <MudGrid>
+                <MudItem xs="12" sm="6">
+                    <MudTextField Label="Name" @bind-Value="_editingSupplier.Name" Required="true" For="@(() => _editingSupplier.Name)" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudTextField Label="Contact Person" @bind-Value="_editingSupplier.ContactPerson" For="@(() => _editingSupplier.ContactPerson)" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudTextField Label="Email" @bind-Value="_editingSupplier.Email" For="@(() => _editingSupplier.Email)" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudTextField Label="Phone" @bind-Value="_editingSupplier.Phone" For="@(() => _editingSupplier.Phone)" />
+                </MudItem>
+                <MudItem xs="12">
+                    <MudTextField Label="Address" @bind-Value="_editingSupplier.Address" For="@(() => _editingSupplier.Address)" Multiline="true" Lines="2" />
+                </MudItem>
+                @if (_isEditMode)
+                {
+                    <MudItem xs="12">
+                        <MudSwitch @bind-Value="_editingSupplier.IsActive" Color="Color.Primary" Label="Active" />
+                    </MudItem>
+                }
+            </MudGrid>
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="CloseDialog">Cancel</MudButton>
+        <MudButton Color="Color.Primary" OnClick="SaveSupplier" Disabled="@(!_formIsValid)">Save</MudButton>
+    </DialogActions>
+</MudDialog>
+
+<!-- Purchase History Dialog -->
+<MudDialog @bind-IsVisible="_isHistoryDialogOpen">
+    <TitleContent>
+        <MudText Typo="Typo.h6">Purchase History - @(_selectedSupplier?.Name)</MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudTable Items="@_purchases" Hover="true" Breakpoint="Breakpoint.Sm" Dense="true">
+            <ToolBarContent>
+                <MudText Typo="Typo.subtitle2">All stock purchases from this supplier</MudText>
+            </ToolBarContent>
+            <HeaderContent>
+                <MudTh>Number</MudTh>
+                <MudTh>Date</MudTh>
+                <MudTh>Total</MudTh>
+                <MudTh>Paid</MudTh>
+                <MudTh>Status</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="Number">@context.Number</MudTd>
+                <MudTd DataLabel="Date">@context.ReceiptDate.ToShortDateString()</MudTd>
+                <MudTd DataLabel="Total">@context.TotalAmount.ToString("C")</MudTd>
+                <MudTd DataLabel="Paid">@context.PaidAmount.ToString("C")</MudTd>
+                <MudTd DataLabel="Status">
+                    <MudChip T="string" Color="Color.Info" Size="Size.Small">@context.Status</MudChip>
+                </MudTd>
+            </RowTemplate>
+        </MudTable>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="CloseHistoryDialog">Close</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private IEnumerable<SupplierDto> _suppliers = new List<SupplierDto>();
+    private IEnumerable<StockPurchaseDto> _purchases = new List<StockPurchaseDto>();
+    private string _searchTerm = string.Empty;
+    private bool _isLoading = true;
+    private bool _isDialogOpen = false;
+    private bool _isEditMode = false;
+    private bool _formIsValid = false;
+    private MudForm _form = default!;
+    private SupplierFormModel _editingSupplier = new();
+    private SupplierDto? _selectedSupplier;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadSuppliers();
+    }
+
+    private async Task LoadSuppliers()
+    {
+        _isLoading = true;
+        try
+        {
+            _suppliers = await SupplierService.GetAllAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await SearchSuppliers();
+        }
+    }
+
+    private async Task SearchSuppliers()
+    {
+        _isLoading = true;
+        try
+        {
+            if (string.IsNullOrWhiteSpace(_searchTerm))
+            {
+                _suppliers = await SupplierService.GetAllAsync();
+            }
+            else
+            {
+                _suppliers = await SupplierService.SearchAsync(_searchTerm);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private void OpenCreateDialog()
+    {
+        _isEditMode = false;
+        _editingSupplier = new SupplierFormModel();
+        _isDialogOpen = true;
+    }
+
+    private void OpenEditDialog(SupplierDto supplier)
+    {
+        _isEditMode = true;
+        _editingSupplier = new SupplierFormModel
+        {
+            Id = supplier.Id,
+            Name = supplier.Name,
+            ContactPerson = supplier.ContactPerson,
+            Email = supplier.Email,
+            Phone = supplier.Phone,
+            Address = supplier.Address,
+            IsActive = supplier.IsActive
+        };
+        _isDialogOpen = true;
+    }
+
+    private async Task SaveSupplier()
+    {
+        try
+        {
+            if (_isEditMode)
+            {
+                var updateRequest = new UpdateSupplierRequest(
+                    _editingSupplier.Id,
+                    _editingSupplier.Name,
+                    _editingSupplier.ContactPerson,
+                    _editingSupplier.Email,
+                    _editingSupplier.Phone,
+                    _editingSupplier.Address,
+                    _editingSupplier.IsActive
+                );
+                await SupplierService.UpdateAsync(updateRequest);
+                Snackbar.Add("Supplier updated successfully", Severity.Success);
+            }
+            else
+            {
+                var createRequest = new CreateSupplierRequest(
+                    _editingSupplier.Name,
+                    _editingSupplier.ContactPerson,
+                    _editingSupplier.Email,
+                    _editingSupplier.Phone,
+                    _editingSupplier.Address
+                );
+                await SupplierService.CreateAsync(createRequest);
+                Snackbar.Add("Supplier created successfully", Severity.Success);
+            }
+            await LoadSuppliers();
+            CloseDialog();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private async Task DeleteSupplier(SupplierDto supplier)
+    {
+        var parameters = new DialogParameters { ["Text"] = $"Are you sure you want to delete supplier {supplier.Name}?" };
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small, FullScreen = false };
+
+        var dialog = await DialogService.ShowAsync<ConfirmationDialog>("Delete Supplier", parameters, options);
+        var result = await dialog.Result;
+
+        if (result?.Data is bool confirmed && confirmed)
+        {
+            try
+            {
+                var success = await SupplierService.DeleteAsync(supplier.Id);
+                if (success)
+                {
+                    Snackbar.Add("Supplier deleted successfully", Severity.Success);
+                    await LoadSuppliers();
+                }
+                else
+                {
+                    Snackbar.Add("Failed to delete supplier", Severity.Error);
+                }
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add(ex.Message, Severity.Error);
+            }
+        }
+    }
+
+    private async Task OpenHistoryDialog(SupplierDto supplier)
+    {
+        _selectedSupplier = supplier;
+        _isHistoryDialogOpen = true;
+
+        try
+        {
+            _purchases = await InventoryService.GetStockPurchasesAsync(supplier.Id);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error loading purchase history: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private void CloseDialog()
+    {
+        _isDialogOpen = false;
+    }
+
+    private void CloseHistoryDialog()
+    {
+        _isHistoryDialogOpen = false;
+    }
+
+    private bool _isHistoryDialogOpen = false;
+
+    private class SupplierFormModel
+    {
+        public Guid Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string? ContactPerson { get; set; }
+        public string? Email { get; set; }
+        public string? Phone { get; set; }
+        public string? Address { get; set; }
+        public bool IsActive { get; set; } = true;
+    }
+}
