@@ -1,0 +1,111 @@
+@page "/pin-login"
+@inject IAuthService AuthService
+@inject ISnackbar Snackbar
+@inject NavigationManager Navigation
+
+<PageTitle>PIN Login - ZEN POS</PageTitle>
+
+<div class="d-flex justify-center align-center" style="height: 80vh;">
+    <MudCard Elevation="4" Class="pa-4" Style="width: 350px;">
+        <MudCardContent>
+            <div class="d-flex flex-column align-center">
+                <MudIcon Icon="@Icons.Material.Filled.Lock" Color="Color.Primary" Size="Size.Large" Class="mb-4" />
+                <MudText Typo="Typo.h5" Align="Align.Center" GutterBottom="true">Enter PIN</MudText>
+
+                <div class="d-flex justify-center gap-2 mb-6">
+                    @for (int i = 0; i < 4; i++)
+                    {
+                        <div style="width: 40px; height: 40px; border: 2px solid var(--mud-palette-primary); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 1.2rem;">
+                            @(_pin.Length > i ? _pin[i] : "")
+                        </div>
+                    }
+                </div>
+
+                <MudGrid Class="mud-grid-fixed">
+                    @foreach (var digit in new[] { "1", "2", "3", "4", "5", "6", "7", "8", "9", "0" })
+                    {
+                        <MudItem xs="4" Class="d-flex justify-center">
+                            <MudButton Variant="Variant.Outlined" 
+                                       OnClick="@(() => AppendDigit(digit))" 
+                                       Style="width: 60px; height: 60px; border-radius: 50%;">
+                                @digit
+                            </MudButton>
+                        </MudItem>
+                    }
+                    <MudItem xs="4" Class="d-flex justify-center">
+                        <MudButton Variant="Variant.Text" 
+                                   Color="Color.Error" 
+                                   OnClick="ClearPin" 
+                                   Style="width: 60px; height: 60px; border-radius: 50%;">
+                            <MudIcon Icon="@Icons.Material.Filled.Backspace" />
+                        </MudButton>
+                    </MudItem>
+                    <MudItem xs="4" Class="d-flex justify-center">
+                        <MudButton Variant="Variant.Filled" 
+                                   Color="Color.Primary" 
+                                   OnClick="SubmitPin" 
+                                   Style="width: 60px; height: 60px; border-radius: 50%;">
+                            <MudIcon Icon="@Icons.Material.Filled.Check" />
+                        </MudButton>
+                    </MudItem>
+                    <MudItem xs="4" Class="d-flex justify-center">
+                        <MudButton Variant="Variant.Text" 
+                                   OnClick="SubmitPin" 
+                                   Style="width: 60px; height: 60px; border-radius: 50%;">
+                            OK
+                        </MudButton>
+                    </MudItem>
+                </MudGrid>
+            </div>
+        </MudCardContent>
+    </MudCard>
+</div>
+
+@code {
+    private string _pin = "";
+
+    private void AppendDigit(string digit)
+    {
+        if (_pin.Length < 6)
+        {
+            _pin += digit;
+            if (_pin.Length == 6)
+            {
+                // Optional: Auto-submit when 6 digits are entered
+                _ = SubmitPin();
+            }
+        }
+    }
+
+    private void ClearPin()
+    {
+        _pin = "";
+    }
+
+    private async Task SubmitPin()
+    {
+        if (string.IsNullOrWhiteSpace(_pin) || _pin.Length < 4)
+        {
+            Snackbar.Add("Please enter a valid PIN", Severity.Warning);
+            return;
+        }
+
+        try
+        {
+            var response = await AuthService.PinLoginAsync(new PinLoginRequest(_pin));
+            if (response != null)
+            {
+                Snackbar.Add($"Welcome back, {response.UserName}!", Severity.Success);
+                Navigation.NavigateTo("/");
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Login failed: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _pin = "";
+        }
+    }
+}

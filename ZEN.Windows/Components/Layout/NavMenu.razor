@@ -23,5 +23,26 @@
                 <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Weather
             </NavLink>
         </div>
+        <div class="nav-item px-3 mt-auto">
+            <MudDivider Class="my-2" />
+            <MudButton Variant="Variant.Text" 
+                       StartIcon="@Icons.Material.Filled.Logout" 
+                       OnClick="Logout" 
+                       Class="nav-link text-danger">
+                Logout
+            </MudButton>
+        </div>
     </nav>
 </div>
+
+@code {
+    @inject NavigationManager Navigation
+    @inject ISnackbar Snackbar
+
+    private void Logout()
+    {
+        // In a real scenario, you would clear tokens/session here
+        Snackbar.Add("Logged out successfully", Severity.Info);
+        Navigation.NavigateTo("/pin-login");
+    }
+}

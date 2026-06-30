@@ -1,5 +1,11 @@
 @page "/products"
 @using Microsoft.AspNetCore.Authorization
+@using ZEN.Application.Services.Interfaces
+@using ZEN.Application.DTOs.Products
+@using ZEN.Web.Components.Dialogs
+@inject IProductService ProductService
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
 @attribute [Authorize(Roles = "Administrator,Manager,InventoryManager")]
 
 <PageTitle>Products - ZEN POS</PageTitle>
@@ -7,5 +13,320 @@
 <MudText Typo="Typo.h3" GutterBottom="true">Products</MudText>
 
 <MudPaper Class="pa-4">
-    <MudText>TODO: Product list with search, filter, CRUD operations</MudText>
+    <div class="d-flex align-center justify-space-between mb-4">
+        <MudTextField @bind-Value="_searchTerm" 
+                      Label="Search Products" 
+                      Variant="Variant.Outlined" 
+                      Adornment="Adornment.Start" 
+                      AdornmentIcon="@Icons.Material.Filled.Search" 
+                      OnKeyDown="@HandleKeyDown" 
+                      Class="flex-grow-1 mr-4" />
+
+        <MudButton Variant="Variant.Filled" 
+                   Color="Color.Primary" 
+                   StartIcon="@Icons.Material.Filled.Add" 
+                   OnClick="OpenCreateDialog">
+            Add Product
+        </MudButton>
+    </div>
+
+    <MudTable Items="@_products" Hover="true" Breakpoint="Breakpoint.Sm" Loading="@_isLoading" LoadingProgressColor="Color.Info">
+        <ToolBarContent>
+            <MudText Typo="Typo.h6">Product List</MudText>
+        </ToolBarContent>
+        <HeaderContent>
+            <MudTh>Name</MudTh>
+            <MudTh>SKU</MudTh>
+            <MudTh>Barcode</MudTh>
+            <MudTh>Cost</MudTh>
+            <MudTh>Sale Price</MudTh>
+            <MudTh>Category</MudTh>
+            <MudTh>Brand</MudTh>
+            <MudTh>Status</MudTh>
+            <MudTh>Actions</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="Name">@context.Name</MudTd>
+            <MudTd DataLabel="SKU">@context.SKU</MudTd>
+            <MudTd DataLabel="Barcode">@context.Barcode</MudTd>
+            <MudTd DataLabel="Cost">@context.CostPrice.ToString("C")</MudTd>
+            <MudTd DataLabel="Sale Price">@context.SalePrice.ToString("C")</MudTd>
+            <MudTd DataLabel="Category">@context.CategoryName</MudTd>
+            <MudTd DataLabel="Brand">@context.BrandName</MudTd>
+            <MudTd DataLabel="Status">
+                <MudChip T="string" Color="@(context.IsActive ? Color.Success : Color.Error)" Size="Size.Small">
+                    @(context.IsActive ? "Active" : "Inactive")
+                </MudChip>
+            </MudTd>
+            <MudTd DataLabel="Actions">
+                <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Info" OnClick="@(() => OpenEditDialog(context))" />
+                <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" OnClick="@(() => DeleteProduct(context))" />
+            </MudTd>
+        </RowTemplate>
+        <PagerContent>
+            <MudTablePager />
+        </PagerContent>
+    </MudTable>
 </MudPaper>
+
+<MudDialog @bind-IsVisible="_isDialogOpen">
+    <TitleContent>
+        <MudText Typo="Typo.h6">@( _isEditMode ? "Edit Product" : "Create Product" )</MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudForm @ref="_form" @bind-IsValid="@_formIsValid">
+            <MudGrid>
+                <MudItem xs="12" sm="6">
+                    <MudTextField Label="Name" @bind-Value="_editingProduct.Name" Required="true" For="@(() => _editingProduct.Name)" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudTextField Label="SKU" @bind-Value="_editingProduct.SKU" For="@(() => _editingProduct.SKU)" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudTextField Label="Barcode" @bind-Value="_editingProduct.Barcode" For="@(() => _editingProduct.Barcode)" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudTextField Label="Description" @bind-Value="_editingProduct.Description" For="@(() => _editingProduct.Description)" Multiline="true" Lines="2" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudNumericField Label="Cost Price" @bind-Value="_editingProduct.CostPrice" Variant="Variant.Outlined" Format="N2" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudNumericField Label="Sale Price" @bind-Value="_editingProduct.SalePrice" Variant="Variant.Outlined" Format="N2" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudSelect T="Guid?" Label="Category" @bind-Value="_editingProduct.CategoryId" AnchorOrigin="Origin.BottomLeft">
+                        @foreach (var cat in _categories)
+                        {
+                            <MudSelectItem T="Guid?" Value="@cat.Id">@cat.Name</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudSelect T="Guid?" Label="Brand" @bind-Value="_editingProduct.BrandId" AnchorOrigin="Origin.BottomLeft">
+                        @foreach (var brand in _brands)
+                        {
+                            <MudSelectItem T="Guid?" Value="@brand.Id">@brand.Name</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                @if (_isEditMode)
+                {
+                    <MudItem xs="12">
+                        <MudSwitch @bind-Value="_editingProduct.IsActive" Color="Color.Primary" Label="Active" />
+                    </MudItem>
+                }
+            </MudGrid>
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="CloseDialog">Cancel</MudButton>
+        <MudButton Color="Color.Primary" OnClick="SaveProduct" Disabled="@(!_formIsValid)">Save</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private IEnumerable<ProductDto> _products = new List<ProductDto>();
+    private IEnumerable<CategoryDto> _categories = new List<CategoryDto>();
+    private IEnumerable<BrandDto> _brands = new List<BrandDto>();
+    private string _searchTerm = string.Empty;
+    private bool _isLoading = true;
+    private bool _isDialogOpen = false;
+    private bool _isEditMode = false;
+    private bool _formIsValid = false;
+    private MudForm _form = default!;
+    private ProductFormModel _editingProduct = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadLookups();
+        await LoadProducts();
+    }
+
+    private async Task LoadLookups()
+    {
+        try
+        {
+            _categories = await ProductService.GetCategoriesAsync();
+            _brands = await ProductService.GetBrandsAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error loading lookups: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task LoadProducts()
+    {
+        _isLoading = true;
+        try
+        {
+            _products = await ProductService.GetAllAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await SearchProducts();
+        }
+    }
+
+    private async Task SearchProducts()
+    {
+        _isLoading = true;
+        try
+        {
+            if (string.IsNullOrWhiteSpace(_searchTerm))
+            {
+                _products = await ProductService.GetAllAsync();
+            }
+            else
+            {
+                _products = await ProductService.SearchAsync(_searchTerm);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private void OpenCreateDialog()
+    {
+        _isEditMode = false;
+        _editingProduct = new ProductFormModel();
+        _isDialogOpen = true;
+    }
+
+    private void OpenEditDialog(ProductDto product)
+    {
+        _isEditMode = true;
+        _editingProduct = new ProductFormModel
+        {
+            Id = product.Id,
+            Name = product.Name,
+            Description = product.Description,
+            Barcode = product.Barcode,
+            SKU = product.SKU,
+            CostPrice = product.CostPrice,
+            SalePrice = product.SalePrice,
+            CategoryId = product.CategoryId,
+            BrandId = product.BrandId,
+            IsActive = product.IsActive
+        };
+        _isDialogOpen = true;
+    }
+
+    private async Task SaveProduct()
+    {
+        try
+        {
+            if (_isEditMode)
+            {
+                var updateRequest = new UpdateProductRequest(
+                    _editingProduct.Id,
+                    _editingProduct.Name,
+                    _editingProduct.Description,
+                    _editingProduct.Barcode,
+                    _editingProduct.SKU,
+                    _editingProduct.CostPrice,
+                    _editingProduct.SalePrice,
+                    _editingProduct.CategoryId,
+                    _editingProduct.BrandId,
+                    null, // TaxId - not in form yet
+                    _editingProduct.IsActive
+                );
+                await ProductService.UpdateAsync(updateRequest);
+                Snackbar.Add("Product updated successfully", Severity.Success);
+            }
+            else
+            {
+                var createRequest = new CreateProductRequest(
+                    _editingProduct.Name,
+                    _editingProduct.Description,
+                    _editingProduct.Barcode,
+                    _editingProduct.SKU,
+                    _editingProduct.CostPrice,
+                    _editingProduct.SalePrice,
+                    _editingProduct.CategoryId,
+                    _editingProduct.BrandId,
+                    null, // TaxId
+                    null, // SupplierId
+                    true, // TrackStock
+                    _editingProduct.IsActive
+                );
+                await ProductService.CreateAsync(createRequest);
+                Snackbar.Add("Product created successfully", Severity.Success);
+            }
+            await LoadProducts();
+            CloseDialog();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private async Task DeleteProduct(ProductDto product)
+    {
+        var parameters = new DialogParameters { ["Text"] = $"Are you sure you want to delete product {product.Name}?" };
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small, FullScreen = false };
+
+        var dialog = await DialogService.ShowAsync<ConfirmationDialog>("Delete Product", parameters, options);
+        var result = await dialog.Result;
+
+        if (result?.Data is bool confirmed && confirmed)
+        {
+            try
+            {
+                var success = await ProductService.DeleteAsync(product.Id);
+                if (success)
+                {
+                    Snackbar.Add("Product deleted successfully", Severity.Success);
+                    await LoadProducts();
+                }
+                else
+                {
+                    Snackbar.Add("Failed to delete product", Severity.Error);
+                }
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add(ex.Message, Severity.Error);
+            }
+        }
+    }
+
+    private void CloseDialog()
+    {
+        _isDialogOpen = false;
+    }
+
+    private class ProductFormModel
+    {
+        public Guid Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string? Description { get; set; }
+        public string? Barcode { get; set; }
+        public string? SKU { get; set; }
+        public decimal CostPrice { get; set; }
+        public decimal SalePrice { get; set; }
+        public Guid? CategoryId { get; set; }
+        public Guid? BrandId { get; set; }
+        public bool IsActive { get; set; } = true;
+    }
+}

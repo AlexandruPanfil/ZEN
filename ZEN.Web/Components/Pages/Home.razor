@@ -1,7 +1,107 @@
 ﻿@page "/"
+@using ZEN.Application.Services.Interfaces
+@using ZEN.Application.DTOs.Reports
+@inject IAuthService AuthService
+@inject IReportService ReportService
+@inject ISnackbar Snackbar
 
-<PageTitle>Home</PageTitle>
+<PageTitle>Dashboard - ZEN POS</PageTitle>
 
-<h1>Hello, world!</h1>
+<MudText Typo="Typo.h3" GutterBottom="true">Welcome to ZEN POS</MudText>
+<MudText Typo="Typo.body1" Class="mb-6">System overview and key performance indicators.</MudText>
 
-Welcome to your new app.
+@if (_isLoading)
+{
+    <MudProgressCircular Color="Color.Primary" Indeterminate="true" Class="ma-auto" />
+}
+else
+{
+    <MudGrid>
+        <!-- Active Users Card -->
+        <MudItem xs="12" sm="4">
+            <MudCard Elevation="2" Class="py-4">
+                <MudCardContent>
+                    <div class="d-flex align-center">
+                        <MudIcon Icon="@Icons.Material.Filled.People" Color="Color.Primary" Size="Size.Large" Class="mr-4" />
+                        <div>
+                            <MudText Typo="Typo.subtitle2" Color="Color.Secondary">Active Users</MudText>
+                            <MudText Typo="Typo.h4">@_activeUsersCount</MudText>
+                        </div>
+                    </div>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+
+        <!-- Today's Sales Card -->
+        <MudItem xs="12" sm="4">
+            <MudCard Elevation="2" Class="py-4">
+                <MudCardContent>
+                    <div class="d-flex align-center">
+                        <MudIcon Icon="@Icons.Material.Filled.TrendingUp" Color="Color.Success" Size="Size.Large" Class="mr-4" />
+                        <div>
+                            <MudText Typo="Typo.subtitle2" Color="Color.Secondary">Today's Sales</MudText>
+                            <MudText Typo="Typo.h4">@_todaySales.ToString("C")</MudText>
+                        </div>
+                    </div>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+
+        <!-- Monthly Sales Card -->
+        <MudItem xs="12" sm="4">
+            <MudCard Elevation="2" Class="py-4">
+                <MudCardContent>
+                    <div class="d-flex align-center">
+                        <MudIcon Icon="@Icons.Material.Filled.CalendarMonth" Color="Color.Info" Size="Size.Large" Class="mr-4" />
+                        <div>
+                            <MudText Typo="Typo.subtitle2" Color="Color.Secondary">Monthly Sales</MudText>
+                            <MudText Typo="Typo.h4">@_monthlySales.ToString("C")</MudText>
+                        </div>
+                    </div>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+    </MudGrid>
+}
+
+@code {
+    private int _activeUsersCount;
+    private decimal _todaySales;
+    private decimal _monthlySales;
+    private bool _isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDashboardData();
+    }
+
+    private async Task LoadDashboardData()
+    {
+        _isLoading = true;
+        try
+        {
+            // 1. Active Users
+            var users = await AuthService.GetAllUsersAsync();
+            _activeUsersCount = users.Count(u => u.IsActive);
+
+            // 2. Today's Sales
+            var today = DateTime.Today;
+            var todayReport = await ReportService.GetSalesReportAsync(today, today.AddDays(1));
+            _todaySales = todayReport?.TotalSales ?? 0;
+
+            // 3. Monthly Sales
+            var firstOfMonth = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1);
+            var endOfMonth = firstOfMonth.AddMonths(1);
+            var monthlyReport = await ReportService.GetSalesReportAsync(firstOfMonth, endOfMonth);
+            _monthlySales = monthlyReport?.TotalSales ?? 0;
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error loading dashboard data: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+}
