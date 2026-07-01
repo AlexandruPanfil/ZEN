@@ -1,0 +1,176 @@
+@page "/operations/shifts"
+@using ZEN.Application.Services.Interfaces
+@using ZEN.Domain.Entities
+@using ZEN.Domain.Enums
+@using ZEN.Web.Components.Dialogs
+@using MudBlazor
+@inject IShiftService ShiftService
+@inject IStoreContext StoreContext
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+
+<PageTitle>Shifts Management</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="py-8">
+    <MudStack Spacing="4">
+        <MudStack Row="true" Class="justify-between align-center">
+            <MudText Typo="Typo.h4">Shifts</MudText>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="OpenShiftDialog" Disabled="currentShift != null">
+                <MudIcon Icon="@Icons.Material.Filled.Add" Class="mr-2" />
+                Open New Shift
+            </MudButton>
+        </MudStack>
+
+        @if (currentShift != null)
+        {
+            <MudPaper Class="pa-4" Elevation="2">
+                <MudStack Spacing="3">
+                    <MudText Typo="Typo.subtitle1" Color="Color.Success">
+                        <MudIcon Icon="@Icons.Material.Filled.Check" Class="mr-2" />
+                        Current Shift Active
+                    </MudText>
+                    <MudGrid>
+                        <MudItem xs="12" sm="6">
+                            <MudText Typo="Typo.body2"><strong>Opened:</strong> @currentShift.OpenTime.ToString("g")</MudText>
+                        </MudItem>
+                        <MudItem xs="12" sm="6">
+                            <MudText Typo="Typo.body2"><strong>Opened By:</strong> @currentShift.UserId</MudText>
+                        </MudItem>
+                        <MudItem xs="12" sm="6">
+                            <MudText Typo="Typo.body2"><strong>Opening Cash:</strong> $@currentShift.OpeningCash.ToString("F2")</MudText>
+                        </MudItem>
+                        <MudItem xs="12" sm="6">
+                            <MudText Typo="Typo.body2"><strong>Status:</strong> @currentShift.Status</MudText>
+                        </MudItem>
+                    </MudGrid>
+                    <MudButton Variant="Variant.Filled" Color="Color.Warning" OnClick="@(() => CloseShift(currentShift))">
+                        Close Shift & Reconcile
+                    </MudButton>
+                </MudStack>
+            </MudPaper>
+        }
+
+        <MudPaper Class="pa-4">
+            <MudStack Spacing="3">
+                <MudStack Row="true" Spacing="2">
+                    <MudSelect T="ShiftStatus?" Label="Filter Status" MultiSelection="false" 
+                              @bind-Value="filterStatus"
+                              Variant="Variant.Outlined">
+                        <MudSelectItem Value="@((ShiftStatus?)null)">All Status</MudSelectItem>
+                        <MudSelectItem Value="@ShiftStatus.Open">Open</MudSelectItem>
+                        <MudSelectItem Value="@ShiftStatus.Closed">Closed</MudSelectItem>
+                    </MudSelect>
+                </MudStack>
+            </MudStack>
+        </MudPaper>
+
+        <MudTable T="Shift" Items="FilteredShifts" Hover="true" Striped="true" Dense="false">
+            <HeaderContent>
+                <MudTh>Opened At</MudTh>
+                <MudTh>Operator</MudTh>
+                <MudTh>Opening Cash</MudTh>
+                <MudTh>Closing Cash</MudTh>
+                <MudTh>Total Sales</MudTh>
+                <MudTh>Status</MudTh>
+                <MudTh Style="text-align:right">Actions</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="Opened At">@context.OpenTime.ToString("MMM dd, yyyy HH:mm")</MudTd>
+                <MudTd DataLabel="Operator">@context.UserId</MudTd>
+                <MudTd DataLabel="Opening Cash">$@context.OpeningCash.ToString("F2")</MudTd>
+                <MudTd DataLabel="Closing Cash">$@context.ClosingCash.ToString("F2") @if (context.CloseTime.HasValue) { <text>(Closed @context.CloseTime.Value.ToString("HH:mm"))</text> }</MudTd>
+                <MudTd DataLabel="Total Sales">$@context.OpeningCash.ToString("F2")</MudTd>
+                <MudTd DataLabel="Status">
+                    <MudChip T="string" Size="Size.Small" Color="@(context.Status == ShiftStatus.Closed ? Color.Success : Color.Warning)">
+                        @context.Status
+                    </MudChip>
+                </MudTd>
+                <MudTd Style="text-align:right">
+                    <MudIconButton Icon="@Icons.Material.Filled.Details" 
+                                  Size="Size.Small"
+                                  OnClick="@(() => ViewShiftDetails(context))" />
+                    @if (context.Status == ShiftStatus.Open)
+                    {
+                        <MudIconButton Icon="@Icons.Material.Filled.Edit" 
+                                      Size="Size.Small"
+                                      OnClick="@(() => CloseShift(context))" />
+                    }
+                </MudTd>
+            </RowTemplate>
+        </MudTable>
+    </MudStack>
+</MudContainer>
+
+@code {
+    private Shift? currentShift;
+    private List<Shift> shifts = [];
+    private ShiftStatus? filterStatus = null;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadShiftsAsync();
+    }
+
+    private async Task LoadShiftsAsync()
+    {
+        try
+        {
+            // In a real scenario, fetch shifts from service
+            // For now, simulate with empty list
+            shifts = [];
+
+            // Try to get current shift (if any)
+            // This would come from IShiftService
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error loading shifts: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private List<Shift> FilteredShifts =>
+        shifts
+            .Where(s => filterStatus == null || s.Status == filterStatus)
+            .OrderByDescending(s => s.OpenTime)
+            .ToList();
+
+    private async Task OpenShiftDialog()
+    {
+        var parameters = new DialogParameters { };
+        var dialog = await DialogService.ShowAsync<ShiftOpenDialog>("Open New Shift", parameters);
+        var result = await dialog.Result;
+
+        if (!result.Canceled && result.Data is Shift newShift)
+        {
+            currentShift = newShift;
+            Snackbar.Add("Shift opened successfully", Severity.Success);
+        }
+    }
+
+    private async Task CloseShift(Shift shift)
+    {
+        var parameters = new DialogParameters { { "Shift", shift } };
+        var dialog = await DialogService.ShowAsync<ShiftCloseDialog>("Close Shift & Reconcile", parameters);
+        var result = await dialog.Result;
+
+        if (!result.Canceled && result.Data is Shift closedShift)
+        {
+            if (currentShift?.Id == closedShift.Id)
+                currentShift = null;
+
+            var index = shifts.FindIndex(s => s.Id == closedShift.Id);
+            if (index >= 0)
+                shifts[index] = closedShift;
+            else
+                shifts.Add(closedShift);
+
+            Snackbar.Add("Shift closed and reconciled", Severity.Success);
+        }
+    }
+
+    private async Task ViewShiftDetails(Shift shift)
+    {
+        var parameters = new DialogParameters { { "Shift", shift } };
+        await DialogService.ShowAsync<ShiftDetailsDialog>("Shift Details", parameters);
+    }
+}

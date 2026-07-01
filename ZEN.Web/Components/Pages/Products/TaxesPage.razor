@@ -1,0 +1,284 @@
+@page "/taxes"
+@using Microsoft.AspNetCore.Authorization
+@using ZEN.Application.Services.Interfaces
+@using ZEN.Shared.Components.Common
+@inject ITaxService TaxService
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+
+@attribute [Authorize(Roles = "Administrator,Manager")]
+
+<ZEN.Shared.Components.Common.PageTitle>Tax Rates - ZEN POS</ZEN.Shared.Components.Common.PageTitle>
+
+<MudText Typo="Typo.h3" GutterBottom="true">Tax Management</MudText>
+
+<MudPaper Class="pa-4 mb-4">
+    <div class="d-flex align-center justify-space-between mb-4">
+        <MudTextField @bind-Value="_searchTerm" 
+                      Label="Search Tax Rates" 
+                      Variant="Variant.Outlined" 
+                      Adornment="Adornment.Start" 
+                      AdornmentIcon="@Icons.Material.Filled.Search" 
+                      OnKeyDown="@HandleKeyDown" 
+                      Class="flex-grow-1 mr-4" />
+
+        <MudButton Variant="Variant.Filled" 
+                   Color="Color.Primary" 
+                   StartIcon="@Icons.Material.Filled.Add" 
+                   OnClick="OpenCreateDialog">
+            Add Tax Rate
+        </MudButton>
+    </div>
+
+    <MudTable Items="@FilteredTaxes" Hover="true" Breakpoint="Breakpoint.Sm" Loading="@_isLoading" LoadingProgressColor="Color.Info">
+        <ToolBarContent>
+            <MudText Typo="Typo.h6">Tax Rates List</MudText>
+        </ToolBarContent>
+        <HeaderContent>
+            <MudTh>Name</MudTh>
+            <MudTh>Rate (%)</MudTh>
+            <MudTh>Default</MudTh>
+            <MudTh>Status</MudTh>
+            <MudTh>Actions</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="Name">@context.Name</MudTd>
+            <MudTd DataLabel="Rate">@context.Rate.ToString("F2")%</MudTd>
+            <MudTd DataLabel="Default">
+                @if (context.IsDefault)
+                {
+                    <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" />
+                }
+            </MudTd>
+            <MudTd DataLabel="Status">
+                <MudChip T="string" Color="@(context.IsActive ? Color.Success : Color.Error)" Size="Size.Small">
+                    @(context.IsActive ? "Active" : "Inactive")
+                </MudChip>
+            </MudTd>
+            <MudTd DataLabel="Actions">
+                @if (!context.IsDefault)
+                {
+                    <MudIconButton Icon="@Icons.Material.Filled.Star" 
+                                   Color="Color.Warning" 
+                                   Size="Size.Small"
+                                   Title="Set as default"
+                                   OnClick="@(() => SetDefaultTax(context))" />
+                }
+                <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" OnClick="@(() => OpenEditDialog(context))" />
+                <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" OnClick="@(() => DeleteTax(context))" />
+            </MudTd>
+        </RowTemplate>
+        <PagerContent>
+            <MudTablePager />
+        </PagerContent>
+    </MudTable>
+</MudPaper>
+
+<!-- Create/Edit Dialog -->
+<MudDialog @bind-Visible="_isDialogOpen">
+    <TitleContent>
+        <MudText Typo="Typo.h6">@(_isEditMode ? "Edit Tax Rate" : "Create Tax Rate")</MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudForm @ref="_form" @bind-IsValid="@_formIsValid">
+            <MudGrid>
+                <MudItem xs="12">
+                    <MudTextField Label="Tax Name" 
+                                  @bind-Value="_editingTax.Name" 
+                                  Required="true" 
+                                  For="@(() => _editingTax.Name)" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudNumericField @bind-Value="_editingTax.Rate" 
+                                     Label="Tax Rate (%)" 
+                                     Min="0" 
+                                     Max="100" 
+                                     Format="F2"
+                                     For="@(() => _editingTax.Rate)" 
+                                     Required="true" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudSwitch @bind-Value="_editingTax.IsActive" Color="Color.Primary" Label="Active" />
+                </MudItem>
+                @if (_isEditMode)
+                {
+                    <MudItem xs="12">
+                        <MudSwitch @bind-Value="_editingTax.IsDefault" 
+                                   Color="Color.Warning" 
+                                   Label="Set as Default Tax" />
+                    </MudItem>
+                }
+            </MudGrid>
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="CloseDialog">Cancel</MudButton>
+        <MudButton Color="Color.Primary" 
+                   Variant="Variant.Filled" 
+                   OnClick="SaveTax"
+                   Disabled="!_formIsValid">
+            @(_isEditMode ? "Update" : "Create")
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private List<TaxDto> _taxes = new();
+
+    private string _searchTerm = string.Empty;
+    private bool _isLoading = false;
+    private bool _isDialogOpen = false;
+    private bool _isEditMode = false;
+    private bool _formIsValid = false;
+    private MudForm? _form;
+
+    private TaxEditModel _editingTax = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadTaxesAsync();
+    }
+
+    private async Task LoadTaxesAsync()
+    {
+        _isLoading = true;
+        try
+        {
+            _taxes = (await TaxService.GetAllAsync()).ToList();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error loading tax rates: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private IEnumerable<TaxDto> FilteredTaxes =>
+        _taxes.Where(t => string.IsNullOrEmpty(_searchTerm) || 
+                         t.Name.Contains(_searchTerm, StringComparison.OrdinalIgnoreCase));
+
+    private async Task HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            _searchTerm = _searchTerm.Trim();
+        }
+    }
+
+    private void OpenCreateDialog()
+    {
+        _editingTax = new TaxEditModel();
+        _isEditMode = false;
+        _isDialogOpen = true;
+    }
+
+    private void OpenEditDialog(TaxDto tax)
+    {
+        _editingTax = new TaxEditModel
+        {
+            Id = tax.Id,
+            Name = tax.Name,
+            Rate = tax.Rate,
+            IsDefault = tax.IsDefault,
+            IsActive = tax.IsActive
+        };
+        _isEditMode = true;
+        _isDialogOpen = true;
+    }
+
+    private async Task SaveTax()
+    {
+        if (_form == null)
+            return;
+
+        _form.Validate();
+        if (!_formIsValid)
+            return;
+
+        try
+        {
+            if (_isEditMode)
+            {
+                var request = new UpdateTaxRequest(
+                    _editingTax.Id,
+                    _editingTax.Name,
+                    _editingTax.Rate,
+                    _editingTax.IsDefault,
+                    _editingTax.IsActive);
+
+                await TaxService.UpdateAsync(request);
+                Snackbar.Add("Tax rate updated successfully", Severity.Success);
+            }
+            else
+            {
+                var request = new CreateTaxRequest(
+                    _editingTax.Name,
+                    _editingTax.Rate,
+                    _editingTax.IsActive);
+
+                await TaxService.CreateAsync(request);
+                Snackbar.Add("Tax rate created successfully", Severity.Success);
+            }
+
+            CloseDialog();
+            await LoadTaxesAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error saving tax rate: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task SetDefaultTax(TaxDto tax)
+    {
+        try
+        {
+            await TaxService.SetDefaultTaxAsync(tax.Id);
+            Snackbar.Add($"Default tax set to '{tax.Name}'", Severity.Success);
+            await LoadTaxesAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error setting default tax: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task DeleteTax(TaxDto tax)
+    {
+        var confirm = await DialogService.ShowAsync<ZEN.Shared.Components.Common.ConfirmDialog>("Delete Tax Rate",
+            new DialogParameters { { "Message", $"Are you sure you want to delete '{tax.Name}'?" } });
+
+        var result = await confirm.Result;
+        if (!result.Canceled)
+        {
+            try
+            {
+                await TaxService.DeleteAsync(tax.Id);
+                Snackbar.Add("Tax rate deleted successfully", Severity.Success);
+                await LoadTaxesAsync();
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Error deleting tax rate: {ex.Message}", Severity.Error);
+            }
+        }
+    }
+
+    private void CloseDialog()
+    {
+        _isDialogOpen = false;
+        _editingTax = new();
+    }
+
+    public class TaxEditModel
+    {
+        public Guid Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public decimal Rate { get; set; }
+        public bool IsDefault { get; set; }
+        public bool IsActive { get; set; } = true;
+    }
+}

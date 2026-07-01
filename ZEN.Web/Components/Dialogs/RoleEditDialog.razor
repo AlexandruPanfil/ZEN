@@ -1,0 +1,91 @@
+@using ZEN.Infrastructure.Identity
+@using MudBlazor
+@inject ISnackbar Snackbar
+
+<MudDialog MaxWidth="MaxWidth.Medium" FullWidth="true">
+    <DialogContent>
+        <MudForm @ref="form" @bind-IsValid="isFormValid">
+            <MudStack Spacing="3">
+                <MudText Typo="Typo.subtitle2">Role Information</MudText>
+
+                <MudTextField T="string" Label="Role Name" @bind-Value="editModel.Name" 
+                             Required="true" RequiredError="Name is required"
+                             Variant="Variant.Outlined" />
+
+                <MudTextField T="string" Label="Description" @bind-Value="editModel.Description"
+                             Variant="Variant.Outlined" Lines="2" />
+
+            </MudStack>
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveRole" Disabled="!isFormValid">
+            Save
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] MudBlazor.IMudDialogInstance MudDialog { get; set; } = null!;
+    [Parameter] public AppRole? Role { get; set; }
+
+    private MudForm form = null!;
+    private bool isFormValid = false;
+    private RoleEditModel editModel = new();
+    private bool isEditMode => Role is not null;
+
+    protected override Task OnInitializedAsync()
+    {
+        if (isEditMode)
+        {
+            editModel = new RoleEditModel
+            {
+                Name = Role!.Name,
+                Description = Role.Description
+            };
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private async Task SaveRole()
+    {
+        if (!isFormValid)
+            return;
+
+        try
+        {
+            AppRole result;
+            if (isEditMode)
+            {
+                Role!.Name = editModel.Name;
+                Role.Description = editModel.Description;
+                result = Role;
+            }
+            else
+            {
+                result = new AppRole
+                {
+                    Id = Guid.NewGuid().ToString(),
+                    Name = editModel.Name,
+                    Description = editModel.Description
+                };
+            }
+
+            MudDialog.Close(DialogResult.Ok(result));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error saving role: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private class RoleEditModel
+    {
+        public string Name { get; set; } = "";
+        public string? Description { get; set; }
+    }
+}

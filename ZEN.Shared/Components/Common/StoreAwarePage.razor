@@ -1,0 +1,45 @@
+@using ZEN.Application.Services.Interfaces
+@inject global::ZEN.Application.Services.Interfaces.IStoreContext StoreContext
+
+@code {
+    protected Guid? CurrentStoreId { get; private set; }
+    protected Guid? CurrentWarehouseId { get; private set; }
+    protected string? CurrentStoreName { get; private set; }
+    protected string? CurrentWarehouseName { get; private set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadStoreContextAsync();
+        await OnStoreContextLoadedAsync();
+    }
+
+    protected async Task LoadStoreContextAsync()
+    {
+        CurrentStoreId = StoreContext.GetCurrentStoreId();
+        CurrentWarehouseId = StoreContext.GetCurrentWarehouseId();
+        CurrentStoreName = await StoreContext.GetCurrentStoreNameAsync();
+        CurrentWarehouseName = await StoreContext.GetCurrentWarehouseNameAsync();
+    }
+
+    protected virtual Task OnStoreContextLoadedAsync()
+    {
+        return Task.CompletedTask;
+    }
+
+    protected async Task OnStoreChangedAsync(Guid? storeId)
+    {
+        await LoadStoreContextAsync();
+        await OnStoreContextChangedAsync();
+    }
+
+    protected async Task OnWarehouseChangedAsync(Guid? warehouseId)
+    {
+        await LoadStoreContextAsync();
+        await OnStoreContextChangedAsync();
+    }
+
+    protected virtual Task OnStoreContextChangedAsync()
+    {
+        return Task.CompletedTask;
+    }
+}

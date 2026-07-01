@@ -1,0 +1,81 @@
+@using ZEN.Domain.Entities
+@using MudBlazor
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudForm @ref="form" @bind-IsValid="isFormValid">
+            <MudStack Spacing="3">
+                <MudText Typo="Typo.subtitle2">Opening Shift Details</MudText>
+
+                <MudNumericField T="decimal" Label="Opening Cash Count" @bind-Value="openingCash"
+                                 Required="true" RequiredError="Opening cash is required"
+                                 Variant="Variant.Outlined" />
+
+                <MudText Typo="Typo.subtitle2" Class="mt-4">Initial Denominations (Optional)</MudText>
+
+                <MudStack Spacing="2">
+                    <MudNumericField T="int?" Label="$100 Bills" @bind-Value="bills100"
+                                    Min="0" Variant="Variant.Outlined" Dense="true" />
+                    <MudNumericField T="int?" Label="$50 Bills" @bind-Value="bills50"
+                                    Min="0" Variant="Variant.Outlined" Dense="true" />
+                    <MudNumericField T="int?" Label="$20 Bills" @bind-Value="bills20"
+                                    Min="0" Variant="Variant.Outlined" Dense="true" />
+                    <MudNumericField T="int?" Label="$10 Bills" @bind-Value="bills10"
+                                    Min="0" Variant="Variant.Outlined" Dense="true" />
+                    <MudNumericField T="int?" Label="$5 Bills" @bind-Value="bills5"
+                                    Min="0" Variant="Variant.Outlined" Dense="true" />
+                    <MudNumericField T="int?" Label="$1 Bills" @bind-Value="bills1"
+                                    Min="0" Variant="Variant.Outlined" Dense="true" />
+                </MudStack>
+
+                <MudText Typo="Typo.caption">Calculated Total: $@CalculatedTotal.ToString("F2")</MudText>
+            </MudStack>
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="OpenShift" Disabled="!isFormValid">
+            Open Shift
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
+
+    private MudForm form = null!;
+    private bool isFormValid = false;
+    private decimal openingCash = 0m;
+    private int? bills100, bills50, bills20, bills10, bills5, bills1;
+
+    private decimal CalculatedTotal =>
+        (bills100 ?? 0) * 100 + (bills50 ?? 0) * 50 + (bills20 ?? 0) * 20 +
+        (bills10 ?? 0) * 10 + (bills5 ?? 0) * 5 + (bills1 ?? 0) * 1;
+
+    private async Task OpenShift()
+    {
+        if (!isFormValid)
+            return;
+
+        try
+        {
+            var shift = new Shift
+            {
+                Id = Guid.NewGuid(),
+                OpenTime = DateTime.UtcNow,
+                OpeningCash = openingCash,
+                Status = ZEN.Domain.Enums.ShiftStatus.Open,
+                ClosingCash = 0
+            };
+
+            MudDialog.Close(DialogResult.Ok(shift));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error opening shift: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

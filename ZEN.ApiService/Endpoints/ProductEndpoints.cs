@@ -10,7 +10,7 @@ public static class ProductEndpoints
     {
         group.MapGet("/", async (IProductService productService, CancellationToken ct) =>
         {
-            var products = await productService.GetAllAsync(ct);
+            var products = await productService.GetAllAsync(null, ct);
             return Results.Ok(products);
         })
         .WithName("GetAllProducts")
@@ -28,7 +28,7 @@ public static class ProductEndpoints
 
         group.MapGet("/barcode/{barcode}", async (string barcode, IProductService productService, CancellationToken ct) =>
         {
-            var product = await productService.GetByBarcodeAsync(barcode, ct);
+            var product = await productService.GetByBarcodeAsync(barcode, null, ct);
             return product == null ? Results.NotFound() : Results.Ok(product);
         })
         .WithName("GetProductByBarcode")
@@ -37,7 +37,7 @@ public static class ProductEndpoints
 
         group.MapGet("/search/{searchTerm}", async (string searchTerm, IProductService productService, CancellationToken ct) =>
         {
-            var products = await productService.SearchAsync(searchTerm, ct);
+            var products = await productService.SearchAsync(searchTerm, null, ct);
             return Results.Ok(products);
         })
         .WithName("SearchProducts")

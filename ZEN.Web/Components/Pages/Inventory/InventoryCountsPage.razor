@@ -1,0 +1,131 @@
+@page "/inventory-counts"
+@using Microsoft.AspNetCore.Authorization
+@using ZEN.Domain.Enums
+@using ZEN.Shared.Components.Common
+@using Microsoft.AspNetCore.Components.Web
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+
+@attribute [Authorize(Roles = "Administrator,Manager,InventoryManager")]
+
+<ZEN.Shared.Components.Common.PageTitle>Inventory Counts - ZEN POS</ZEN.Shared.Components.Common.PageTitle>
+@* Keep fully-qualified shared PageTitle component usage *@
+
+<MudText Typo="Typo.h3" GutterBottom="true">Physical Inventory Counts</MudText>
+
+<MudPaper Class="pa-4 mb-4">
+    <div class="d-flex align-center justify-space-between mb-4">
+        <MudSelect T="string" 
+                   Label="Filter by Status" 
+                   Style="min-width: 200px;"
+                   Variant="Variant.Outlined"
+                   Margin="Margin.Dense">
+            <MudSelectItem T="string" Value="@("All")">All Status</MudSelectItem>
+            <MudSelectItem T="string" Value="@("Draft")">Draft</MudSelectItem>
+            <MudSelectItem T="string" Value="@("InProgress")">In Progress</MudSelectItem>
+            <MudSelectItem T="string" Value="@("Completed")">Completed</MudSelectItem>
+        </MudSelect>
+
+        <MudSpacer />
+
+        <MudButton Variant="Variant.Filled" 
+                   Color="Color.Primary" 
+                   StartIcon="@Icons.Material.Filled.Add" 
+                   OnClick="OpenCreateDialog">
+            New Inventory Count
+        </MudButton>
+    </div>
+
+    <MudAlert Severity="Severity.Info" Class="mb-4">
+        <strong>Inventory Counts Module:</strong> Perform physical inventory counts, record actual quantities, and identify variances. Reconcile with system records to maintain accurate stock levels.
+    </MudAlert>
+
+    <MudTable Items="@_inventoryCounts" Hover="true" Breakpoint="Breakpoint.Sm" Loading="@_isLoading">
+        <ToolBarContent>
+            <MudText Typo="Typo.h6">Inventory Counts List</MudText>
+        </ToolBarContent>
+        <HeaderContent>
+            <MudTh>Count #</MudTh>
+            <MudTh>Warehouse</MudTh>
+            <MudTh>Items Counted</MudTh>
+            <MudTh>Status</MudTh>
+            <MudTh>Count Date</MudTh>
+            <MudTh>Discrepancies</MudTh>
+            <MudTh>Actions</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="Count #">@("—")</MudTd>
+            <MudTd DataLabel="Warehouse">@("—")</MudTd>
+            <MudTd DataLabel="Items Counted">@("0")</MudTd>
+            <MudTd DataLabel="Status">
+                <MudChip T="string" Color="Color.Info" Size="Size.Small">Draft</MudChip>
+            </MudTd>
+            <MudTd DataLabel="Count Date">@("—")</MudTd>
+            <MudTd DataLabel="Discrepancies">
+                <MudChip T="string" Color="Color.Default" Size="Size.Small">0 items</MudChip>
+            </MudTd>
+            <MudTd DataLabel="Actions">
+                <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small" />
+                <MudIconButton Icon="@Icons.Material.Filled.Check" Color="Color.Success" Size="Size.Small" Title="Complete" />
+                <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small" />
+            </MudTd>
+        </RowTemplate>
+        <PagerContent>
+            <MudTablePager />
+        </PagerContent>
+    </MudTable>
+</MudPaper>
+
+<!-- Create/Edit Dialog (visibility bound to _isDialogOpen) -->
+<MudDialog @bind-Visible="_isDialogOpen">
+    <TitleContent>
+        <MudText Typo="Typo.h6">@(_isEditMode ? "Edit Inventory Count" : "Create Inventory Count")</MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudAlert Severity="Severity.Info">
+            Complete Inventory Count form will include:
+            <ul>
+                <li>Warehouse selection</li>
+                <li>Products list with system quantities</li>
+                <li>Actual quantity entry fields for each product</li>
+                <li>Automatic variance calculation (system vs. actual)</li>
+                <li>Notes for discrepancies</li>
+                <li>Count date and counter name</li>
+                <li>Item-by-item detail entry with barcode scanning support</li>
+            </ul>
+        </MudAlert>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="CloseDialog">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="CloseDialog">
+            @(_isEditMode ? "Update" : "Create")
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private List<object> _inventoryCounts = new();
+    private bool _isLoading = false;
+    private bool _isDialogOpen = false;
+    private bool _isEditMode = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Load inventory counts - to be implemented with IInventoryCountService
+        _isLoading = true;
+        await Task.Delay(500); // Simulated load
+        _isLoading = false;
+    }
+
+    private void OpenCreateDialog()
+    {
+        _isEditMode = false;
+        _isDialogOpen = true;
+    }
+
+    private void CloseDialog()
+    {
+        _isDialogOpen = false;
+        Snackbar.Add("Inventory count feature coming soon", Severity.Info);
+    }
+}

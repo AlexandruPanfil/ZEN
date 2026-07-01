@@ -1,0 +1,80 @@
+@using MudBlazor
+@inject ISnackbar Snackbar
+
+<MudStack Spacing="4">
+    <MudText Typo="Typo.subtitle1">Localization Settings</MudText>
+
+    <MudForm @ref="form" @bind-IsValid="isFormValid">
+        <MudStack Spacing="3">
+            <MudSelect T="string" Label="Default Language" @bind-Value="language"
+                      Variant="Variant.Outlined">
+                <MudSelectItem Value="@("en-US")">English (US)</MudSelectItem>
+                <MudSelectItem Value="@("en-GB")">English (UK)</MudSelectItem>
+                <MudSelectItem Value="@("es-ES")">Spanish</MudSelectItem>
+                <MudSelectItem Value="@("fr-FR")">French</MudSelectItem>
+                <MudSelectItem Value="@("de-DE")">German</MudSelectItem>
+                <MudSelectItem Value="@("pt-BR")">Portuguese (Brazil)</MudSelectItem>
+                <MudSelectItem Value="@("zh-CN")">Chinese (Simplified)</MudSelectItem>
+                <MudSelectItem Value="@("ja-JP")">Japanese</MudSelectItem>
+            </MudSelect>
+
+            <MudSelect T="string" Label="Default Currency" @bind-Value="currency"
+                      Variant="Variant.Outlined">
+                <MudSelectItem Value="@("USD")">USD - US Dollar</MudSelectItem>
+                <MudSelectItem Value="@("EUR")">EUR - Euro</MudSelectItem>
+                <MudSelectItem Value="@("GBP")">GBP - British Pound</MudSelectItem>
+                <MudSelectItem Value="@("CAD")">CAD - Canadian Dollar</MudSelectItem>
+                <MudSelectItem Value="@("AUD")">AUD - Australian Dollar</MudSelectItem>
+                <MudSelectItem Value="@("JPY")">JPY - Japanese Yen</MudSelectItem>
+                <MudSelectItem Value="@("CNY")">CNY - Chinese Yuan</MudSelectItem>
+            </MudSelect>
+
+            <MudTextField T="string" Label="Currency Symbol" @bind-Value="currencySymbol"
+                         Variant="Variant.Outlined"
+                         HelperText="Symbol to display (e.g., $, €, £)" />
+
+            <MudSelect T="string" Label="Decimal Separator" @bind-Value="decimalSeparator"
+                      Variant="Variant.Outlined">
+                <MudSelectItem Value="@(".")">Dot (.)</MudSelectItem>
+                <MudSelectItem Value="@(",")">Comma (,)</MudSelectItem>
+            </MudSelect>
+
+            <MudSelect T="string" Label="Thousands Separator" @bind-Value="thousandsSeparator"
+                      Variant="Variant.Outlined">
+                <MudSelectItem Value="@(",")">Comma (,)</MudSelectItem>
+                <MudSelectItem Value="@(" ")">Space</MudSelectItem>
+                <MudSelectItem Value="@("")">None</MudSelectItem>
+            </MudSelect>
+
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveLocalizationSettings">
+                Save Localization Settings
+            </MudButton>
+        </MudStack>
+    </MudForm>
+</MudStack>
+
+@code {
+    private MudForm form = null!;
+    private bool isFormValid = true;
+
+    private string language = "en-US";
+    private string currency = "USD";
+    private string currencySymbol = "$";
+    private string decimalSeparator = ".";
+    private string thousandsSeparator = ",";
+
+    [Inject] private ISnackbar SnackbarLocal { get; set; } = null!;
+
+    private async Task SaveLocalizationSettings()
+    {
+        try
+        {
+            // In a real scenario, would call a settings service to save these values
+            SnackbarLocal.Add("Localization settings saved successfully", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            SnackbarLocal.Add($"Error saving settings: {ex.Message}", Severity.Error);
+        }
+    }
+}

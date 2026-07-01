@@ -1,0 +1,164 @@
+@using PromotionServiceDto = ZEN.Application.Services.Interfaces.PromotionDto
+@using PromotionDiscountDto = ZEN.Application.Services.Interfaces.DiscountDto
+@using PromotionCreateRequest = ZEN.Application.Services.Interfaces.CreatePromotionRequest
+@using PromotionUpdateRequest = ZEN.Application.Services.Interfaces.UpdatePromotionRequest
+@using ZEN.Application.Services.Interfaces
+@using MudBlazor
+@inject IPromotionService PromotionService
+@inject IDiscountService DiscountService
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudForm @ref="form" @bind-IsValid="isFormValid">
+            <MudStack Spacing="3">
+                <MudTextField T="string" Label="Name" @bind-Value="editModel.Name" 
+                             Required="true" RequiredError="Name is required"
+                             Variant="Variant.Outlined" />
+
+                <MudTextField T="string" Label="Description" @bind-Value="editModel.Description"
+                             Variant="Variant.Outlined" Lines="3" />
+
+                <MudDatePicker Label="Start Date" @bind-Date="editModel.StartDate"
+                              Required="true" Variant="Variant.Outlined" />
+
+                <MudDatePicker Label="End Date" @bind-Date="editModel.EndDate"
+                              Variant="Variant.Outlined" />
+
+                <MudSelect T="string" Label="Status" @bind-Value="editModel.Status"
+                          Variant="Variant.Outlined">
+                    <MudSelectItem Value="@("Draft")">Draft</MudSelectItem>
+                    <MudSelectItem Value="@("Scheduled")">Scheduled</MudSelectItem>
+                    <MudSelectItem Value="@("Active")">Active</MudSelectItem>
+                    <MudSelectItem Value="@("Completed")">Completed</MudSelectItem>
+                </MudSelect>
+
+                <MudDivider />
+
+                <MudText Typo="Typo.subtitle2">Associated Discounts</MudText>
+
+                @if (availableDiscounts.Any())
+                {
+                    <MudGrid>
+                        @foreach (var discount in availableDiscounts)
+                        {
+                            <MudItem xs="12">
+                                <MudCheckBox T="bool" 
+                                           Checked="@editModel.DiscountIds.Contains(discount.Id)"
+                                           CheckedChanged="@((bool selected) => ToggleDiscount(discount.Id, selected))"
+                                           Label="@($"{discount.Code} - {discount.Description}")" />
+                            </MudItem>
+                        }
+                    </MudGrid>
+                }
+                else
+                {
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">No discounts available</MudText>
+                }
+
+                <MudCheckBox T="bool" @bind-Value="editModel.IsArchived" Label="Archive Promotion" />
+            </MudStack>
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SavePromotion" Disabled="!isFormValid">
+            Save
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
+    [Parameter] public PromotionServiceDto? Promotion { get; set; }
+
+    private MudForm form = null!;
+    private bool isFormValid = false;
+    private PromotionEditModel editModel = new();
+    private List<PromotionDiscountDto> availableDiscounts = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        availableDiscounts = (await DiscountService.GetActiveAsync()).ToList();
+
+        if (Promotion is not null)
+        {
+            editModel = new PromotionEditModel
+            {
+                Name = Promotion.Name,
+                Description = Promotion.Description,
+                StartDate = Promotion.StartDate,
+                EndDate = Promotion.EndDate,
+                Status = Promotion.Status,
+                DiscountIds = Promotion.DiscountIds?.ToList() ?? [],
+                IsArchived = Promotion.IsArchived
+            };
+        }
+        else
+        {
+            editModel.StartDate = DateTime.Today;
+        }
+    }
+
+    private void ToggleDiscount(Guid discountId, bool selected)
+    {
+        if (selected && !editModel.DiscountIds.Contains(discountId))
+            editModel.DiscountIds.Add(discountId);
+        else if (!selected)
+            editModel.DiscountIds.Remove(discountId);
+    }
+
+    private async Task SavePromotion()
+    {
+        if (!isFormValid)
+            return;
+
+        try
+        {
+            PromotionServiceDto result;
+            if (Promotion == null)
+            {
+                var request = new PromotionCreateRequest(
+                    editModel.Name,
+                    editModel.Description,
+                    editModel.StartDate,
+                    editModel.EndDate,
+                    editModel.Status,
+                    editModel.DiscountIds);
+                result = await PromotionService.CreateAsync(request);
+            }
+            else
+            {
+                var request = new PromotionUpdateRequest(
+                    Promotion.Id,
+                    editModel.Name,
+                    editModel.Description,
+                    editModel.StartDate,
+                    editModel.EndDate,
+                    editModel.Status,
+                    editModel.DiscountIds,
+                    editModel.IsArchived);
+                result = await PromotionService.UpdateAsync(request);
+            }
+
+            MudDialog.Close(DialogResult.Ok(result));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error saving promotion: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private class PromotionEditModel
+    {
+        public string Name { get; set; } = "";
+        public string? Description { get; set; }
+        public DateTime? StartDate { get; set; }
+        public DateTime? EndDate { get; set; }
+        public string Status { get; set; } = "Draft";
+        public List<Guid> DiscountIds { get; set; } = [];
+        public bool IsArchived { get; set; }
+    }
+}

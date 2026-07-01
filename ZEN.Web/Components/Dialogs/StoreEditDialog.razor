@@ -1,0 +1,168 @@
+@using ZEN.Domain.Entities
+@using MudBlazor
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudForm @ref="form" @bind-IsValid="isFormValid">
+            <MudStack Spacing="3">
+                <MudText Typo="Typo.subtitle2">Store Information</MudText>
+
+                <MudTextField T="string" Label="Store Code" @bind-Value="editModel.Code" 
+                             Required="true" RequiredError="Code is required"
+                             Variant="Variant.Outlined" />
+
+                <MudTextField T="string" Label="Store Name" @bind-Value="editModel.Name" 
+                             Required="true" RequiredError="Name is required"
+                             Variant="Variant.Outlined" />
+
+                <MudTextField T="string" Label="Address" @bind-Value="editModel.Address"
+                             Variant="Variant.Outlined" Lines="2" />
+
+                <MudTextField T="string" Label="Phone" @bind-Value="editModel.Phone"
+                             Variant="Variant.Outlined" />
+
+                <MudTextField T="string" Label="Email" @bind-Value="editModel.Email"
+                             InputType="InputType.Email"
+                             Variant="Variant.Outlined" />
+
+                <MudDivider />
+
+                <MudText Typo="Typo.subtitle2">Regional & Tax Settings</MudText>
+
+                <MudSelect T="string" Label="Currency" @bind-Value="editModel.Currency"
+                          Variant="Variant.Outlined">
+                    <MudSelectItem Value="@("USD")">USD - US Dollar</MudSelectItem>
+                    <MudSelectItem Value="@("EUR")">EUR - Euro</MudSelectItem>
+                    <MudSelectItem Value="@("GBP")">GBP - British Pound</MudSelectItem>
+                    <MudSelectItem Value="@("CAD")">CAD - Canadian Dollar</MudSelectItem>
+                    <MudSelectItem Value="@("AUD")">AUD - Australian Dollar</MudSelectItem>
+                </MudSelect>
+
+                <MudTextField T="string" Label="Tax ID / Business Number" @bind-Value="editModel.TaxNumber"
+                             Variant="Variant.Outlined" />
+
+                <MudDivider />
+
+                <MudText Typo="Typo.subtitle2">Receipt & Operations</MudText>
+
+                <MudTextField T="string" Label="Receipt Header Text" @bind-Value="editModel.ReceiptHeader"
+                             Variant="Variant.Outlined" Lines="2" />
+
+                <MudTextField T="string" Label="Receipt Footer Text" @bind-Value="editModel.ReceiptFooter"
+                             Variant="Variant.Outlined" Lines="2" />
+
+                <MudCheckBox T="bool" @bind-Value="editModel.IsActive" Label="Active" />
+            </MudStack>
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveStore" Disabled="!isFormValid">
+            Save
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
+    [Parameter] public Store? Store { get; set; }
+
+    private MudForm form = null!;
+    private bool isFormValid = false;
+    private StoreEditModel editModel = new();
+    private bool isEditMode => Store != null;
+
+    protected override Task OnInitializedAsync()
+    {
+        if (isEditMode)
+        {
+            editModel = new StoreEditModel
+            {
+                Code = Store!.Code,
+                Name = Store.Name,
+                Address = Store.Address,
+                Phone = Store.Phone,
+                Email = Store.Email,
+                Currency = Store.Currency?.Code ?? "USD",
+                TaxNumber = Store.TaxNumber,
+                ReceiptHeader = Store.ReceiptHeader,
+                ReceiptFooter = Store.ReceiptFooter,
+                IsActive = Store.IsActive
+            };
+        }
+        else
+        {
+            editModel.Currency = "USD";
+            editModel.IsActive = true;
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private async Task SaveStore()
+    {
+        if (!isFormValid)
+            return;
+
+        try
+        {
+            Store result;
+            if (isEditMode)
+            {
+                Store!.Code = editModel.Code;
+                Store.Name = editModel.Name;
+                Store.Address = editModel.Address;
+                Store.Phone = editModel.Phone;
+                Store.Email = editModel.Email;
+                Store.Currency ??= new Currency();
+                Store.Currency.Code = editModel.Currency;
+                Store.TaxNumber = editModel.TaxNumber;
+                Store.ReceiptHeader = editModel.ReceiptHeader;
+                Store.ReceiptFooter = editModel.ReceiptFooter;
+                Store.IsActive = editModel.IsActive;
+                result = Store;
+            }
+            else
+            {
+                result = new Store
+                {
+                    Id = Guid.NewGuid(),
+                    Code = editModel.Code,
+                    Name = editModel.Name,
+                    Address = editModel.Address,
+                    Phone = editModel.Phone,
+                    Email = editModel.Email,
+                    Currency = new Currency { Code = editModel.Currency },
+                    TaxNumber = editModel.TaxNumber,
+                    ReceiptHeader = editModel.ReceiptHeader,
+                    ReceiptFooter = editModel.ReceiptFooter,
+                    IsActive = editModel.IsActive,
+                    CreatedAt = DateTime.UtcNow
+                };
+            }
+
+            MudDialog.Close(DialogResult.Ok(result));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error saving store: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private class StoreEditModel
+    {
+        public string Code { get; set; } = "";
+        public string Name { get; set; } = "";
+        public string? Address { get; set; }
+        public string? Phone { get; set; }
+        public string? Email { get; set; }
+        public string Currency { get; set; } = "USD";
+        public string? TaxNumber { get; set; }
+        public string? ReceiptHeader { get; set; }
+        public string? ReceiptFooter { get; set; }
+        public bool IsActive { get; set; } = true;
+    }
+}

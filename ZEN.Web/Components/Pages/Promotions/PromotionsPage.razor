@@ -1,0 +1,172 @@
+@page "/promotions/promotions"
+@using PromotionServiceDto = ZEN.Application.Services.Interfaces.PromotionDto
+@using ZEN.Application.Services.Interfaces
+@using MudBlazor
+@inject IPromotionService PromotionService
+@inject IDiscountService DiscountService
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+
+<PageTitle>Promotions</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="py-8">
+    <MudStack Spacing="4">
+        <MudStack Row="true" Class="justify-between align-center">
+            <MudText Typo="Typo.h4">Promotions & Campaigns</MudText>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="OpenCreateDialog">
+                <MudIcon Icon="@Icons.Material.Filled.Add" Class="mr-2" />
+                New Promotion
+            </MudButton>
+        </MudStack>
+
+        <MudPaper Class="pa-4">
+            <MudStack Spacing="3">
+                <MudStack Row="true" Spacing="2">
+                    <MudTextField T="string" Label="Search promotions..." 
+                                  @bind-Value="searchText" 
+                                  Variant="Variant.Outlined"
+                                  Adornment="Adornment.Start"
+                                  AdornmentIcon="@Icons.Material.Filled.Search"
+                                  Class="flex-grow-1" />
+                    <MudSelect T="string?" Label="Status" MultiSelection="false" 
+                              @bind-Value="filterStatus"
+                              Variant="Variant.Outlined">
+                        <MudSelectItem Value="@((string?)null)">All Statuses</MudSelectItem>
+                        <MudSelectItem Value="@("Draft")">Draft</MudSelectItem>
+                        <MudSelectItem Value="@("Active")">Active</MudSelectItem>
+                        <MudSelectItem Value="@("Scheduled")">Scheduled</MudSelectItem>
+                        <MudSelectItem Value="@("Completed")">Completed</MudSelectItem>
+                    </MudSelect>
+                    <MudCheckBox T="bool" @bind-Value="showArchived" Label="Show Archived" />
+                </MudStack>
+            </MudStack>
+        </MudPaper>
+
+        <MudTable T="PromotionServiceDto" Items="FilteredPromotions" Hover="true" Striped="true" Dense="false">
+            <HeaderContent>
+                <MudTh>Name</MudTh>
+                <MudTh>Status</MudTh>
+                <MudTh>Start Date</MudTh>
+                <MudTh>End Date</MudTh>
+                <MudTh>Discounts</MudTh>
+                <MudTh Style="text-align:right">Actions</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="Name">@context.Name</MudTd>
+                <MudTd DataLabel="Status">
+                    <MudChip T="string" Size="Size.Small" Color="GetStatusColor(context.Status)">
+                        @context.Status
+                    </MudChip>
+                </MudTd>
+                <MudTd DataLabel="Start Date">@context.StartDate?.ToString("MMM dd, yyyy")</MudTd>
+                <MudTd DataLabel="End Date">@context.EndDate?.ToString("MMM dd, yyyy")</MudTd>
+                <MudTd DataLabel="Discounts">@context.DiscountIds?.Count ?? 0</MudTd>
+                <MudTd Style="text-align:right">
+                    <MudIconButton Icon="@Icons.Material.Filled.Edit" 
+                                  Size="Size.Small"
+                                  OnClick="@(() => OpenEditDialog(context))" />
+                    <MudIconButton Icon="@Icons.Material.Filled.Delete" 
+                                  Size="Size.Small"
+                                  Color="Color.Error"
+                                  OnClick="@(() => DeletePromotion(context))" />
+                </MudTd>
+            </RowTemplate>
+        </MudTable>
+    </MudStack>
+</MudContainer>
+
+@code {
+    private List<PromotionServiceDto> promotions = [];
+    private string searchText = "";
+    private string? filterStatus = null;
+    private bool showArchived = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadPromotionsAsync();
+    }
+
+    private async Task LoadPromotionsAsync()
+    {
+        try
+        {
+            var allPromotions = await PromotionService.GetAllAsync();
+            promotions = allPromotions.ToList();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error loading promotions: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private List<PromotionServiceDto> FilteredPromotions =>
+        promotions
+            .Where(p => (showArchived || !p.IsArchived) &&
+                       (string.IsNullOrEmpty(searchText) || 
+                        p.Name.Contains(searchText, StringComparison.OrdinalIgnoreCase)) &&
+                       (filterStatus == null || p.Status == filterStatus))
+            .OrderByDescending(p => p.StartDate)
+            .ToList();
+
+    private async Task OpenCreateDialog()
+    {
+        var parameters = new DialogParameters { };
+        var dialog = await DialogService.ShowAsync<ZEN.Web.Components.Dialogs.PromotionEditDialog>("New Promotion", parameters);
+        var result = await dialog.Result;
+
+        if (!result.Canceled && result.Data is PromotionServiceDto newPromotion)
+        {
+            promotions.Add(newPromotion);
+            Snackbar.Add("Promotion created successfully", Severity.Success);
+        }
+    }
+
+    private async Task OpenEditDialog(PromotionServiceDto promotion)
+    {
+        var parameters = new DialogParameters { { "Promotion", promotion } };
+        var dialog = await DialogService.ShowAsync<ZEN.Web.Components.Dialogs.PromotionEditDialog>("Edit Promotion", parameters);
+        var result = await dialog.Result;
+
+        if (!result.Canceled && result.Data is PromotionServiceDto updated)
+        {
+            var index = promotions.FindIndex(p => p.Id == updated.Id);
+            if (index >= 0)
+            {
+                promotions[index] = updated;
+                Snackbar.Add("Promotion updated successfully", Severity.Success);
+            }
+        }
+    }
+
+    private async Task DeletePromotion(PromotionServiceDto promotion)
+    {
+        var confirmed = await DialogService.ShowAsync<ZEN.Shared.Components.Common.ConfirmDialog>(
+            "Delete Promotion",
+            new DialogParameters { { "Message", $"Delete promotion '{promotion.Name}'?" } });
+
+        var result = await confirmed.Result;
+        if (!result.Canceled)
+        {
+            try
+            {
+                await PromotionService.DeleteAsync(promotion.Id);
+                promotions.Remove(promotion);
+                Snackbar.Add("Promotion deleted", Severity.Success);
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+            }
+        }
+    }
+
+    private Color GetStatusColor(string status) =>
+        status switch
+        {
+            "Draft" => Color.Default,
+            "Scheduled" => Color.Warning,
+            "Active" => Color.Success,
+            "Completed" => Color.Info,
+            _ => Color.Default
+        };
+}

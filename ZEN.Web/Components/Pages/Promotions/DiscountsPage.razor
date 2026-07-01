@@ -1,0 +1,222 @@
+@page "/promotions/discounts"
+@using DiscountServiceDto = ZEN.Application.Services.Interfaces.DiscountDto
+@using DiscountCreateRequest = ZEN.Application.Services.Interfaces.CreateDiscountRequest
+@using DiscountUpdateRequest = ZEN.Application.Services.Interfaces.UpdateDiscountRequest
+@using ZEN.Application.Services.Interfaces
+@using ZEN.Web.Components.Dialogs
+@using MudBlazor
+@inject IDiscountService DiscountService
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+
+<PageTitle>Discounts</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="py-8">
+    <MudStack Spacing="4">
+        <MudStack Row="true" Class="justify-between align-center">
+            <MudText Typo="Typo.h4">Discounts</MudText>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="OpenCreateDialog">
+                <MudIcon Icon="@Icons.Material.Filled.Add" Class="mr-2" />
+                New Discount
+            </MudButton>
+        </MudStack>
+
+        <MudPaper Class="pa-4">
+            <MudStack Spacing="3">
+                <MudStack Row="true" Spacing="2">
+                    <MudTextField T="string" Label="Search discounts..." 
+                                  @bind-Value="searchText" 
+                                  Variant="Variant.Outlined"
+                                  Adornment="Adornment.Start"
+                                  AdornmentIcon="@Icons.Material.Filled.Search"
+                                  Class="flex-grow-1" />
+                    <MudSelect T="string?" Label="Type" MultiSelection="false" 
+                              @bind-Value="filterType"
+                              Variant="Variant.Outlined">
+                        <MudSelectItem Value="@((string?)null)">All Types</MudSelectItem>
+                        <MudSelectItem Value="@("Fixed")">Fixed Amount</MudSelectItem>
+                        <MudSelectItem Value="@("Percentage")">Percentage</MudSelectItem>
+                        <MudSelectItem Value="@("Tiered")">Tiered</MudSelectItem>
+                    </MudSelect>
+                    <MudCheckBox T="bool" @bind-Value="showInactive" Label="Show Inactive" />
+                </MudStack>
+            </MudStack>
+        </MudPaper>
+
+        <MudTable T="DiscountServiceDto" Items="FilteredDiscounts" Hover="true" Striped="true" Dense="false">
+            <HeaderContent>
+                <MudTh>Code</MudTh>
+                <MudTh>Description</MudTh>
+                <MudTh>Type</MudTh>
+                <MudTh>Value</MudTh>
+                <MudTh>Valid From</MudTh>
+                <MudTh>Valid To</MudTh>
+                <MudTh>Active</MudTh>
+                <MudTh Style="text-align:right">Actions</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="Code">@context.Code</MudTd>
+                <MudTd DataLabel="Description">@context.Description</MudTd>
+                <MudTd DataLabel="Type">
+                    <MudChip T="string" Size="Size.Small" Color="GetDiscountTypeColor(context.Type)">
+                        @GetDiscountTypeLabel(context.Type)
+                    </MudChip>
+                </MudTd>
+                <MudTd DataLabel="Value">
+                    @if (context.Type == "Fixed")
+                    {
+                        <text>${context.Value:F2}</text>
+                    }
+                    else if (context.Type == "Percentage")
+                    {
+                        <text>@context.Value%</text>
+                    }
+                    else
+                    {
+                        <text>Tiered</text>
+                    }
+                </MudTd>
+                <MudTd DataLabel="Valid From">@context.ValidFrom?.ToString("MMM dd, yyyy")</MudTd>
+                <MudTd DataLabel="Valid To">@context.ValidTo?.ToString("MMM dd, yyyy")</MudTd>
+                <MudTd DataLabel="Active">
+                    <MudSwitch T="bool" 
+                              Checked="@context.IsActive"
+                              CheckedChanged="@((bool value) => ToggleActive(context, value))"
+                              Color="Color.Primary" />
+                </MudTd>
+                <MudTd Style="text-align:right">
+                    <MudIconButton Icon="@Icons.Material.Filled.Edit" 
+                                  Size="Size.Small"
+                                  OnClick="@(() => OpenEditDialog(context))" />
+                    <MudIconButton Icon="@Icons.Material.Filled.Delete" 
+                                  Size="Size.Small"
+                                  Color="Color.Error"
+                                  OnClick="@(() => DeleteDiscount(context))" />
+                </MudTd>
+            </RowTemplate>
+        </MudTable>
+    </MudStack>
+</MudContainer>
+
+@code {
+    private List<DiscountServiceDto> discounts = [];
+    private string searchText = "";
+    private string? filterType = null;
+    private bool showInactive = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDiscountsAsync();
+    }
+
+    private async Task LoadDiscountsAsync()
+    {
+        try
+        {
+            var allDiscounts = await DiscountService.GetAllAsync();
+            discounts = allDiscounts.ToList();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error loading discounts: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private List<DiscountServiceDto> FilteredDiscounts =>
+        discounts
+            .Where(d => (showInactive || d.IsActive) &&
+                       (string.IsNullOrEmpty(searchText) || 
+                        d.Code.Contains(searchText, StringComparison.OrdinalIgnoreCase) ||
+                        (d.Description?.Contains(searchText, StringComparison.OrdinalIgnoreCase) ?? false)) &&
+                       (filterType == null || d.Type == filterType))
+            .OrderByDescending(d => d.ValidFrom)
+            .ToList();
+
+    private async Task OpenCreateDialog()
+    {
+        var parameters = new DialogParameters { };
+        var dialog = await DialogService.ShowAsync<DiscountEditDialog>("New Discount", parameters);
+        var result = await dialog.Result;
+
+        if (!result.Canceled && result.Data is DiscountServiceDto newDiscount)
+        {
+            discounts.Add(newDiscount);
+            Snackbar.Add("Discount created successfully", Severity.Success);
+        }
+    }
+
+    private async Task OpenEditDialog(DiscountServiceDto discount)
+    {
+        var parameters = new DialogParameters { { "Discount", discount } };
+        var dialog = await DialogService.ShowAsync<DiscountEditDialog>("Edit Discount", parameters);
+        var result = await dialog.Result;
+
+        if (!result.Canceled && result.Data is DiscountServiceDto updated)
+        {
+            var index = discounts.FindIndex(d => d.Id == updated.Id);
+            if (index >= 0)
+            {
+                discounts[index] = updated;
+                Snackbar.Add("Discount updated successfully", Severity.Success);
+            }
+        }
+    }
+
+    private async Task ToggleActive(DiscountServiceDto discount, bool active)
+    {
+        try
+        {
+            var request = new DiscountUpdateRequest(discount.Id, discount.Code, discount.Description, 
+                discount.Type, discount.Value, discount.ValidFrom, discount.ValidTo, active, discount.Conditions);
+            var updated = await DiscountService.UpdateAsync(request);
+            var index = discounts.FindIndex(d => d.Id == updated.Id);
+            if (index >= 0)
+                discounts[index] = updated;
+            Snackbar.Add("Discount updated", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task DeleteDiscount(DiscountServiceDto discount)
+    {
+        var confirmed = await DialogService.ShowAsync<ZEN.Shared.Components.Common.ConfirmDialog>(
+            "Delete Discount",
+            new DialogParameters { { "Message", $"Delete discount '{discount.Code}'?" } });
+
+        var result = await confirmed.Result;
+        if (!result.Canceled)
+        {
+            try
+            {
+                await DiscountService.DeleteAsync(discount.Id);
+                discounts.Remove(discount);
+                Snackbar.Add("Discount deleted", Severity.Success);
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+            }
+        }
+    }
+
+    private Color GetDiscountTypeColor(string type) =>
+        type switch
+        {
+            "Fixed" => Color.Primary,
+            "Percentage" => Color.Warning,
+            "Tiered" => Color.Info,
+            _ => Color.Default
+        };
+
+    private string GetDiscountTypeLabel(string type) =>
+        type switch
+        {
+            "Fixed" => "Fixed Amount",
+            "Percentage" => "Percentage",
+            "Tiered" => "Tiered",
+            _ => type
+        };
+}

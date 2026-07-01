@@ -9,7 +9,7 @@ public static class CustomerEndpoints
     {
         group.MapGet("/", async (ICustomerService customerService, CancellationToken ct) =>
         {
-            var customers = await customerService.GetAllAsync(ct);
+            var customers = await customerService.GetAllAsync(null, ct);
             return Results.Ok(customers);
         })
         .WithName("GetAllCustomers")

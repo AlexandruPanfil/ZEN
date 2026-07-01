@@ -1,0 +1,191 @@
+@page "/promotions/coupons"
+@using CouponServiceDto = ZEN.Application.Services.Interfaces.CouponDto
+@using ZEN.Application.Services.Interfaces
+@using MudBlazor
+@inject ICouponService CouponService
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+
+<PageTitle>Coupons</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="py-8">
+    <MudStack Spacing="4">
+        <MudStack Row="true" Class="justify-between align-center">
+            <MudText Typo="Typo.h4">Coupon Codes</MudText>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="OpenCreateDialog">
+                <MudIcon Icon="@Icons.Material.Filled.Add" Class="mr-2" />
+                Generate Coupon
+            </MudButton>
+        </MudStack>
+
+        <MudPaper Class="pa-4">
+            <MudStack Spacing="3">
+                <MudStack Row="true" Spacing="2">
+                    <MudTextField T="string" Label="Search by code..." 
+                                  @bind-Value="searchText" 
+                                  Variant="Variant.Outlined"
+                                  Adornment="Adornment.Start"
+                                  AdornmentIcon="@Icons.Material.Filled.Search"
+                                  Class="flex-grow-1" />
+                    <MudSelect T="string?" Label="Status" MultiSelection="false" 
+                              @bind-Value="filterStatus"
+                              Variant="Variant.Outlined">
+                        <MudSelectItem Value="@((string?)null)">All Status</MudSelectItem>
+                        <MudSelectItem Value="@("Active")">Active</MudSelectItem>
+                        <MudSelectItem Value="@("Used")">Used</MudSelectItem>
+                        <MudSelectItem Value="@("Expired")">Expired</MudSelectItem>
+                    </MudSelect>
+                </MudStack>
+            </MudStack>
+        </MudPaper>
+
+        <MudTable T="CouponServiceDto" Items="FilteredCoupons" Hover="true" Striped="true" Dense="false">
+            <HeaderContent>
+                <MudTh>Code</MudTh>
+                <MudTh>Discount Value</MudTh>
+                <MudTh>Limit</MudTh>
+                <MudTh>Used</MudTh>
+                <MudTh>Valid Until</MudTh>
+                <MudTh>Status</MudTh>
+                <MudTh Style="text-align:right">Actions</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="Code">
+                    <MudStack Row="true" Spacing="1">
+                        <MudText>@context.Code</MudText>
+                        <MudCopyToClipboard Text="@context.Code" Icon="@Icons.Material.Filled.ContentCopy" />
+                    </MudStack>
+                </MudTd>
+                <MudTd DataLabel="Discount Value">
+                    @if (context.DiscountType == "Fixed")
+                    {
+                        <text>${context.DiscountValue:F2}</text>
+                    }
+                    else
+                    {
+                        <text>@context.DiscountValue%</text>
+                    }
+                </MudTd>
+                <MudTd DataLabel="Limit">@(context.UsageLimit ?? 0)</MudTd>
+                <MudTd DataLabel="Used">@context.TimesUsed</MudTd>
+                <MudTd DataLabel="Valid Until">@context.ExpiryDate.ToString("MMM dd, yyyy")</MudTd>
+                <MudTd DataLabel="Status">
+                    <MudChip T="string" Size="Size.Small" Color="GetStatusColor(GetCouponStatus(context))">
+                        @GetCouponStatus(context)
+                    </MudChip>
+                </MudTd>
+                <MudTd Style="text-align:right">
+                    <MudIconButton Icon="@Icons.Material.Filled.Edit" 
+                                  Size="Size.Small"
+                                  OnClick="@(() => OpenEditDialog(context))" />
+                    <MudIconButton Icon="@Icons.Material.Filled.Delete" 
+                                  Size="Size.Small"
+                                  Color="Color.Error"
+                                  OnClick="@(() => DeleteCoupon(context))" />
+                </MudTd>
+            </RowTemplate>
+        </MudTable>
+    </MudStack>
+</MudContainer>
+
+@code {
+    private List<CouponServiceDto> coupons = [];
+    private string searchText = "";
+    private string? filterStatus = null;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadCouponsAsync();
+    }
+
+    private async Task LoadCouponsAsync()
+    {
+        try
+        {
+            var allCoupons = await CouponService.GetAllAsync();
+            coupons = allCoupons.ToList();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error loading coupons: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private List<CouponServiceDto> FilteredCoupons =>
+        coupons
+            .Where(c => (string.IsNullOrEmpty(searchText) || 
+                        c.Code.Contains(searchText, StringComparison.OrdinalIgnoreCase)) &&
+                       (filterStatus == null || GetCouponStatus(c) == filterStatus))
+            .OrderByDescending(c => c.CreatedDate)
+            .ToList();
+
+    private async Task OpenCreateDialog()
+    {
+        var parameters = new DialogParameters { };
+        var dialog = await DialogService.ShowAsync<ZEN.Web.Components.Dialogs.CouponEditDialog>("Generate New Coupon", parameters);
+        var result = await dialog.Result;
+
+        if (!result.Canceled && result.Data is CouponServiceDto newCoupon)
+        {
+            coupons.Add(newCoupon);
+            Snackbar.Add("Coupon created successfully", Severity.Success);
+        }
+    }
+
+    private async Task OpenEditDialog(CouponServiceDto coupon)
+    {
+        var parameters = new DialogParameters { { "Coupon", coupon } };
+        var dialog = await DialogService.ShowAsync<ZEN.Web.Components.Dialogs.CouponEditDialog>("Edit Coupon", parameters);
+        var result = await dialog.Result;
+
+        if (!result.Canceled && result.Data is CouponServiceDto updated)
+        {
+            var index = coupons.FindIndex(c => c.Id == updated.Id);
+            if (index >= 0)
+            {
+                coupons[index] = updated;
+                Snackbar.Add("Coupon updated successfully", Severity.Success);
+            }
+        }
+    }
+
+    private async Task DeleteCoupon(CouponServiceDto coupon)
+    {
+        var confirmed = await DialogService.ShowAsync<ZEN.Shared.Components.Common.ConfirmDialog>(
+            "Delete Coupon",
+            new DialogParameters { { "Message", $"Delete coupon '{coupon.Code}'?" } });
+
+        var result = await confirmed.Result;
+        if (!result.Canceled)
+        {
+            try
+            {
+                await CouponService.DeleteAsync(coupon.Id);
+                coupons.Remove(coupon);
+                Snackbar.Add("Coupon deleted", Severity.Success);
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+            }
+        }
+    }
+
+    private string GetCouponStatus(CouponServiceDto coupon)
+    {
+        if (coupon.ExpiryDate < DateTime.UtcNow)
+            return "Expired";
+        if (coupon.UsageLimit.HasValue && coupon.TimesUsed >= coupon.UsageLimit)
+            return "Used";
+        return "Active";
+    }
+
+    private Color GetStatusColor(string status) =>
+        status switch
+        {
+            "Active" => Color.Success,
+            "Used" => Color.Warning,
+            "Expired" => Color.Error,
+            _ => Color.Default
+        };
+}

@@ -1,0 +1,64 @@
+@using ZEN.Application.DTOs.Sales
+@using MudBlazor
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudStack Spacing="3">
+            <MudText Typo="Typo.subtitle1">Resume Held Sale</MudText>
+
+            <MudGrid>
+                <MudItem xs="12" sm="6">
+                    <MudText Typo="Typo.body2"><strong>Sale Number:</strong> @Sale?.Number</MudText>
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudText Typo="Typo.body2"><strong>Customer:</strong> @Sale?.CustomerName</MudText>
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudText Typo="Typo.body2"><strong>Sale Date:</strong> @Sale?.Date.ToString("g")</MudText>
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudText Typo="Typo.body2"><strong>Items:</strong> @((Sale?.Items?.Count() ?? 0))</MudText>
+                </MudItem>
+            </MudGrid>
+
+            <MudDivider />
+
+            <MudText Typo="Typo.subtitle2">Totals</MudText>
+            <MudText Typo="Typo.body2">SubTotal: @(Sale?.SubTotal.ToString("F2") ?? "0.00")</MudText>
+            <MudText Typo="Typo.body2">Tax: @(Sale?.TaxAmount.ToString("F2") ?? "0.00")</MudText>
+            <MudText Typo="Typo.body2">Discount: @(Sale?.DiscountAmount.ToString("F2") ?? "0.00")</MudText>
+            <MudText Typo="Typo.body2">Total: @(Sale?.TotalAmount.ToString("F2") ?? "0.00")</MudText>
+        </MudStack>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="ResumeSale">
+            Resume to POS
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
+    [Parameter] public SaleDto? Sale { get; set; }
+
+    private async Task ResumeSale()
+    {
+        try
+        {
+            // In a real scenario, this would:
+            // 1. Load the sale back into the POS system
+            // 2. Navigate to the POS cashier page
+            // 3. Pre-populate the cart with the sale items
+
+            MudDialog.Close(DialogResult.Ok(Sale));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error resuming sale: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

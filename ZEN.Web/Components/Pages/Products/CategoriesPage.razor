@@ -1,0 +1,269 @@
+@page "/categories"
+@using Microsoft.AspNetCore.Authorization
+@using ZEN.Application.Services.Interfaces
+@using ZEN.Application.DTOs.Products
+@using ZEN.Domain.Entities
+@using ZEN.Shared.Components.Common
+@inject ICategoryService CategoryService
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+
+@attribute [Authorize(Roles = "Administrator,Manager,InventoryManager")]
+
+<ZEN.Shared.Components.Common.PageTitle>Categories - ZEN POS</ZEN.Shared.Components.Common.PageTitle>
+
+<MudText Typo="Typo.h3" GutterBottom="true">Product Categories</MudText>
+
+<MudPaper Class="pa-4 mb-4">
+    <div class="d-flex align-center justify-space-between mb-4">
+        <MudTextField @bind-Value="_searchTerm" 
+                      Label="Search Categories" 
+                      Variant="Variant.Outlined" 
+                      Adornment="Adornment.Start" 
+                      AdornmentIcon="@Icons.Material.Filled.Search" 
+                      OnKeyDown="@HandleKeyDown" 
+                      Class="flex-grow-1 mr-4" />
+
+        <MudButton Variant="Variant.Filled" 
+                   Color="Color.Primary" 
+                   StartIcon="@Icons.Material.Filled.Add" 
+                   OnClick="OpenCreateDialog">
+            Add Category
+        </MudButton>
+    </div>
+
+<MudTable T="CategoryDto" Items="@FilteredCategories" Hover="true" Breakpoint="Breakpoint.Sm" Loading="@_isLoading" LoadingProgressColor="Color.Info">
+        <ToolBarContent>
+            <MudText Typo="Typo.h6">Categories List</MudText>
+        </ToolBarContent>
+        <HeaderContent>
+            <MudTh>Name</MudTh>
+            <MudTh>Parent Category</MudTh>
+            <MudTh>Sort Order</MudTh>
+            <MudTh>Actions</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="Name">@context.Name</MudTd>
+            <MudTd DataLabel="Parent Category">@context.ParentCategoryName</MudTd>
+            <MudTd DataLabel="Sort Order">@_sortOrders.GetValueOrDefault(context.Id, 0)</MudTd>
+            <MudTd DataLabel="Actions">
+                <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" OnClick="@(() => OpenEditDialog(context))" />
+                <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" OnClick="@(() => DeleteCategory(context))" />
+            </MudTd>
+        </RowTemplate>
+        <PagerContent>
+            <MudTablePager />
+        </PagerContent>
+    </MudTable>
+</MudPaper>
+
+<!-- Create/Edit Dialog -->
+<MudDialog @bind-Visible="_isDialogOpen">
+    <TitleContent>
+        <MudText Typo="Typo.h6">@(_isEditMode ? "Edit Category" : "Create Category")</MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudForm @ref="_form" @bind-IsValid="@_formIsValid">
+            <MudGrid>
+                <MudItem xs="12">
+                    <MudTextField Label="Name" 
+                                  @bind-Value="_editingCategory.Name" 
+                                  Required="true" 
+                                  For="@(() => _editingCategory.Name)" />
+                </MudItem>
+                <MudItem xs="12">
+                    <MudTextField Label="Description" 
+                                  @bind-Value="_editingCategory.Description" 
+                                  For="@(() => _editingCategory.Description)" 
+                                  Multiline="true" 
+                                  Lines="2" />
+                </MudItem>
+                <MudItem xs="12">
+                    <MudSelect T="Guid?" 
+                               Label="Parent Category" 
+                               @bind-Value="_editingCategory.ParentCategoryId"
+                               For="@(() => _editingCategory.ParentCategoryId)">
+                        <MudSelectItem T="Guid?" Value="@null">None</MudSelectItem>
+                        @foreach (var cat in _categories.Where(c => c.Id != _editingCategory.Id))
+                        {
+                            <MudSelectItem T="Guid?" Value="@cat.Id">@cat.Name</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudNumericField @bind-Value="_editingCategory.SortOrder" 
+                                     Label="Sort Order" 
+                                     Min="0" 
+                                     For="@(() => _editingCategory.SortOrder)" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudSwitch @bind-Value="_editingCategory.IsActive" Color="Color.Primary" Label="Active" />
+                </MudItem>
+            </MudGrid>
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="CloseDialog">Cancel</MudButton>
+        <MudButton Color="Color.Primary" 
+                   Variant="Variant.Filled" 
+                   OnClick="SaveCategory"
+                   Disabled="!_formIsValid">
+            @(_isEditMode ? "Update" : "Create")
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private List<CategoryDto> _categories = new();
+    private List<Category> _allCategoriesForEdit = new();
+    private Dictionary<Guid, int> _sortOrders = new();
+
+    private string _searchTerm = string.Empty;
+    private bool _isLoading = false;
+    private bool _isDialogOpen = false;
+    private bool _isEditMode = false;
+    private bool _formIsValid = false;
+    private MudForm? _form;
+
+    private CategoryEditModel _editingCategory = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadCategoriesAsync();
+    }
+
+    private async Task LoadCategoriesAsync()
+    {
+        _isLoading = true;
+        try
+        {
+            _categories = (await CategoryService.GetAllAsync()).ToList();
+            _sortOrders = _categories.ToDictionary(c => c.Id, c => 0);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error loading categories: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private IEnumerable<CategoryDto> FilteredCategories =>
+        _categories.Where(c => string.IsNullOrEmpty(_searchTerm) || 
+                              c.Name.Contains(_searchTerm, StringComparison.OrdinalIgnoreCase) ||
+                              (c.ParentCategoryName != null && c.ParentCategoryName.Contains(_searchTerm, StringComparison.OrdinalIgnoreCase)));
+
+    private async Task HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            _searchTerm = _searchTerm.Trim();
+        }
+    }
+
+    private void OpenCreateDialog()
+    {
+        _editingCategory = new CategoryEditModel();
+        _isEditMode = false;
+        _isDialogOpen = true;
+    }
+
+    private void OpenEditDialog(CategoryDto category)
+    {
+        _editingCategory = new CategoryEditModel
+        {
+            Id = category.Id,
+            Name = category.Name,
+            ParentCategoryId = category.ParentCategoryId,
+            SortOrder = 0,
+            IsActive = true
+        };
+        _isEditMode = true;
+        _isDialogOpen = true;
+    }
+
+    private async Task SaveCategory()
+    {
+        if (_form == null)
+            return;
+
+        _form.Validate();
+        if (!_formIsValid)
+            return;
+
+        try
+        {
+            if (_isEditMode)
+            {
+                var request = new UpdateCategoryRequest(
+                    _editingCategory.Id,
+                    _editingCategory.Name,
+                    _editingCategory.Description,
+                    _editingCategory.ParentCategoryId,
+                    _editingCategory.SortOrder,
+                    _editingCategory.IsActive);
+
+                await CategoryService.UpdateAsync(request);
+                Snackbar.Add("Category updated successfully", Severity.Success);
+            }
+            else
+            {
+                var request = new CreateCategoryRequest(
+                    _editingCategory.Name,
+                    _editingCategory.Description,
+                    _editingCategory.ParentCategoryId,
+                    _editingCategory.SortOrder,
+                    _editingCategory.IsActive);
+
+                await CategoryService.CreateAsync(request);
+                Snackbar.Add("Category created successfully", Severity.Success);
+            }
+
+            CloseDialog();
+            await LoadCategoriesAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error saving category: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task DeleteCategory(CategoryDto category)
+    {
+        var confirm = await DialogService.ShowAsync<ZEN.Shared.Components.Common.ConfirmDialog>("Delete Category",
+            new DialogParameters { { "Message", $"Are you sure you want to delete '{category.Name}'?" } });
+
+        var result = await confirm.Result;
+        if (!result.Canceled)
+        {
+            try
+            {
+                await CategoryService.DeleteAsync(category.Id);
+                Snackbar.Add("Category deleted successfully", Severity.Success);
+                await LoadCategoriesAsync();
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Error deleting category: {ex.Message}", Severity.Error);
+            }
+        }
+    }
+
+    private void CloseDialog()
+    {
+        _isDialogOpen = false;
+        _editingCategory = new();
+    }
+
+    public class CategoryEditModel
+    {
+        public Guid Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string? Description { get; set; }
+        public Guid? ParentCategoryId { get; set; }
+        public int SortOrder { get; set; }
+        public bool IsActive { get; set; } = true;
+    }
+}

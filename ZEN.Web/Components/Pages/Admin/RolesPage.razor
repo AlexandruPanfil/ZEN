@@ -1,0 +1,130 @@
+@page "/admin/roles"
+@using ZEN.Infrastructure.Identity
+@using MudBlazor
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+
+<PageTitle>Roles & Permissions</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="py-8">
+    <MudStack Spacing="4">
+        <MudStack Row="true" Class="justify-between align-center">
+            <MudText Typo="Typo.h4">Roles & Permissions</MudText>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="OpenCreateDialog">
+                <MudIcon Icon="@Icons.Material.Filled.Add" Class="mr-2" />
+                New Role
+            </MudButton>
+        </MudStack>
+
+        <MudPaper Class="pa-4">
+            <MudStack Spacing="3">
+                <MudStack Row="true" Spacing="2">
+                    <MudTextField T="string" Label="Search roles..." 
+                                  @bind-Value="searchText" 
+                                  Variant="Variant.Outlined"
+                                  Adornment="Adornment.Start"
+                                  AdornmentIcon="@Icons.Material.Filled.Search"
+                                  Class="flex-grow-1" />
+                </MudStack>
+            </MudStack>
+        </MudPaper>
+
+        <MudTable T="AppRole" Items="FilteredRoles" Hover="true" Striped="true" Dense="false">
+            <HeaderContent>
+                <MudTh>Role Name</MudTh>
+                <MudTh>Description</MudTh>
+                <MudTh Style="text-align:right">Actions</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="Role Name">
+                    <MudText Typo="Typo.body2"><strong>@(context.Name ?? string.Empty)</strong></MudText>
+                </MudTd>
+                <MudTd DataLabel="Description">@(context.Description ?? string.Empty)</MudTd>
+                <MudTd Style="text-align:right">
+                    <MudIconButton Icon="@Icons.Material.Filled.Edit" 
+                                  Size="Size.Small"
+                                  OnClick="@(() => OpenEditDialog(context))" />
+                    <MudIconButton Icon="@Icons.Material.Filled.Delete" 
+                                  Size="Size.Small"
+                                  Color="Color.Error"
+                                  OnClick="@(() => DeleteRole(context))" />
+                </MudTd>
+            </RowTemplate>
+        </MudTable>
+    </MudStack>
+</MudContainer>
+
+@code {
+    private List<AppRole> roles = [];
+    private string searchText = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadRolesAsync();
+    }
+
+    private async Task LoadRolesAsync()
+    {
+        try
+        {
+            roles = [];
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error loading roles: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private List<AppRole> FilteredRoles =>
+        roles
+            .Where(r => string.IsNullOrEmpty(searchText) || 
+                        (r.Name?.Contains(searchText, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                        (r.Description?.Contains(searchText, StringComparison.OrdinalIgnoreCase) ?? false))
+            .OrderBy(r => r.Name)
+            .ToList();
+
+    private async Task OpenCreateDialog()
+    {
+        var parameters = new DialogParameters { };
+        var dialog = await DialogService.ShowAsync<global::ZEN.Web.Components.Dialogs.RoleEditDialog>("New Role", parameters);
+        var result = await dialog.Result;
+
+        if (!result.Canceled && result.Data is AppRole newRole)
+        {
+            roles.Add(newRole);
+            Snackbar.Add("Role created successfully", Severity.Success);
+        }
+    }
+
+    private async Task OpenEditDialog(AppRole role)
+    {
+        var parameters = new DialogParameters { { "Role", role } };
+        var dialog = await DialogService.ShowAsync<global::ZEN.Web.Components.Dialogs.RoleEditDialog>("Edit Role", parameters);
+        var result = await dialog.Result;
+
+        if (!result.Canceled && result.Data is AppRole updated)
+        {
+            var index = roles.FindIndex(r => r.Id == updated.Id);
+            if (index >= 0)
+            {
+                roles[index] = updated;
+            }
+
+            Snackbar.Add("Role updated successfully", Severity.Success);
+        }
+    }
+
+    private async Task DeleteRole(AppRole role)
+    {
+        try
+        {
+            // Note: In a real scenario, would call unitOfWork.SaveChangesAsync()
+            roles.Remove(role);
+            Snackbar.Add("Role deleted", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error deleting role: {ex.Message}", Severity.Error);
+        }
+    }
+}

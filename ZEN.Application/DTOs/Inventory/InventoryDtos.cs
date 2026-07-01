@@ -12,6 +12,46 @@ public record InventoryItemDto(
     decimal ReorderLevel,
     decimal? MaxStock);
 
+public record PurchaseOrderDto(
+    Guid Id,
+    string Number,
+    Guid SupplierId,
+    string SupplierName,
+    Guid WarehouseId,
+    string WarehouseName,
+    DateTime OrderDate,
+    DateTime? ExpectedDate,
+    PurchaseOrderStatus Status,
+    decimal SubTotal,
+    decimal TaxAmount,
+    decimal TotalAmount,
+    IEnumerable<PurchaseOrderItemDto> Items);
+
+public record PurchaseOrderItemDto(
+    Guid ProductId,
+    string ProductName,
+    decimal Quantity,
+    decimal UnitPrice,
+    decimal Total);
+
+public record CreatePurchaseOrderRequest(
+    Guid SupplierId,
+    Guid WarehouseId,
+    DateTime? ExpectedDate,
+    string? Notes,
+    IEnumerable<CreatePurchaseOrderItemRequest> Items);
+
+public record CreatePurchaseOrderItemRequest(
+    Guid ProductId,
+    decimal Quantity,
+    decimal UnitPrice);
+
+public record UpdatePurchaseOrderRequest(
+    Guid Id,
+    DateTime? ExpectedDate,
+    string? Notes,
+    PurchaseOrderStatus Status);
+
 public record StockPurchaseDto(
     Guid Id,
     string Number,

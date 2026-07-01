@@ -1,0 +1,162 @@
+@using ZEN.Domain.Entities
+@using ZEN.Domain.Interfaces
+@inject global::ZEN.Application.Services.Interfaces.IStoreContext StoreContext
+@inject global::ZEN.Domain.Interfaces.IRepository<Store> StoreRepository
+@inject global::ZEN.Domain.Interfaces.IRepository<Warehouse> WarehouseRepository
+@inject ISnackbar Snackbar
+
+<MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+    <MudSelect T="Guid?" 
+               Label="Store" 
+               Value="_selectedStoreId"
+               ValueChanged="HandleSelectedStoreChanged"
+               Variant="Variant.Outlined" 
+               Margin="Margin.Dense"
+               Disabled="_loading"
+               Style="min-width: 200px;">
+        @foreach (var store in _stores)
+        {
+            <MudSelectItem T="Guid?" Value="@store.Id">@store.Name</MudSelectItem>
+        }
+    </MudSelect>
+
+    @if (ShowWarehouseSelector && _warehouses.Any())
+    {
+        <MudSelect T="Guid?" 
+                   Label="Warehouse" 
+                   Value="_selectedWarehouseId"
+                   ValueChanged="HandleSelectedWarehouseChanged"
+                   Variant="Variant.Outlined" 
+                   Margin="Margin.Dense"
+                   Disabled="_loading || !_selectedStoreId.HasValue"
+                   Style="min-width: 200px;">
+            <MudSelectItem T="Guid?" Value="null">All Warehouses</MudSelectItem>
+            @foreach (var warehouse in _warehouses)
+            {
+                <MudSelectItem T="Guid?" Value="@warehouse.Id">@warehouse.Name</MudSelectItem>
+            }
+        </MudSelect>
+    }
+</MudStack>
+
+@code {
+    [Parameter]
+    public bool ShowWarehouseSelector { get; set; } = true;
+
+    [Parameter]
+    public EventCallback<Guid?> OnStoreChanged { get; set; }
+
+    [Parameter]
+    public EventCallback<Guid?> OnWarehouseChanged { get; set; }
+
+    private List<Store> _stores = new();
+    private List<Warehouse> _warehouses = new();
+    private bool _loading = false;
+
+    private Guid? _selectedStoreId;
+    private Guid? _selectedWarehouseId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadStoresAsync();
+
+        _selectedStoreId = StoreContext.GetCurrentStoreId();
+        _selectedWarehouseId = StoreContext.GetCurrentWarehouseId();
+
+        if (_selectedStoreId.HasValue)
+        {
+            await LoadWarehousesAsync(_selectedStoreId.Value);
+        }
+    }
+
+    private async Task LoadStoresAsync()
+    {
+        _loading = true;
+        try
+        {
+            var allStores = await StoreRepository.GetAllAsync();
+            _stores = allStores.Where(s => s.IsActive).ToList();
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task LoadWarehousesAsync(Guid storeId)
+    {
+        _loading = true;
+        try
+        {
+            var allWarehouses = await WarehouseRepository.GetAllAsync();
+            _warehouses = allWarehouses
+                .Where(w => w.StoreId == storeId && w.IsActive)
+                .ToList();
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task OnStoreSelectionChanged(Guid? storeId)
+    {
+        if (storeId == _selectedStoreId) return;
+
+        _selectedStoreId = storeId;
+        _selectedWarehouseId = null;
+        _warehouses.Clear();
+
+        if (storeId.HasValue)
+        {
+            try
+            {
+                await StoreContext.SetCurrentStoreAsync(storeId.Value);
+                await LoadWarehousesAsync(storeId.Value);
+                Snackbar.Add($"Switched to store", Severity.Success);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                Snackbar.Add("You don't have access to this store", Severity.Error);
+                _selectedStoreId = StoreContext.GetCurrentStoreId();
+                return;
+            }
+        }
+
+        await OnStoreChanged.InvokeAsync(storeId);
+    }
+
+    private async Task OnWarehouseSelectionChanged(Guid? warehouseId)
+    {
+        if (warehouseId == _selectedWarehouseId) return;
+
+        _selectedWarehouseId = warehouseId;
+
+        if (warehouseId.HasValue)
+        {
+            try
+            {
+                await StoreContext.SetCurrentWarehouseAsync(warehouseId.Value);
+                Snackbar.Add($"Switched to warehouse", Severity.Success);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                Snackbar.Add("You don't have access to this warehouse", Severity.Error);
+                _selectedWarehouseId = StoreContext.GetCurrentWarehouseId();
+                return;
+            }
+        }
+
+        await OnWarehouseChanged.InvokeAsync(warehouseId);
+    }
+
+    private async Task HandleSelectedStoreChanged()
+    {
+        await OnStoreSelectionChanged(_selectedStoreId);
+    }
+
+    private async Task HandleSelectedWarehouseChanged()
+    {
+        await OnWarehouseSelectionChanged(_selectedWarehouseId);
+    }
+}

@@ -35,19 +35,19 @@ public class ProductService : IProductService
         return product == null ? null : _mapper.Map<ProductDto>(product);
     }
 
-    public async Task<ProductDto?> GetByBarcodeAsync(string barcode, CancellationToken cancellationToken = default)
+    public async Task<ProductDto?> GetByBarcodeAsync(string barcode, Guid? storeId = null, CancellationToken cancellationToken = default)
     {
         var product = await _productRepository.FindFirstAsync(p => p.Barcode == barcode, cancellationToken);
         return product == null ? null : _mapper.Map<ProductDto>(product);
     }
 
-    public async Task<IEnumerable<ProductDto>> GetAllAsync(CancellationToken cancellationToken = default)
+    public async Task<IEnumerable<ProductDto>> GetAllAsync(Guid? storeId = null, CancellationToken cancellationToken = default)
     {
         var products = await _productRepository.GetAllAsync(cancellationToken);
         return _mapper.Map<IEnumerable<ProductDto>>(products);
     }
 
-    public async Task<IEnumerable<ProductDto>> SearchAsync(string searchTerm, CancellationToken cancellationToken = default)
+    public async Task<IEnumerable<ProductDto>> SearchAsync(string searchTerm, Guid? storeId = null, CancellationToken cancellationToken = default)
     {
         var products = await _productRepository.FindAsync(
             p => p.Name.Contains(searchTerm) || p.Barcode!.Contains(searchTerm) || p.SKU!.Contains(searchTerm),

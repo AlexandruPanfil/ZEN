@@ -1,0 +1,112 @@
+@using ZEN.Domain.Entities
+@using MudBlazor
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudForm @ref="form" @bind-IsValid="isFormValid">
+            <MudStack Spacing="3">
+                <MudText Typo="Typo.subtitle2">Shift Closing & Cash Reconciliation</MudText>
+
+                <MudGrid>
+                    <MudItem xs="12">
+                        <MudText Typo="Typo.body2"><strong>Shift Opened:</strong> @Shift?.OpenTime.ToString("g")</MudText>
+                    </MudItem>
+                    <MudItem xs="12">
+                        <MudText Typo="Typo.body2"><strong>Opening Cash:</strong> $@Shift.OpeningCash.ToString("F2")</MudText>
+                    </MudItem>
+                </MudGrid>
+
+                <MudDivider />
+
+                <MudText Typo="Typo.subtitle2">Cash Count Reconciliation</MudText>
+
+                <MudNumericField T="decimal" Label="Actual Cash in Drawer" @bind-Value="closingCash"
+                             Required="true" RequiredError="Closing cash is required"
+                             Min="0" Variant="Variant.Outlined" />
+
+                <MudStack Spacing="2">
+                    <MudNumericField T="int?" Label="$100 Bills" @bind-Value="bills100"
+                                    Min="0" Variant="Variant.Outlined" Dense="true" />
+                    <MudNumericField T="int?" Label="$50 Bills" @bind-Value="bills50"
+                                    Min="0" Variant="Variant.Outlined" Dense="true" />
+                    <MudNumericField T="int?" Label="$20 Bills" @bind-Value="bills20"
+                                    Min="0" Variant="Variant.Outlined" Dense="true" />
+                    <MudNumericField T="int?" Label="$10 Bills" @bind-Value="bills10"
+                                    Min="0" Variant="Variant.Outlined" Dense="true" />
+                    <MudNumericField T="int?" Label="$5 Bills" @bind-Value="bills5"
+                                    Min="0" Variant="Variant.Outlined" Dense="true" />
+                    <MudNumericField T="int?" Label="$1 Bills" @bind-Value="bills1"
+                                    Min="0" Variant="Variant.Outlined" Dense="true" />
+                </MudStack>
+
+                <MudText Typo="Typo.caption">Calculated Total: $@CalculatedTotal.ToString("F2")</MudText>
+
+                @if (closingCash > 0 && CalculatedTotal > 0)
+                {
+                    <MudPaper Class="@($"pa-3 {(Variance == 0 ? "green" : "orange")} darken-1")" Elevation="0">
+                        <MudText Typo="Typo.body2">
+                            <strong>Variance: $@Variance.ToString("F2")</strong>
+                            @if (Variance > 0)
+                            {
+                                <text> (Over)</text>
+                            }
+                            else if (Variance < 0)
+                            {
+                                <text> (Short)</text>
+                            }
+                        </MudText>
+                    </MudPaper>
+                }
+
+                <MudTextField T="string" Label="Notes" @bind-Value="notes"
+                             Variant="Variant.Outlined" Lines="2" />
+            </MudStack>
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="CloseShift" Disabled="!isFormValid">
+            Close Shift
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] MudBlazor.IMudDialogInstance MudDialog { get; set; } = null!;
+    [Parameter] public Shift? Shift { get; set; }
+
+    private MudForm form = null!;
+    private bool isFormValid = false;
+    private decimal closingCash = 0;
+    private int? bills100, bills50, bills20, bills10, bills5, bills1;
+    private string? notes;
+
+    private decimal CalculatedTotal =>
+        (bills100 ?? 0) * 100 + (bills50 ?? 0) * 50 + (bills20 ?? 0) * 20 +
+        (bills10 ?? 0) * 10 + (bills5 ?? 0) * 5 + (bills1 ?? 0) * 1;
+
+    private decimal Variance => closingCash - CalculatedTotal;
+
+    private async Task CloseShift()
+    {
+        if (!isFormValid)
+            return;
+
+        try
+        {
+            Shift.ClosingCash = closingCash;
+            Shift.CloseTime = DateTime.UtcNow;
+            Shift.Status = ZEN.Domain.Enums.ShiftStatus.Closed;
+            Shift.Notes = notes;
+
+            MudDialog.Close(DialogResult.Ok(Shift));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error closing shift: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

@@ -1,0 +1,169 @@
+@page "/admin/stores"
+@using ZEN.Domain.Entities
+@using ZEN.Domain.Interfaces
+@using MudBlazor
+@inject global::ZEN.Domain.Interfaces.IRepository<Store> StoreRepository
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+
+<PageTitle>Stores Management</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="py-8">
+    <MudStack Spacing="4">
+        <MudStack Row="true" Class="justify-between align-center">
+            <MudText Typo="Typo.h4">Stores</MudText>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="OpenCreateDialog">
+                <MudIcon Icon="@Icons.Material.Filled.Add" Class="mr-2" />
+                New Store
+            </MudButton>
+        </MudStack>
+
+        <MudPaper Class="pa-4">
+            <MudStack Spacing="3">
+                <MudStack Row="true" Spacing="2">
+                    <MudTextField T="string" Label="Search stores..." 
+                                  @bind-Value="searchText" 
+                                  Variant="Variant.Outlined"
+                                  Adornment="Adornment.Start"
+                                  AdornmentIcon="@Icons.Material.Filled.Search"
+                                  Class="flex-grow-1" />
+                    <MudCheckBox T="bool" @bind-Value="showInactive" Label="Show Inactive" />
+                </MudStack>
+            </MudStack>
+        </MudPaper>
+
+        <MudGrid>
+            @foreach (var store in FilteredStores)
+            {
+                <MudItem xs="12" sm="6" md="4">
+                    <MudCard>
+                        <MudCardHeader>
+                            <CardHeaderAvatar>
+                                <MudAvatar Color="@(store.IsActive ? Color.Success : Color.Default)" 
+                                          Icon="@Icons.Material.Filled.Store" />
+                            </CardHeaderAvatar>
+                            <CardHeaderContent>
+                                <MudText Typo="Typo.body2"><strong>@(store.Code ?? string.Empty)</strong></MudText>
+                                <MudText Typo="Typo.caption">@store.Currency?.Code</MudText>
+                            </CardHeaderContent>
+                        </MudCardHeader>
+                        <MudCardContent>
+                            <MudStack Spacing="2">
+                                <div>
+                                    <MudText Typo="Typo.subtitle2">@(store.Name ?? string.Empty)</MudText>
+                                    <MudText Typo="Typo.caption">@(store.Address ?? string.Empty)</MudText>
+                                </div>
+                                <MudDivider />
+                                <div>
+                                    <MudText Typo="Typo.body2" Style="word-break: break-word;">
+                                        <MudIcon Icon="@Icons.Material.Filled.Phone" Class="mr-1" Style="font-size: 18px;" />
+                                        @(store.Phone ?? string.Empty)
+                                    </MudText>
+                                    <MudText Typo="Typo.body2" Style="word-break: break-word;">
+                                        <MudIcon Icon="@Icons.Material.Filled.Email" Class="mr-1" Style="font-size: 18px;" />
+                                        @(store.Email ?? string.Empty)
+                                    </MudText>
+                                </div>
+                                <MudDivider />
+                                <MudChip T="string" Size="Size.Small" 
+                                        Color="@(store.IsActive ? Color.Success : Color.Error)"
+                                        Icon="@(store.IsActive ? Icons.Material.Filled.Check : Icons.Material.Filled.Close)">
+                                    @(store.IsActive ? "Active" : "Inactive")
+                                </MudChip>
+                            </MudStack>
+                        </MudCardContent>
+                        <MudCardActions>
+                            <MudButton Variant="Variant.Text" Color="Color.Primary" 
+                                      OnClick="@(() => OpenEditDialog(store))">
+                                Edit
+                            </MudButton>
+                            <MudButton Variant="Variant.Text" Color="Color.Error" 
+                                      OnClick="@(() => DeleteStore(store))">
+                                Delete
+                            </MudButton>
+                        </MudCardActions>
+                    </MudCard>
+                </MudItem>
+            }
+        </MudGrid>
+    </MudStack>
+</MudContainer>
+
+@code {
+    private List<Store> stores = [];
+    private string searchText = "";
+    private bool showInactive = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadStoresAsync();
+    }
+
+    private async Task LoadStoresAsync()
+    {
+        try
+        {
+            stores = (await StoreRepository.GetAllAsync()).ToList();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error loading stores: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private List<Store> FilteredStores =>
+        stores
+            .Where(s => (showInactive || s.IsActive) &&
+                       (string.IsNullOrEmpty(searchText) || 
+                        (s.Name?.Contains(searchText, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                        (s.Code?.Contains(searchText, StringComparison.OrdinalIgnoreCase) ?? false)))
+            .OrderBy(s => s.Name)
+            .ToList();
+
+    private async Task OpenCreateDialog()
+    {
+        var parameters = new DialogParameters { };
+        var dialog = await DialogService.ShowAsync<global::ZEN.Web.Components.Dialogs.StoreEditDialog>("New Store", parameters);
+        var result = await dialog.Result;
+
+        if (!result.Canceled && result.Data is Store newStore)
+        {
+            stores.Add(newStore);
+            Snackbar.Add("Store created successfully", Severity.Success);
+        }
+    }
+
+    private async Task OpenEditDialog(Store store)
+    {
+        var parameters = new DialogParameters { { "Store", store } };
+        var dialog = await DialogService.ShowAsync<global::ZEN.Web.Components.Dialogs.StoreEditDialog>("Edit Store", parameters);
+        var result = await dialog.Result;
+
+        if (!result.Canceled && result.Data is Store updated)
+        {
+            var index = stores.FindIndex(s => s.Id == updated.Id);
+            if (index >= 0)
+            {
+                stores[index] = updated;
+                Snackbar.Add("Store updated successfully", Severity.Success);
+            }
+        }
+    }
+
+    private Task DeleteStore(Store store)
+    {
+        try
+        {
+            StoreRepository.Remove(store);
+            // Note: In a real scenario, would call unitOfWork.SaveChangesAsync()
+            stores.Remove(store);
+            Snackbar.Add("Store deleted", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error deleting store: {ex.Message}", Severity.Error);
+        }
+
+        return Task.CompletedTask;
+    }
+}

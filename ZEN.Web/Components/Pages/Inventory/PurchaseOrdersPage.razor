@@ -1,0 +1,119 @@
+@page "/purchase-orders"
+@using Microsoft.AspNetCore.Authorization
+@using ZEN.Domain.Enums
+@using ZEN.Application.DTOs.Inventory
+@using ZEN.Shared.Components.Common
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+
+@attribute [Authorize(Roles = "Administrator,Manager,InventoryManager")]
+
+<ZEN.Shared.Components.Common.PageTitle>Purchase Orders - ZEN POS</ZEN.Shared.Components.Common.PageTitle>
+
+<MudText Typo="Typo.h3" GutterBottom="true">Purchase Orders</MudText>
+
+<MudPaper Class="pa-4 mb-4">
+    <div class="d-flex align-center justify-space-between mb-4">
+        <MudTextField T="string" Label="Search Purchase Orders" 
+                      Variant="Variant.Outlined" 
+                      Adornment="Adornment.Start" 
+                      AdornmentIcon="@Icons.Material.Filled.Search" 
+                      Class="flex-grow-1 mr-4" />
+
+        <MudButton Variant="Variant.Filled" 
+                   Color="Color.Primary" 
+                   StartIcon="@Icons.Material.Filled.Add" 
+                   OnClick="OpenCreateDialog">
+            Create Purchase Order
+        </MudButton>
+    </div>
+
+    <MudAlert Severity="Severity.Info" Class="mb-4">
+        <strong>Purchase Orders Module:</strong> Manage supplier orders with multi-warehouse support. Track order status, expected delivery dates, and link to stock purchases.
+    </MudAlert>
+
+    <MudTable T="PurchaseOrderDto" Items="@_purchaseOrders" Hover="true" Breakpoint="Breakpoint.Sm" Loading="@_isLoading">
+        <ToolBarContent>
+            <MudText Typo="Typo.h6">Purchase Orders List</MudText>
+        </ToolBarContent>
+        <HeaderContent>
+            <MudTh>Order #</MudTh>
+            <MudTh>Supplier</MudTh>
+            <MudTh>Warehouse</MudTh>
+            <MudTh>Order Date</MudTh>
+            <MudTh>Expected Date</MudTh>
+            <MudTh>Status</MudTh>
+            <MudTh>Total</MudTh>
+            <MudTh>Actions</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="Order #">@("—")</MudTd>
+            <MudTd DataLabel="Supplier">@("—")</MudTd>
+            <MudTd DataLabel="Warehouse">@("—")</MudTd>
+            <MudTd DataLabel="Order Date">@("—")</MudTd>
+            <MudTd DataLabel="Expected Date">@("—")</MudTd>
+            <MudTd DataLabel="Status">
+                <MudChip T="string" Color="Color.Default" Size="Size.Small">Draft</MudChip>
+            </MudTd>
+            <MudTd DataLabel="Total">@("—")</MudTd>
+            <MudTd DataLabel="Actions">
+                <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small" />
+                <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small" />
+            </MudTd>
+        </RowTemplate>
+        <PagerContent>
+            <MudTablePager />
+        </PagerContent>
+    </MudTable>
+</MudPaper>
+
+<!-- Create Dialog Placeholder -->
+<MudDialog @bind-Visible="_isDialogOpen">
+    <TitleContent>
+        <MudText Typo="Typo.h6">Create Purchase Order</MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudAlert Severity="Severity.Info">
+            Complete Purchase Order creation form will include:
+            <ul>
+                <li>Supplier selection with auto-complete</li>
+                <li>Warehouse selection with store context</li>
+                <li>Line items with product search and quantity/price entry</li>
+                <li>Automatic tax calculation</li>
+                <li>Expected delivery date picker</li>
+                <li>Order notes field</li>
+            </ul>
+        </MudAlert>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="CloseDialog">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="CloseDialog">
+            Create Order
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private List<PurchaseOrderDto> _purchaseOrders = new();
+    private bool _isLoading = false;
+    private bool _isDialogOpen = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Load purchase orders - to be implemented with IPurchaseOrderService
+        _isLoading = true;
+        await Task.Delay(500); // Simulated load
+        _isLoading = false;
+    }
+
+    private void OpenCreateDialog()
+    {
+        _isDialogOpen = true;
+    }
+
+    private void CloseDialog()
+    {
+        _isDialogOpen = false;
+        Snackbar.Add("Purchase order feature coming soon", Severity.Info);
+    }
+}

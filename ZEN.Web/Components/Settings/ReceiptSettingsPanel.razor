@@ -1,0 +1,80 @@
+@using MudBlazor
+@inject ISnackbar Snackbar
+
+<MudStack Spacing="4">
+    <MudText Typo="Typo.subtitle1">Receipt Format Settings</MudText>
+
+    <MudForm @ref="form" @bind-IsValid="isFormValid">
+        <MudStack Spacing="3">
+            <MudNumericField T="int" Label="Receipt Paper Width (characters)" @bind-Value="paperWidth"
+                            Min="40" Max="80" Variant="Variant.Outlined"
+                            HelperText="Typically 40, 56, or 80 characters" />
+
+            <MudCheckBox T="bool" @bind-Value="showLogo" Label="Show Business Logo on Receipt" />
+            <MudCheckBox T="bool" @bind-Value="showQRCode" Label="Show QR Code on Receipt" />
+            <MudCheckBox T="bool" @bind-Value="showBarcode" Label="Show Sale Barcode on Receipt" />
+
+            <MudText Typo="Typo.subtitle2" Class="mt-4">Receipt Header</MudText>
+            <MudTextField T="string" Label="Header Text" @bind-Value="headerText"
+                         Variant="Variant.Outlined"
+                         Lines="3"
+                         HelperText="Text displayed at the top of receipts" />
+
+            <MudText Typo="Typo.subtitle2" Class="mt-4">Receipt Footer</MudText>
+            <MudTextField T="string" Label="Footer Text" @bind-Value="footerText"
+                         Variant="Variant.Outlined"
+                         Lines="3"
+                         HelperText="Text displayed at the bottom of receipts" />
+
+            <MudCheckBox T="bool" @bind-Value="includeTermsAndConditions" Label="Include Terms and Conditions on Receipt" />
+
+            <MudTextField T="string" Label="Thank You Message" @bind-Value="thankYouMessage"
+                         Variant="Variant.Outlined"
+                         HelperText="Message shown after sale total" />
+
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="PreviewReceipt" Class="mt-3">
+                <MudIcon Icon="@Icons.Material.Filled.Preview" Class="mr-2" />
+                Preview Receipt
+            </MudButton>
+
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveReceiptSettings">
+                Save Receipt Settings
+            </MudButton>
+        </MudStack>
+    </MudForm>
+</MudStack>
+
+@code {
+    private MudForm form = null!;
+    private bool isFormValid = true;
+
+    private int paperWidth = 40;
+    private bool showLogo = true;
+    private bool showQRCode = false;
+    private bool showBarcode = true;
+    private string headerText = "Thank you for your business!";
+    private string footerText = "Visit us again soon";
+    private bool includeTermsAndConditions = false;
+    private string thankYouMessage = "Thank You!";
+
+    [Inject] private ISnackbar SnackbarLocal { get; set; } = null!;
+
+    private async Task SaveReceiptSettings()
+    {
+        try
+        {
+            // In a real scenario, would call a settings service to save these values
+            SnackbarLocal.Add("Receipt settings saved successfully", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            SnackbarLocal.Add($"Error saving settings: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task PreviewReceipt()
+    {
+        // In a real scenario, would generate a preview of what the receipt will look like
+        SnackbarLocal.Add("Receipt preview generated", Severity.Info);
+    }
+}

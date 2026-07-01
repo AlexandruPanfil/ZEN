@@ -22,7 +22,18 @@ public static class DependencyInjection
         services.AddValidatorsFromAssembly(assembly);
 
         // Application Services
+        services.AddScoped<IStoreContext, StoreContextService>();
         services.AddScoped<IProductService, ProductService>();
+        services.AddScoped<ICategoryService, CategoryService>();
+        services.AddScoped<IBrandService, BrandService>();
+        services.AddScoped<ITaxService, TaxService>();
+        services.AddScoped<IWarehouseService, WarehouseService>();
+        services.AddScoped<IPurchaseOrderService, PurchaseOrderService>();
+        services.AddScoped<IStockTransferService, StockTransferService>();
+        services.AddScoped<IInventoryCountService, InventoryCountService>();
+        services.AddScoped<IDiscountService, DiscountService>();
+        services.AddScoped<IPromotionService, PromotionService>();
+        services.AddScoped<ICouponService, CouponService>();
         services.AddScoped<ISaleService, SaleService>();
         services.AddScoped<IInventoryService, InventoryService>();
         services.AddScoped<IShiftService, ShiftService>();

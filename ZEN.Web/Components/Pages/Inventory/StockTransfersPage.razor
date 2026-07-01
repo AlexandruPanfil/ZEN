@@ -1,0 +1,115 @@
+@page "/stock-transfers"
+@using Microsoft.AspNetCore.Authorization
+@using ZEN.Domain.Enums
+@using ZEN.Shared.Components.Common
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+
+@attribute [Authorize(Roles = "Administrator,Manager,InventoryManager")]
+
+<ZEN.Shared.Components.Common.PageTitle>Stock Transfers - ZEN POS</ZEN.Shared.Components.Common.PageTitle>
+
+<MudText Typo="Typo.h3" GutterBottom="true">Inter-Warehouse Stock Transfers</MudText>
+
+<MudPaper Class="pa-4 mb-4">
+    <div class="d-flex align-center justify-space-between mb-4">
+        <MudText Typo="Typo.body2">Status filter coming soon</MudText>
+
+        <MudSpacer />
+
+        <MudButton Variant="Variant.Filled" 
+                   Color="Color.Primary" 
+                   StartIcon="@Icons.Material.Filled.Add" 
+                   OnClick="OpenCreateDialog">
+            Create Transfer
+        </MudButton>
+    </div>
+
+    <MudAlert Severity="Severity.Info" Class="mb-4">
+        <strong>Stock Transfers Module:</strong> Move inventory between warehouses within the same store. Track transfer status from pending to approved to completed.
+    </MudAlert>
+
+    <MudTable T="object" Items="@_transfers" Hover="true" Breakpoint="Breakpoint.Sm" Loading="@_isLoading">
+        <ToolBarContent>
+            <MudText Typo="Typo.h6">Stock Transfers List</MudText>
+        </ToolBarContent>
+        <HeaderContent>
+            <MudTh>Transfer #</MudTh>
+            <MudTh>From Warehouse</MudTh>
+            <MudTh>To Warehouse</MudTh>
+            <MudTh>Items Count</MudTh>
+            <MudTh>Status</MudTh>
+            <MudTh>Transfer Date</MudTh>
+            <MudTh>Actions</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="Transfer #">@("—")</MudTd>
+            <MudTd DataLabel="From Warehouse">@("—")</MudTd>
+            <MudTd DataLabel="To Warehouse">@("—")</MudTd>
+            <MudTd DataLabel="Items Count">@("0")</MudTd>
+            <MudTd DataLabel="Status">
+                <MudChip T="string" Color="Color.Warning" Size="Size.Small">Pending</MudChip>
+            </MudTd>
+            <MudTd DataLabel="Transfer Date">@("—")</MudTd>
+            <MudTd DataLabel="Actions">
+                <MudText Typo="Typo.body2">—</MudText>
+            </MudTd>
+        </RowTemplate>
+        <PagerContent>
+            <MudTablePager />
+        </PagerContent>
+    </MudTable>
+</MudPaper>
+
+<!-- Create/Edit Dialog -->
+<MudDialog @bind-Visible="_isDialogOpen">
+    <TitleContent>
+        <MudText Typo="Typo.h6">@(_isEditMode ? "Edit Transfer" : "Create Stock Transfer")</MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudAlert Severity="Severity.Info">
+            Complete Stock Transfer form will include:
+            <ul>
+                <li>Source warehouse selection (filtered by store)</li>
+                <li>Destination warehouse selection (same store only)</li>
+                <li>Product line items with available quantities</li>
+                <li>Quantity per item entry</li>
+                <li>Transfer date and notes</li>
+                <li>Approval workflow status</li>
+            </ul>
+        </MudAlert>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="CloseDialog">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="CloseDialog">
+            @(_isEditMode ? "Update Transfer" : "Create Transfer")
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private List<object> _transfers = new();
+    private bool _isLoading = false;
+    private bool _isDialogOpen = false;
+    private bool _isEditMode = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Load stock transfers - to be implemented with IStockTransferService
+        _isLoading = true;
+        await Task.Delay(500); // Simulated load
+        _isLoading = false;
+    }
+
+    private void OpenCreateDialog()
+    {
+        _isEditMode = false;
+        _isDialogOpen = true;
+    }
+
+    private void CloseDialog()
+    {
+        _isDialogOpen = false;
+        Snackbar.Add("Stock transfer feature coming soon", Severity.Info);
+    }
+}

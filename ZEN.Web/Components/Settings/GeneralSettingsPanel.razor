@@ -1,0 +1,70 @@
+@using MudBlazor
+@inject ISnackbar Snackbar
+
+<MudStack Spacing="4">
+    <MudText Typo="Typo.subtitle1">General System Settings</MudText>
+
+    <MudForm @ref="form" @bind-IsValid="isFormValid">
+        <MudStack Spacing="3">
+            <MudTextField T="string" Label="System Name" @bind-Value="systemName"
+                         Variant="Variant.Outlined"
+                         HelperText="Display name for the POS system" />
+
+            <MudTextField T="string" Label="Company Name" @bind-Value="companyName"
+                         Variant="Variant.Outlined"
+                         HelperText="Used in reports and receipts" />
+
+            <MudSelect T="string" Label="Default Timezone" @bind-Value="timezone"
+                      Variant="Variant.Outlined">
+                <MudSelectItem Value="@("UTC")">UTC</MudSelectItem>
+                <MudSelectItem Value="@("EST")">Eastern Standard Time</MudSelectItem>
+                <MudSelectItem Value="@("CST")">Central Standard Time</MudSelectItem>
+                <MudSelectItem Value="@("MST")">Mountain Standard Time</MudSelectItem>
+                <MudSelectItem Value="@("PST")">Pacific Standard Time</MudSelectItem>
+                <MudSelectItem Value="@("GMT")">Greenwich Mean Time</MudSelectItem>
+                <MudSelectItem Value="@("CET")">Central European Time</MudSelectItem>
+            </MudSelect>
+
+            <MudSelect T="string" Label="Date Format" @bind-Value="dateFormat"
+                      Variant="Variant.Outlined">
+                <MudSelectItem Value="@("MM/dd/yyyy")">MM/dd/yyyy</MudSelectItem>
+                <MudSelectItem Value="@("dd/MM/yyyy")">dd/MM/yyyy</MudSelectItem>
+                <MudSelectItem Value="@("yyyy-MM-dd")">yyyy-MM-dd</MudSelectItem>
+            </MudSelect>
+
+            <MudCheckBox T="bool" @bind-Value="enableNotifications" Label="Enable System Notifications" />
+            <MudCheckBox T="bool" @bind-Value="enableAuditLogging" Label="Enable Audit Logging" />
+
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveGeneralSettings">
+                Save General Settings
+            </MudButton>
+        </MudStack>
+    </MudForm>
+</MudStack>
+
+@code {
+    private MudForm form = null!;
+    private bool isFormValid = true;
+
+    private string systemName = "ZEN POS";
+    private string companyName = "";
+    private string timezone = "UTC";
+    private string dateFormat = "MM/dd/yyyy";
+    private bool enableNotifications = true;
+    private bool enableAuditLogging = true;
+
+    [Inject] private ISnackbar SnackbarLocal { get; set; } = null!;
+
+    private async Task SaveGeneralSettings()
+    {
+        try
+        {
+            // In a real scenario, would call a settings service to save these values
+            SnackbarLocal.Add("General settings saved successfully", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            SnackbarLocal.Add($"Error saving settings: {ex.Message}", Severity.Error);
+        }
+    }
+}

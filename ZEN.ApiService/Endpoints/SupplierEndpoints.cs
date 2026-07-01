@@ -9,7 +9,7 @@ public static class SupplierEndpoints
     {
         group.MapGet("/", async (ISupplierService supplierService, CancellationToken ct) =>
         {
-            var suppliers = await supplierService.GetAllAsync(ct);
+            var suppliers = await supplierService.GetAllAsync(null, ct);
             return Results.Ok(suppliers);
         })
         .WithName("GetAllSuppliers")

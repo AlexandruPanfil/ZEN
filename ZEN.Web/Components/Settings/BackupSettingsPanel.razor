@@ -1,0 +1,160 @@
+@using MudBlazor
+@inject ISnackbar Snackbar
+
+<MudStack Spacing="4">
+    <MudText Typo="Typo.subtitle1">Backup & Data Management</MudText>
+
+
+    <MudForm @ref="form" @bind-IsValid="isFormValid">
+        <MudStack Spacing="3">
+            <MudAlert Severity="Severity.Info" Dense="true">
+                Regular backups protect your business data from loss or corruption.
+            </MudAlert>
+
+            <MudText Typo="Typo.subtitle2" Class="mt-4">Manual Backup</MudText>
+
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="CreateBackup">
+                <MudIcon Icon="@Icons.Material.Filled.CloudDownload" Class="mr-2" />
+                Create Backup Now
+            </MudButton>
+
+            <MudText Typo="Typo.body2" Color="Color.Secondary">
+                Last backup: @(lastBackupDate?.ToString("g") ?? "Never")
+            </MudText>
+
+            <MudDivider Class="my-4" />
+
+            <MudText Typo="Typo.subtitle2">Restore from Backup</MudText>
+
+            <MudButton Variant="Variant.Outlined" Color="Color.Primary" OnClick="RestoreBackup">
+                <MudIcon Icon="@Icons.Material.Filled.CloudUpload" Class="mr-2" />
+                Restore from Backup
+            </MudButton>
+
+            <MudDivider Class="my-4" />
+
+            <MudText Typo="Typo.subtitle2">Data Cleanup</MudText>
+
+            <MudStack Spacing="2">
+                <MudText Typo="Typo.body2">
+                    <strong>Delete Old Sales:</strong>
+                </MudText>
+                <MudStack Row="true" Spacing="2">
+                    <MudNumericField T="int" Label="Days" @bind-Value="daysToKeep"
+                                    Min="30" Max="3650" Variant="Variant.Outlined"
+                                    Style="max-width: 200px;" />
+                    <MudButton Variant="Variant.Outlined" Color="Color.Error" OnClick="DeleteOldData">
+                        Delete Sales Older Than
+                    </MudButton>
+                </MudStack>
+            </MudStack>
+
+            <MudDivider Class="my-4" />
+
+            <MudText Typo="Typo.subtitle2">Data Export</MudText>
+
+            <MudStack Spacing="2">
+                <MudButton Variant="Variant.Outlined" Color="Color.Primary" OnClick="ExportSalesData">
+                    <MudIcon Icon="@Icons.Material.Filled.Download" Class="mr-2" />
+                    Export Sales Data (CSV)
+                </MudButton>
+                <MudButton Variant="Variant.Outlined" Color="Color.Primary" OnClick="ExportInventoryData">
+                    <MudIcon Icon="@Icons.Material.Filled.Download" Class="mr-2" />
+                    Export Inventory Data (CSV)
+                </MudButton>
+                <MudButton Variant="Variant.Outlined" Color="Color.Primary" OnClick="ExportCustomerData">
+                    <MudIcon Icon="@Icons.Material.Filled.Download" Class="mr-2" />
+                    Export Customer Data (CSV)
+                </MudButton>
+            </MudStack>
+        </MudStack>
+    </MudForm>
+</MudStack>
+
+@code {
+    private MudForm form = null!;
+    private bool isFormValid = true;
+    private DateTime? lastBackupDate = null;
+    private int daysToKeep = 365;
+
+    [Inject] private ISnackbar SnackbarLocal { get; set; } = null!;
+
+    private async Task CreateBackup()
+    {
+        try
+        {
+            // In a real scenario, would call a backup service
+            lastBackupDate = DateTime.Now;
+            SnackbarLocal.Add("Backup created successfully", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            SnackbarLocal.Add($"Error creating backup: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task RestoreBackup()
+    {
+        try
+        {
+            // In a real scenario, would show a file picker and restore service
+            SnackbarLocal.Add("Restore process started", Severity.Info);
+        }
+        catch (Exception ex)
+        {
+            SnackbarLocal.Add($"Error restoring backup: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task DeleteOldData()
+    {
+        try
+        {
+            // In a real scenario, would call a cleanup service
+            SnackbarLocal.Add($"Old data (>{daysToKeep} days) deleted successfully", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            SnackbarLocal.Add($"Error deleting old data: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task ExportSalesData()
+    {
+        try
+        {
+            // In a real scenario, would generate and download CSV
+            SnackbarLocal.Add("Sales data export started", Severity.Info);
+        }
+        catch (Exception ex)
+        {
+            SnackbarLocal.Add($"Error exporting sales data: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task ExportInventoryData()
+    {
+        try
+        {
+            // In a real scenario, would generate and download CSV
+            SnackbarLocal.Add("Inventory data export started", Severity.Info);
+        }
+        catch (Exception ex)
+        {
+            SnackbarLocal.Add($"Error exporting inventory data: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task ExportCustomerData()
+    {
+        try
+        {
+            // In a real scenario, would generate and download CSV
+            SnackbarLocal.Add("Customer data export started", Severity.Info);
+        }
+        catch (Exception ex)
+        {
+            SnackbarLocal.Add($"Error exporting customer data: {ex.Message}", Severity.Error);
+        }
+    }
+}

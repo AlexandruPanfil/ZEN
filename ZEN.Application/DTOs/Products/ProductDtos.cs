@@ -45,4 +45,30 @@ public record UpdateProductRequest(
 
 public record CategoryDto(Guid Id, string Name, Guid? ParentCategoryId, string? ParentCategoryName);
 
+public record CreateCategoryRequest(
+    string Name,
+    string? Description,
+    Guid? ParentCategoryId,
+    int SortOrder,
+    bool IsActive);
+
+public record UpdateCategoryRequest(
+    Guid Id,
+    string Name,
+    string? Description,
+    Guid? ParentCategoryId,
+    int SortOrder,
+    bool IsActive);
+
 public record BrandDto(Guid Id, string Name);
+
+public record CreateBrandRequest(
+    string Name,
+    string? Description,
+    bool IsActive);
+
+public record UpdateBrandRequest(
+    Guid Id,
+    string Name,
+    string? Description,
+    bool IsActive);

@@ -1,0 +1,320 @@
+@page "/warehouses"
+@using Microsoft.AspNetCore.Authorization
+@using ZEN.Application.Services.Interfaces
+@using ZEN.Domain.Entities
+@using ZEN.Domain.Interfaces
+@using ZEN.Shared.Components.Common
+@inject IWarehouseService WarehouseService
+@inject global::ZEN.Domain.Interfaces.IRepository<Store> StoreRepository
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+
+@attribute [Authorize(Roles = "Administrator,Manager,InventoryManager")]
+
+<ZEN.Shared.Components.Common.PageTitle>Warehouses - ZEN POS</ZEN.Shared.Components.Common.PageTitle>
+
+<MudText Typo="Typo.h3" GutterBottom="true">Warehouse Management</MudText>
+
+<MudPaper Class="pa-4 mb-4">
+    <div class="d-flex align-center justify-space-between mb-4">
+        <MudSelect T="Guid?" 
+                   Label="Filter by Store" 
+                   @bind-Value="_selectedStoreFilter" 
+                   Variant="Variant.Outlined" 
+                   Style="min-width: 250px;"
+                   Margin="Margin.Dense">
+            <MudSelectItem T="Guid?" Value="@null">All Stores</MudSelectItem>
+            @foreach (var store in _stores)
+            {
+                <MudSelectItem T="Guid?" Value="@store.Id">@store.Name</MudSelectItem>
+            }
+        </MudSelect>
+
+        <MudSpacer />
+
+        <MudButton Variant="Variant.Filled" 
+                   Color="Color.Primary" 
+                   StartIcon="@Icons.Material.Filled.Add" 
+                   OnClick="OpenCreateDialog">
+            Add Warehouse
+        </MudButton>
+    </div>
+
+<MudTable T="WarehouseDto" Items="@FilteredWarehouses" Hover="true" Breakpoint="Breakpoint.Sm" Loading="@_isLoading" LoadingProgressColor="Color.Info">
+        <ToolBarContent>
+            <MudText Typo="Typo.h6">Warehouses List</MudText>
+        </ToolBarContent>
+        <HeaderContent>
+            <MudTh>Code</MudTh>
+            <MudTh>Name</MudTh>
+            <MudTh>Store</MudTh>
+            <MudTh>Address</MudTh>
+            <MudTh>Main</MudTh>
+            <MudTh>Status</MudTh>
+            <MudTh>Actions</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="Code">@context.Code</MudTd>
+            <MudTd DataLabel="Name">@context.Name</MudTd>
+            <MudTd DataLabel="Store">@context.StoreName</MudTd>
+            <MudTd DataLabel="Address">@(context.Address ?? "—")</MudTd>
+            <MudTd DataLabel="Main">
+                @if (context.IsMain)
+                {
+                    <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" />
+                }
+            </MudTd>
+            <MudTd DataLabel="Status">
+                <MudChip T="string" Color="@(context.IsActive ? Color.Success : Color.Error)" Size="Size.Small">
+                    @(context.IsActive ? "Active" : "Inactive")
+                </MudChip>
+            </MudTd>
+            <MudTd DataLabel="Actions">
+                <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" OnClick="@(() => OpenEditDialog(context))" />
+                <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" OnClick="@(() => DeleteWarehouse(context))" />
+            </MudTd>
+        </RowTemplate>
+        <PagerContent>
+            <MudTablePager />
+        </PagerContent>
+    </MudTable>
+</MudPaper>
+
+<!-- Create/Edit Dialog -->
+<MudDialog @bind-Visible="_isDialogOpen">
+    <TitleContent>
+        <MudText Typo="Typo.h6">@(_isEditMode ? "Edit Warehouse" : "Create Warehouse")</MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudForm @ref="_form" @bind-IsValid="@_formIsValid">
+            <MudGrid>
+                <MudItem xs="12" sm="6">
+                    <MudTextField T="string" Label="Warehouse Code" 
+                                  @bind-Value="_editingWarehouse.Code" 
+                                  Required="true" 
+                                  For="@(() => _editingWarehouse.Code)" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudTextField T="string" Label="Warehouse Name" 
+                                  @bind-Value="_editingWarehouse.Name" 
+                                  Required="true" 
+                                  For="@(() => _editingWarehouse.Name)" />
+                </MudItem>
+                <MudItem xs="12">
+                    <MudTextField T="string?" Label="Address" 
+                                  @bind-Value="_editingWarehouse.Address" 
+                                  For="@(() => _editingWarehouse.Address)" 
+                                  Multiline="true" 
+                                  Lines="2" />
+                </MudItem>
+                @if (!_isEditMode)
+                {
+                    <MudItem xs="12">
+                        <MudSelect T="Guid?" 
+                                   Label="Store" 
+                                   @bind-Value="_editingWarehouse.StoreId"
+                                   For="@(() => _editingWarehouse.StoreId)"
+                                   Required="true">
+                            @foreach (var store in _stores)
+                            {
+                                <MudSelectItem T="Guid?" Value="@store.Id">@store.Name</MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudItem>
+                }
+                <MudItem xs="12">
+                    <MudSwitch T="bool" @bind-Value="_editingWarehouse.IsMain" Color="Color.Warning" Label="Main Warehouse" />
+                </MudItem>
+                <MudItem xs="12">
+                    <MudSwitch T="bool" @bind-Value="_editingWarehouse.IsActive" Color="Color.Primary" Label="Active" />
+                </MudItem>
+            </MudGrid>
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="CloseDialog">Cancel</MudButton>
+        <MudButton Color="Color.Primary" 
+                   Variant="Variant.Filled" 
+                   OnClick="SaveWarehouse"
+                   Disabled="!_formIsValid">
+            @(_isEditMode ? "Update" : "Create")
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private List<WarehouseDto> _warehouses = new();
+    private List<Store> _stores = new();
+
+    private Guid? _selectedStoreFilter = null;
+    private bool _isLoading = false;
+    private bool _isDialogOpen = false;
+    private bool _isEditMode = false;
+    private bool _formIsValid = false;
+    private MudForm? _form;
+
+    private WarehouseEditModel _editingWarehouse = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadStoresAsync();
+        await LoadWarehousesAsync();
+    }
+
+    private async Task LoadStoresAsync()
+    {
+        try
+        {
+            _stores = (await StoreRepository.FindAsync(s => s.IsActive)).ToList();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error loading stores: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task LoadWarehousesAsync()
+    {
+        _isLoading = true;
+        try
+        {
+            if (_selectedStoreFilter.HasValue)
+            {
+                _warehouses = (await WarehouseService.GetByStoreAsync(_selectedStoreFilter.Value)).ToList();
+            }
+            else
+            {
+                var allWarehouses = new List<WarehouseDto>();
+                foreach (var store in _stores)
+                {
+                    var storeWarehouses = await WarehouseService.GetByStoreAsync(store.Id);
+                    allWarehouses.AddRange(storeWarehouses);
+                }
+                _warehouses = allWarehouses;
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error loading warehouses: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private IEnumerable<WarehouseDto> FilteredWarehouses => _warehouses;
+
+    private void OpenCreateDialog()
+    {
+        _editingWarehouse = new WarehouseEditModel { StoreId = _selectedStoreFilter };
+        _isEditMode = false;
+        _isDialogOpen = true;
+    }
+
+    private void OpenEditDialog(WarehouseDto warehouse)
+    {
+        _editingWarehouse = new WarehouseEditModel
+        {
+            Id = warehouse.Id,
+            Code = warehouse.Code,
+            Name = warehouse.Name,
+            Address = warehouse.Address,
+            StoreId = warehouse.StoreId,
+            IsMain = warehouse.IsMain,
+            IsActive = warehouse.IsActive
+        };
+        _isEditMode = true;
+        _isDialogOpen = true;
+    }
+
+    private async Task SaveWarehouse()
+    {
+        if (_form == null)
+            return;
+
+        _form.Validate();
+        if (!_formIsValid)
+            return;
+
+        try
+        {
+            if (_isEditMode)
+            {
+                var request = new UpdateWarehouseRequest(
+                    _editingWarehouse.Id,
+                    _editingWarehouse.Code,
+                    _editingWarehouse.Name,
+                    _editingWarehouse.Address,
+                    _editingWarehouse.IsMain,
+                    _editingWarehouse.IsActive);
+
+                await WarehouseService.UpdateAsync(request);
+                Snackbar.Add("Warehouse updated successfully", Severity.Success);
+            }
+            else
+            {
+                var request = new CreateWarehouseRequest(
+                    _editingWarehouse.Code,
+                    _editingWarehouse.Name,
+                    _editingWarehouse.Address,
+                    _editingWarehouse.StoreId!.Value,
+                    _editingWarehouse.IsMain,
+                    _editingWarehouse.IsActive);
+
+                await WarehouseService.CreateAsync(request);
+                Snackbar.Add("Warehouse created successfully", Severity.Success);
+            }
+
+            CloseDialog();
+            await LoadWarehousesAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error saving warehouse: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task DeleteWarehouse(WarehouseDto warehouse)
+    {
+        var confirm = await DialogService.ShowAsync<ZEN.Shared.Components.Common.ConfirmDialog>("Delete Warehouse",
+            new DialogParameters { { "Message", $"Are you sure you want to delete '{warehouse.Name}'?" } });
+
+        var result = await confirm.Result;
+        if (!result.Canceled)
+        {
+            try
+            {
+                await WarehouseService.DeleteAsync(warehouse.Id);
+                Snackbar.Add("Warehouse deleted successfully", Severity.Success);
+                await LoadWarehousesAsync();
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Error deleting warehouse: {ex.Message}", Severity.Error);
+            }
+        }
+    }
+
+    private async Task OnStoreFilterChanged()
+    {
+        await LoadWarehousesAsync();
+    }
+
+    private void CloseDialog()
+    {
+        _isDialogOpen = false;
+        _editingWarehouse = new();
+    }
+
+    public class WarehouseEditModel
+    {
+        public Guid Id { get; set; }
+        public string Code { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public string? Address { get; set; }
+        public Guid? StoreId { get; set; }
+        public bool IsMain { get; set; }
+        public bool IsActive { get; set; } = true;
+    }
+}

@@ -1,0 +1,153 @@
+@using ZEN.Application.Services.Interfaces
+@using ZEN.Application.DTOs.Promotions
+@using MudBlazor
+@inject ICouponService CouponService
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudForm @ref="form" @bind-IsValid="isFormValid">
+            <MudStack Spacing="3">
+                @if (IsEditMode)
+                {
+                    <MudTextField T="string" Label="Code" @bind-Value="editModel.Code" 
+                                 ReadOnly="true" Variant="Variant.Outlined" />
+                }
+                else
+                {
+                    <MudStack Row="true" Spacing="2">
+                        <MudTextField T="string" Label="Custom Code (optional)" @bind-Value="editModel.Code"
+                                     Variant="Variant.Outlined" Class="flex-grow-1" />
+                        <MudButton Variant="Variant.Outlined" OnClick="GenerateCode" Class="mt-1">
+                            Generate
+                        </MudButton>
+                    </MudStack>
+                }
+
+                <MudSelect T="string" Label="Discount Type" @bind-Value="editModel.DiscountType"
+                          Required="true" Variant="Variant.Outlined">
+                    <MudSelectItem Value="@("Fixed")">Fixed Amount</MudSelectItem>
+                    <MudSelectItem Value="@("Percentage")">Percentage</MudSelectItem>
+                </MudSelect>
+
+                <MudNumericField T="decimal" Label="Discount Value" @bind-Value="editModel.DiscountValue"
+                                Required="true" RequiredError="Value is required"
+                                Min="0" Variant="Variant.Outlined" />
+
+                <MudNumericField T="int?" Label="Usage Limit (0 = unlimited)" @bind-Value="editModel.UsageLimit"
+                                Min="0" Variant="Variant.Outlined" />
+
+                <MudDatePicker Label="Expiry Date" @bind-Date="editModel.ExpiryDate"
+                              Required="true" RequiredError="Expiry date is required"
+                              Variant="Variant.Outlined" />
+
+                <MudTextField T="string" Label="Description (optional)" @bind-Value="editModel.Description"
+                             Variant="Variant.Outlined" Lines="2" />
+
+                @if (IsEditMode)
+                {
+                    <MudStack Spacing="2">
+                        <MudDivider />
+                        <MudText Typo="Typo.subtitle2">Usage Tracking</MudText>
+                        <MudText Typo="Typo.body2">Times Used: @Coupon?.TimesUsed ?? 0</MudText>
+                    </MudStack>
+                }
+            </MudStack>
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveCoupon" Disabled="!isFormValid">
+            Save
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
+    [Parameter] public CouponDto? Coupon { get; set; }
+
+    private MudForm form = null!;
+    private bool isFormValid = false;
+    private CouponEditModel editModel = new();
+    private bool IsEditMode => Coupon != null;
+
+    protected override Task OnInitializedAsync()
+    {
+        if (IsEditMode)
+        {
+            editModel = new CouponEditModel
+            {
+                Code = Coupon!.Code,
+                DiscountType = Coupon.DiscountType,
+                DiscountValue = Coupon.DiscountValue,
+                UsageLimit = Coupon.UsageLimit,
+                ExpiryDate = Coupon.ExpiryDate,
+                Description = Coupon.Description
+            };
+        }
+        else
+        {
+            editModel.ExpiryDate = DateTime.Today.AddMonths(1);
+            GenerateCode();
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private void GenerateCode()
+    {
+        editModel.Code = $"COUP{DateTime.UtcNow:yyyyMMdd}{Guid.NewGuid().ToString().Substring(0, 6).ToUpper()}";
+    }
+
+    private async Task SaveCoupon()
+    {
+        if (!isFormValid)
+            return;
+
+        try
+        {
+            CouponDto result;
+            if (IsEditMode)
+            {
+                var request = new UpdateCouponRequest(
+                    Coupon!.Id,
+                    editModel.DiscountType,
+                    editModel.DiscountValue,
+                    editModel.UsageLimit,
+                    editModel.ExpiryDate!.Value,
+                    editModel.Description);
+                result = await CouponService.UpdateAsync(request);
+            }
+            else
+            {
+                var request = new CreateCouponRequest(
+                    editModel.Code!,
+                    editModel.DiscountType,
+                    editModel.DiscountValue,
+                    editModel.UsageLimit,
+                    editModel.ExpiryDate!.Value,
+                    editModel.Description);
+                result = await CouponService.CreateAsync(request);
+            }
+
+            MudDialog.Close(DialogResult.Ok(result));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error saving coupon: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private class CouponEditModel
+    {
+        public string? Code { get; set; }
+        public string DiscountType { get; set; } = "Fixed";
+        public decimal DiscountValue { get; set; }
+        public int? UsageLimit { get; set; }
+        public DateTime? ExpiryDate { get; set; }
+        public string? Description { get; set; }
+    }
+}

@@ -1,10 +1,13 @@
 <MudCard Class="mb-4">
     <MudCardContent>
-        <MudText Typo="Typo.h4">@Title</MudText>
+        <MudText Typo="Typo.h4">@(ChildContent != null ? ChildContent : Title)</MudText>
     </MudCardContent>
 </MudCard>
 
 @code {
     [Parameter]
     public string Title { get; set; } = string.Empty;
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
 }

@@ -1,0 +1,181 @@
+@using DiscountServiceDto = ZEN.Application.Services.Interfaces.DiscountDto
+@using DiscountCreateRequest = ZEN.Application.Services.Interfaces.CreateDiscountRequest
+@using DiscountUpdateRequest = ZEN.Application.Services.Interfaces.UpdateDiscountRequest
+@using ZEN.Application.Services.Interfaces
+@using ZEN.Domain.Entities
+@using ZEN.Domain.Interfaces
+@using MudBlazor
+@inject IDiscountService DiscountService
+@inject IRepository<Category> CategoryRepository
+@inject IRepository<Product> ProductRepository
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudForm @ref="form" @bind-IsValid="isFormValid">
+            <MudStack Spacing="3">
+                <MudTextField T="string" Label="Code" @bind-Value="editModel.Code" 
+                             Required="true" RequiredError="Code is required"
+                             Variant="Variant.Outlined" />
+
+                <MudTextField T="string" Label="Description" @bind-Value="editModel.Description"
+                             Variant="Variant.Outlined" Lines="2" />
+
+                <MudSelect T="string" Label="Type" @bind-Value="editModel.Type" 
+                          Required="true" Variant="Variant.Outlined">
+                    <MudSelectItem Value="@("Fixed")">Fixed Amount</MudSelectItem>
+                    <MudSelectItem Value="@("Percentage")">Percentage</MudSelectItem>
+                    <MudSelectItem Value="@("Tiered")">Tiered</MudSelectItem>
+                </MudSelect>
+
+                <MudNumericField T="decimal" Label="Value" @bind-Value="editModel.Value"
+                                Required="true" RequiredError="Value is required"
+                                Min="0" Variant="Variant.Outlined" />
+
+                <MudDatePicker Label="Valid From" @bind-Date="editModel.ValidFrom"
+                              Variant="Variant.Outlined" />
+
+                <MudDatePicker Label="Valid To" @bind-Date="editModel.ValidTo"
+                              Variant="Variant.Outlined" />
+
+                <MudCheckBox T="bool" @bind-Value="editModel.IsActive" Label="Active" />
+
+                <MudDivider />
+
+                <MudText Typo="Typo.subtitle2">Conditions (Apply To)</MudText>
+                <MudCheckBox T="bool" @bind-Value="includeAllProducts" Label="Apply to all products" />
+
+                @if (!includeAllProducts)
+                {
+                    <MudAutocomplete T="Category" 
+                                    Label="Categories" 
+                                    @bind-Value="selectedCategory"
+                                    SearchFunc="SearchCategories"
+                                    ToStringFunc="@(c => c?.Name ?? "")"
+                                    Variant="Variant.Outlined"
+                                    Dense="true" />
+
+                    <MudAutocomplete T="Product" 
+                                    Label="Products" 
+                                    @bind-Value="selectedProduct"
+                                    SearchFunc="SearchProducts"
+                                    ToStringFunc="@(p => p?.Name ?? "")"
+                                    Variant="Variant.Outlined"
+                                    Dense="true" />
+                }
+            </MudStack>
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveDiscount" Disabled="!isFormValid">
+            Save
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] MudBlazor.IMudDialogInstance MudDialog { get; set; } = null!;
+    [Parameter] public DiscountServiceDto? Discount { get; set; }
+
+    private MudForm form = null!;
+    private bool isFormValid = false;
+    private DiscountEditModel editModel = new();
+    private bool includeAllProducts = true;
+    private Category? selectedCategory;
+    private Product? selectedProduct;
+    private List<Category> categories = [];
+    private List<Product> products = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        categories = (await CategoryRepository.GetAllAsync()).ToList();
+        products = (await ProductRepository.GetAllAsync()).ToList();
+
+        if (Discount is not null)
+        {
+            editModel = new DiscountEditModel
+            {
+                Code = Discount.Code,
+                Description = Discount.Description,
+                Type = Discount.Type,
+                Value = Discount.Value,
+                ValidFrom = Discount.ValidFrom,
+                ValidTo = Discount.ValidTo,
+                IsActive = Discount.IsActive
+            };
+        }
+    }
+
+    private Task<IEnumerable<Category>> SearchCategories(string value, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrEmpty(value))
+            return Task.FromResult<IEnumerable<Category>>(categories);
+        return Task.FromResult<IEnumerable<Category>>(categories.Where(c => c.Name.Contains(value, StringComparison.OrdinalIgnoreCase)));
+    }
+
+    private Task<IEnumerable<Product>> SearchProducts(string value, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrEmpty(value))
+            return Task.FromResult<IEnumerable<Product>>(products);
+        return Task.FromResult<IEnumerable<Product>>(products.Where(p => p.Name.Contains(value, StringComparison.OrdinalIgnoreCase)));
+    }
+
+    private async Task SaveDiscount()
+    {
+        if (!isFormValid)
+            return;
+
+        try
+        {
+            DiscountServiceDto result;
+            if (Discount == null)
+            {
+                var request = new DiscountCreateRequest(
+                    editModel.Code,
+                    editModel.Description,
+                    editModel.Type,
+                    editModel.Value,
+                    editModel.ValidFrom,
+                    editModel.ValidTo,
+                    editModel.IsActive,
+                    editModel.Conditions);
+                result = await DiscountService.CreateAsync(request);
+            }
+            else
+            {
+                var request = new DiscountUpdateRequest(
+                    Discount.Id,
+                    editModel.Code,
+                    editModel.Description,
+                    editModel.Type,
+                    editModel.Value,
+                    editModel.ValidFrom,
+                    editModel.ValidTo,
+                    editModel.IsActive,
+                    editModel.Conditions);
+                result = await DiscountService.UpdateAsync(request);
+            }
+
+            MudDialog.Close(DialogResult.Ok(result));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error saving discount: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private class DiscountEditModel
+    {
+        public string Code { get; set; } = "";
+        public string? Description { get; set; }
+        public string Type { get; set; } = "Fixed";
+        public decimal Value { get; set; }
+        public DateTime? ValidFrom { get; set; }
+        public DateTime? ValidTo { get; set; }
+        public bool IsActive { get; set; } = true;
+        public List<string> Conditions { get; set; } = [];
+    }
+}

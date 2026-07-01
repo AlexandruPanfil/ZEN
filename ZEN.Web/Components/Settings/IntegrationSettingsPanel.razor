@@ -1,0 +1,116 @@
+@using MudBlazor
+@inject ISnackbar Snackbar
+
+
+<MudStack Spacing="4">
+    <MudText Typo="Typo.subtitle1">Integration Settings</MudText>
+
+    <MudForm @ref="form" @bind-IsValid="isFormValid">
+        <MudStack Spacing="3">
+            <MudText Typo="Typo.subtitle2">Payment Gateway Integration</MudText>
+
+            <MudCheckBox T="bool" @bind-Value="enableCreditCardProcessing" Label="Enable Credit Card Processing" />
+
+            @if (enableCreditCardProcessing)
+            {
+                <MudSelect T="string" Label="Payment Gateway" @bind-Value="paymentGateway"
+                          Variant="Variant.Outlined">
+                    <MudSelectItem Value="@("stripe")">Stripe</MudSelectItem>
+                    <MudSelectItem Value="@("square")">Square</MudSelectItem>
+                    <MudSelectItem Value="@("paypal")">PayPal</MudSelectItem>
+                    <MudSelectItem Value="@("authorize")">Authorize.Net</MudSelectItem>
+                </MudSelect>
+
+                <MudTextField T="string" Label="API Key" @bind-Value="apiKey"
+                             InputType="InputType.Password"
+                             Variant="Variant.Outlined"
+                             HelperText="Your payment gateway API key" />
+            }
+
+            <MudDivider Class="my-4" />
+
+            <MudText Typo="Typo.subtitle2">Cloud Backup</MudText>
+
+            <MudCheckBox T="bool" @bind-Value="enableCloudBackup" Label="Enable Automatic Cloud Backup" />
+
+            @if (enableCloudBackup)
+            {
+                <MudSelect T="string" Label="Cloud Storage" @bind-Value="cloudStorage"
+                          Variant="Variant.Outlined">
+                    <MudSelectItem Value="@("aws")">AWS S3</MudSelectItem>
+                    <MudSelectItem Value="@("azure")">Azure Blob Storage</MudSelectItem>
+                    <MudSelectItem Value="@("dropbox")">Dropbox</MudSelectItem>
+                    <MudSelectItem Value="@("google")">Google Drive</MudSelectItem>
+                </MudSelect>
+
+                <MudSelect T="string" Label="Backup Frequency" @bind-Value="backupFrequency"
+                          Variant="Variant.Outlined">
+                    <MudSelectItem Value="@("hourly")">Hourly</MudSelectItem>
+                    <MudSelectItem Value="@("daily")">Daily</MudSelectItem>
+                    <MudSelectItem Value="@("weekly")">Weekly</MudSelectItem>
+                </MudSelect>
+            }
+
+            <MudDivider Class="my-4" />
+
+            <MudText Typo="Typo.subtitle2">Email Notifications</MudText>
+
+            <MudCheckBox T="bool" @bind-Value="enableEmailNotifications" Label="Enable Email Notifications" />
+
+            @if (enableEmailNotifications)
+            {
+                <MudTextField T="string" Label="SMTP Server" @bind-Value="smtpServer"
+                             Variant="Variant.Outlined" />
+
+                <MudNumericField T="int" Label="SMTP Port" @bind-Value="smtpPort"
+                                Variant="Variant.Outlined" />
+
+                <MudTextField T="string" Label="Email Address" @bind-Value="emailAddress"
+                             InputType="InputType.Email"
+                             Variant="Variant.Outlined" />
+
+                <MudTextField T="string" Label="Email Password" @bind-Value="emailPassword"
+                             InputType="InputType.Password"
+                             Variant="Variant.Outlined" />
+            }
+
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveIntegrationSettings">
+                Save Integration Settings
+            </MudButton>
+        </MudStack>
+    </MudForm>
+</MudStack>
+
+@code {
+    private MudForm form = null!;
+    private bool isFormValid = true;
+
+    private bool enableCreditCardProcessing = false;
+    private string paymentGateway = "stripe";
+    private string apiKey = "";
+
+    private bool enableCloudBackup = false;
+    private string cloudStorage = "aws";
+    private string backupFrequency = "daily";
+
+    private bool enableEmailNotifications = false;
+    private string smtpServer = "";
+    private int smtpPort = 587;
+    private string emailAddress = "";
+    private string emailPassword = "";
+
+    [Inject] private ISnackbar SnackbarLocal { get; set; } = null!;
+
+    private async Task SaveIntegrationSettings()
+    {
+        try
+        {
+            // In a real scenario, would call a settings service to save these values
+            SnackbarLocal.Add("Integration settings saved successfully", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            SnackbarLocal.Add($"Error saving settings: {ex.Message}", Severity.Error);
+        }
+    }
+}

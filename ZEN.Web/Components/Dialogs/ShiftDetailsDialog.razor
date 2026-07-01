@@ -1,0 +1,68 @@
+@using ZEN.Domain.Entities
+@using MudBlazor
+
+<MudDialog>
+    <DialogContent>
+        <MudStack Spacing="3">
+            <MudText Typo="Typo.subtitle1">Shift Details</MudText>
+
+            <MudGrid>
+                <MudItem xs="12" sm="6">
+                    <MudText Typo="Typo.body2"><strong>Opened By:</strong> @Shift?.UserId</MudText>
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudText Typo="Typo.body2"><strong>Opened At:</strong> @Shift?.OpenTime.ToString("g")</MudText>
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudText Typo="Typo.body2"><strong>Opening Cash:</strong> $@Shift?.OpeningCash.ToString("F2")</MudText>
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudText Typo="Typo.body2"><strong>Status:</strong> 
+                        <MudChip T="string" Size="Size.Small" Color="@(Shift?.Status == ZEN.Domain.Enums.ShiftStatus.Closed ? Color.Success : Color.Warning)">
+                            @Shift?.Status
+                        </MudChip>
+                    </MudText>
+                </MudItem>
+            </MudGrid>
+
+            @if (Shift?.Status == ZEN.Domain.Enums.ShiftStatus.Closed)
+            {
+                <MudDivider />
+
+                <MudText Typo="Typo.subtitle2">Closing Summary</MudText>
+
+                <MudGrid>
+                    <MudItem xs="12" sm="6">
+                        <MudText Typo="Typo.body2"><strong>Closed By:</strong> @Shift?.UserId</MudText>
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudText Typo="Typo.body2"><strong>Closed At:</strong> @Shift?.CloseTime?.ToString("g")</MudText>
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudText Typo="Typo.body2"><strong>Closing Cash:</strong> $@Shift?.ClosingCash.ToString("F2")</MudText>
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudText Typo="Typo.body2"><strong>Total Sales:</strong> $@("—")</MudText>
+                    </MudItem>
+                </MudGrid>
+
+                @if (!string.IsNullOrEmpty(Shift?.Notes))
+                {
+                    <MudDivider />
+                    <MudText Typo="Typo.subtitle2">Notes</MudText>
+                    <MudText Typo="Typo.body2">@Shift?.Notes</MudText>
+                }
+            }
+        </MudStack>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Close">Close</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
+    [Parameter] public Shift? Shift { get; set; }
+
+    private void Close() => MudDialog.Close();
+}

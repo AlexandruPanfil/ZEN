@@ -1,0 +1,192 @@
+@page "/operations/held-sales"
+@using ZEN.Application.Services.Interfaces
+@using ZEN.Application.DTOs.Sales
+@using ZEN.Web.Components.Dialogs
+@using MudBlazor
+@inject ISaleService SaleService
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+
+<PageTitle>Held Sales</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="py-8">
+    <MudStack Spacing="4">
+        <MudStack Row="true" Class="justify-between align-center">
+            <MudText Typo="Typo.h4">Held Sales / Pending Transactions</MudText>
+            <MudButton Variant="Variant.Outlined" Color="Color.Default" OnClick="RefreshList">
+                <MudIcon Icon="@Icons.Material.Filled.Refresh" Class="mr-2" />
+                Refresh
+            </MudButton>
+        </MudStack>
+
+        @if (!heldSales.Any())
+        {
+            <MudPaper Class="pa-8" Elevation="0">
+                <MudStack Spacing="2" AlignItems="AlignItems.Center">
+                    <MudIcon Icon="@Icons.Material.Filled.ShoppingCart" Style="font-size: 48px;" Color="Color.Default" />
+                    <MudText Typo="Typo.subtitle1">No held sales at this time</MudText>
+                </MudStack>
+            </MudPaper>
+        }
+        else
+        {
+            <MudPaper Class="pa-4">
+                <MudStack Spacing="3">
+                    <MudStack Row="true" Spacing="2">
+                        <MudTextField T="string" Label="Search by reference..." 
+                                      @bind-Value="searchText" 
+                                      Variant="Variant.Outlined"
+                                      Adornment="Adornment.Start"
+                                      AdornmentIcon="@Icons.Material.Filled.Search"
+                                      Class="flex-grow-1" />
+                        <MudSelect T="string?" Label="Filter" MultiSelection="false" 
+                                  @bind-Value="filterAge"
+                                  Variant="Variant.Outlined">
+                            <MudSelectItem Value="@((string?)null)">All</MudSelectItem>
+                            <MudSelectItem Value="@("today")">Held Today</MudSelectItem>
+                            <MudSelectItem Value="@("week")">This Week</MudSelectItem>
+                            <MudSelectItem Value="@("month")">This Month</MudSelectItem>
+                        </MudSelect>
+                    </MudStack>
+                </MudStack>
+            </MudPaper>
+
+            <MudGrid>
+                @foreach (var sale in FilteredHeldSales)
+                {
+                    <MudItem xs="12" sm="6" md="4">
+                        <MudCard>
+                            <MudCardHeader>
+                                <CardHeaderAvatar>
+                                    <MudAvatar Color="Color.Primary" TextAlign="System.Alignment.Center">
+                                        @sale.CustomerName?.Substring(0, 1).ToUpper()
+                                    </MudAvatar>
+                                </CardHeaderAvatar>
+                                <CardHeaderContent>
+                                    <MudText Typo="Typo.body2" Align="Align.Right">
+                                        <MudIcon Icon="@Icons.Material.Filled.Schedule" Class="mr-1" />
+                                        @sale.HeldAt.ToString("MMM dd, HH:mm")
+                                    </MudText>
+                                </CardHeaderContent>
+                            </MudCardHeader>
+                            <MudCardContent>
+                                <MudStack Spacing="2">
+                                    <div>
+                                        <MudText Typo="Typo.body2"><strong>@sale.CustomerName</strong></MudText>
+                                        <MudText Typo="Typo.caption">Id: @sale.Id</MudText>
+                                    </div>
+                                    <MudDivider />
+                                    <div>
+                                        <MudText Typo="Typo.body2">Payload: @(string.IsNullOrWhiteSpace(sale.SerializedItems) ? "None" : sale.SerializedItems)</MudText>
+                                        <MudText Typo="Typo.body2" Color="Color.Primary">
+                                            <strong>Held: @sale.HeldAt.ToString("g")</strong>
+                                        </MudText>
+                                    </div>
+                                </MudStack>
+                            </MudCardContent>
+                            <MudCardActions>
+                                <MudButton Variant="Variant.Text" Color="Color.Primary" 
+                                          OnClick="@(() => ResumeHeldSale(sale))">
+                                    Resume
+                                </MudButton>
+                                <MudButton Variant="Variant.Text" Color="Color.Error" 
+                                          OnClick="@(() => DiscardHeldSale(sale))">
+                                    Discard
+                                </MudButton>
+                            </MudCardActions>
+                        </MudCard>
+                    </MudItem>
+                }
+            </MudGrid>
+        }
+    </MudStack>
+</MudContainer>
+
+@code {
+    private List<HeldSaleDto> heldSales = [];
+    private string searchText = "";
+    private string? filterAge = null;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadHeldSalesAsync();
+    }
+
+    private async Task LoadHeldSalesAsync()
+    {
+        try
+        {
+            // In a real scenario, this would fetch held sales from the service
+            // For now, we'll use placeholder logic
+            // var sales = await SaleService.GetHeldSalesAsync();
+            heldSales = [];
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error loading held sales: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private List<HeldSaleDto> FilteredHeldSales
+    {
+        get
+        {
+            var filtered = heldSales.AsEnumerable();
+
+            if (!string.IsNullOrEmpty(searchText))
+                filtered = filtered.Where(s => 
+                    (s.CustomerName?.Contains(searchText, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                    (s.SerializedItems?.Contains(searchText, StringComparison.OrdinalIgnoreCase) ?? false));
+
+            if (filterAge != null)
+            {
+                var now = DateTime.UtcNow;
+                filtered = filterAge switch
+                {
+                    "today" => filtered.Where(s => 
+                        s.HeldAt.Date == now.Date),
+                    "week" => filtered.Where(s => 
+                        (now - s.HeldAt).TotalDays <= 7),
+                    "month" => filtered.Where(s => 
+                        (now - s.HeldAt).TotalDays <= 30),
+                    _ => filtered
+                };
+            }
+
+            return filtered.OrderByDescending(s => s.HeldAt).ToList();
+        }
+    }
+
+    private async Task RefreshList()
+    {
+        await LoadHeldSalesAsync();
+        Snackbar.Add("List refreshed", Severity.Info);
+    }
+
+    private async Task ResumeHeldSale(HeldSaleDto sale)
+    {
+        var parameters = new DialogParameters { { "Sale", sale } };
+        var dialog = await DialogService.ShowAsync<HeldSaleResumeDialog>("Resume Sale", parameters);
+        var result = await dialog.Result;
+
+        if (!result.Canceled && result.Data is HeldSaleDto resumedSale)
+        {
+            heldSales.Remove(sale);
+            Snackbar.Add("Sale resumed", Severity.Success);
+        }
+    }
+
+    private async Task DiscardHeldSale(HeldSaleDto sale)
+    {
+        var confirmed = await DialogService.ShowAsync<ZEN.Shared.Components.Common.ConfirmDialog>(
+            "Discard Sale",
+            new DialogParameters { { "Message", $"Discard held sale '{sale.Id}' for {sale.CustomerName}?" } });
+
+        var result = await confirmed.Result;
+        if (!result.Canceled)
+        {
+            heldSales.Remove(sale);
+            Snackbar.Add("Sale discarded", Severity.Warning);
+        }
+    }
+}
