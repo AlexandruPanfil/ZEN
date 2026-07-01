@@ -70,7 +70,7 @@
 </MudPaper>
 
 <!-- Create/Edit Dialog -->
-<MudDialog @bind-IsVisible="_isDialogOpen">
+<MudDialog @bind-Visible="_isDialogOpen">
     <TitleContent>
         <MudText Typo="Typo.h6">@( _isEditMode ? "Edit Supplier" : "Create Supplier" )</MudText>
     </TitleContent>
@@ -108,7 +108,7 @@
 </MudDialog>
 
 <!-- Purchase History Dialog -->
-<MudDialog @bind-IsVisible="_isHistoryDialogOpen">
+<MudDialog @bind-Visible="_isHistoryDialogOpen">
     <TitleContent>
         <MudText Typo="Typo.h6">Purchase History - @(_selectedSupplier?.Name)</MudText>
     </TitleContent>
