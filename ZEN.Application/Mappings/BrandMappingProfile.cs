@@ -10,9 +10,11 @@ namespace ZEN.Application.Mappings
     {
         public BrandMappingProfile()
         {
-            CreateMap<CreateBrandRequest, Brand>();
+            CreateMap<CreateBrandRequest, Brand>()
+                .ForMember(d => d.LogoPath, opt => opt.Ignore());
 
-            CreateMap<UpdateBrandRequest, Brand>();
+            CreateMap<UpdateBrandRequest, Brand>()
+                .ForMember(d => d.LogoPath, opt => opt.Ignore());
 
             CreateMap<Brand, BrandDto>();
         }

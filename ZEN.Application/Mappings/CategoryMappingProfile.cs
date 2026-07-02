@@ -12,9 +12,11 @@ namespace ZEN.Application.Mappings
     {
         public CategoryMappingProfile()
         {
-            CreateMap<CreateCategoryRequest, Category>();
+            CreateMap<CreateCategoryRequest, Category>()
+                .ForMember(d => d.ImagePath, opt => opt.Ignore());
 
-            CreateMap<UpdateCategoryRequest, Category>();
+            CreateMap<UpdateCategoryRequest, Category>()
+                .ForMember(d => d.ImagePath, opt => opt.Ignore());
 
             CreateMap<Category, CategoryDto>();
         }

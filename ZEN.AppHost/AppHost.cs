@@ -1,9 +1,11 @@
 var builder = DistributedApplication.CreateBuilder(args);
 
-var cache = builder.AddRedis("cache");
+var cache = builder.AddRedis("cache")
+    .WithDataVolume();
 
 var sql = builder.AddSqlServer("sql")
-    .WithImageTag("2019-latest");
+    .WithImageTag("2019-latest")
+    .WithDataVolume();
 var zendb = sql.AddDatabase("zendb");
 
 //var jwtKeyParam = builder.AddParameter("jwt-key", secret: true);

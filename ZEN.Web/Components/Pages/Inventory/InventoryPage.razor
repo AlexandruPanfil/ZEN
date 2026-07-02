@@ -1,8 +1,12 @@
 @page "/inventory"
 @using Microsoft.AspNetCore.Authorization
+@using ZEN.Domain.Entities
+@using ZEN.Domain.Interfaces
 @using ZEN.Application.Services.Interfaces
 @using ZEN.Application.DTOs.Inventory
 @inject IInventoryService InventoryService
+@inject IWarehouseService WarehouseService
+@inject global::ZEN.Domain.Interfaces.IRepository<Store> StoreRepository
 @inject ISnackbar Snackbar
 @attribute [Authorize(Roles = "Administrator,Manager,InventoryManager")]
 
@@ -12,12 +16,12 @@
 
 <MudPaper Class="pa-4 mb-4">
     <div class="d-flex align-center gap-4">
-        <MudSelect T="Guid" Label="Select Warehouse" @bind-Value="_selectedWarehouseId" 
+        <MudSelect T="Guid?" Label="Select Warehouse" Value="_selectedWarehouseId" ValueChanged="OnWarehouseChanged"
                    AnchorOrigin="Origin.BottomLeft" Variant="Variant.Outlined" 
-                   Clearable="true" OnClipped="LoadWarehouseData">
+                   Clearable="true">
             @foreach (var warehouse in _warehouses)
             {
-                <MudSelectItem T="Guid" Value="@warehouse.Id">@warehouse.Name</MudSelectItem>
+                <MudSelectItem T="Guid?" Value="@warehouse.Id">@warehouse.Name</MudSelectItem>
             }
         </MudSelect>
 
@@ -34,7 +38,7 @@
 {
     <MudProgressCircular Color="Color.Primary" Indeterminate="true" Class="ma-auto" />
 }
-else if (_selectedWarehouseId == Guid.Empty)
+else if (!_selectedWarehouseId.HasValue)
 {
     <MudAlert Severity="Severity.Info">Please select a warehouse to view inventory levels.</MudAlert>
 }
@@ -124,10 +128,10 @@ else
 }
 
 @code {
-    private Guid _selectedWarehouseId = Guid.Empty;
+    private Guid? _selectedWarehouseId;
     private IEnumerable<InventoryItemDto> _inventoryItems = new List<InventoryItemDto>();
     private IEnumerable<InventoryItemDto> _lowStockItems = new List<InventoryItemDto>();
-    private List<WarehouseSimpleDto> _warehouses = new();
+    private List<WarehouseDto> _warehouses = new();
     private bool _isLoading = false;
 
     protected override async Task OnInitializedAsync()
@@ -137,21 +141,23 @@ else
 
     private async Task LoadWarehouses()
     {
-        // Since there is no IWarehouseService, I'm using a placeholder list 
-        // In a real scenario, this would come from a service.
-        _warehouses = new List<WarehouseSimpleDto>
-        {
-            new() { Id = Guid.Empty, Name = "Loading..." }
-        };
-
-        // Try to load them if a service existed, otherwise we use the first one available from inventory
-        // as a fallback or hardcoded values for now.
-        // For the purpose of this UI implementation, I'll simulate the lookup.
         try 
         {
-            // In a real app: _warehouses = await WarehouseService.GetAllAsync();
-            // For now, we assume at least one warehouse exists as per DbSeeder.
-            // I'll set a dummy value that the user can change.
+            var stores = await StoreRepository.FindAsync(s => s.IsActive);
+            var warehouses = new List<WarehouseDto>();
+
+            foreach (var store in stores)
+            {
+                warehouses.AddRange(await WarehouseService.GetActiveByStoreAsync(store.Id));
+            }
+
+            _warehouses = warehouses;
+            _selectedWarehouseId ??= _warehouses.FirstOrDefault()?.Id;
+
+            if (_selectedWarehouseId.HasValue)
+            {
+                await LoadWarehouseData();
+            }
         }
         catch (Exception ex)
         {
@@ -159,15 +165,21 @@ else
         }
     }
 
+    private async Task OnWarehouseChanged(Guid? warehouseId)
+    {
+        _selectedWarehouseId = warehouseId;
+        await LoadWarehouseData();
+    }
+
     private async Task LoadWarehouseData()
     {
-        if (_selectedWarehouseId == Guid.Empty) return;
+        if (!_selectedWarehouseId.HasValue) return;
 
         _isLoading = true;
         try
         {
-            var inventoryTask = InventoryService.GetInventoryByWarehouseAsync(_selectedWarehouseId);
-            var lowStockTask = InventoryService.GetLowStockItemsAsync(_selectedWarehouseId);
+            var inventoryTask = InventoryService.GetInventoryByWarehouseAsync(_selectedWarehouseId.Value);
+            var lowStockTask = InventoryService.GetLowStockItemsAsync(_selectedWarehouseId.Value);
 
             await Task.WhenAll(inventoryTask, lowStockTask);
 
@@ -184,5 +196,4 @@ else
         }
     }
 
-    public record WarehouseSimpleDto { public Guid Id { get; set; } public string Name { get; set; } = string.Empty; }
 }

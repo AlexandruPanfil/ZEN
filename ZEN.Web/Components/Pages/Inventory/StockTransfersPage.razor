@@ -1,19 +1,32 @@
 @page "/stock-transfers"
 @using Microsoft.AspNetCore.Authorization
 @using ZEN.Domain.Enums
-@using ZEN.Shared.Components.Common
+@using ZEN.Application.DTOs.Inventory
+@using ZEN.Application.Services.Interfaces
+@using ZEN.Domain.Entities
+@using ZEN.Domain.Interfaces
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
+@inject IWarehouseService WarehouseService
+@inject global::ZEN.Domain.Interfaces.IRepository<Store> StoreRepository
 
 @attribute [Authorize(Roles = "Administrator,Manager,InventoryManager")]
 
-<ZEN.Shared.Components.Common.PageTitle>Stock Transfers - ZEN POS</ZEN.Shared.Components.Common.PageTitle>
+@* <ZEN.Shared.Components.Common.PageTitle>Stock Transfers - ZEN POS</ZEN.Shared.Components.Common.PageTitle> *@
+
+<Microsoft.AspNetCore.Components.Web.PageTitle>Stock Transfers - ZEN POS</Microsoft.AspNetCore.Components.Web.PageTitle>
 
 <MudText Typo="Typo.h3" GutterBottom="true">Inter-Warehouse Stock Transfers</MudText>
 
 <MudPaper Class="pa-4 mb-4">
     <div class="d-flex align-center justify-space-between mb-4">
-        <MudText Typo="Typo.body2">Status filter coming soon</MudText>
+        <MudSelect T="Guid?" Label="Warehouse" Variant="Variant.Outlined" Value="_selectedWarehouseId" ValueChanged="OnWarehouseChanged" Style="min-width: 250px;">
+            <MudSelectItem T="Guid?" Value="@(null)">Select warehouse</MudSelectItem>
+            @foreach (var warehouse in _warehouses)
+            {
+                <MudSelectItem T="Guid?" Value="@warehouse.Id">@warehouse.Name</MudSelectItem>
+            }
+        </MudSelect>
 
         <MudSpacer />
 
@@ -29,30 +42,30 @@
         <strong>Stock Transfers Module:</strong> Move inventory between warehouses within the same store. Track transfer status from pending to approved to completed.
     </MudAlert>
 
-    <MudTable T="object" Items="@_transfers" Hover="true" Breakpoint="Breakpoint.Sm" Loading="@_isLoading">
+        <MudTable T="WarehouseDto" Items="@_warehouses" Hover="true" Breakpoint="Breakpoint.Sm" Loading="@_isLoading">
         <ToolBarContent>
             <MudText Typo="Typo.h6">Stock Transfers List</MudText>
         </ToolBarContent>
         <HeaderContent>
-            <MudTh>Transfer #</MudTh>
-            <MudTh>From Warehouse</MudTh>
-            <MudTh>To Warehouse</MudTh>
-            <MudTh>Items Count</MudTh>
-            <MudTh>Status</MudTh>
-            <MudTh>Transfer Date</MudTh>
+                <MudTh>Code</MudTh>
+                <MudTh>Name</MudTh>
+                <MudTh>Store</MudTh>
+                <MudTh>Main</MudTh>
+                <MudTh>Status</MudTh>
             <MudTh>Actions</MudTh>
         </HeaderContent>
-        <RowTemplate>
-            <MudTd DataLabel="Transfer #">@("—")</MudTd>
-            <MudTd DataLabel="From Warehouse">@("—")</MudTd>
-            <MudTd DataLabel="To Warehouse">@("—")</MudTd>
-            <MudTd DataLabel="Items Count">@("0")</MudTd>
+        <RowTemplate Context="warehouse">
+            <MudTd DataLabel="Code">@warehouse.Code</MudTd>
+            <MudTd DataLabel="Name">@warehouse.Name</MudTd>
+            <MudTd DataLabel="Store">@warehouse.StoreName</MudTd>
+            <MudTd DataLabel="Main">@(warehouse.IsMain ? "Yes" : "No")</MudTd>
             <MudTd DataLabel="Status">
-                <MudChip T="string" Color="Color.Warning" Size="Size.Small">Pending</MudChip>
+                <MudChip T="string" Color="@(warehouse.IsActive ? Color.Success : Color.Error)" Size="Size.Small">
+                    @(warehouse.IsActive ? "Active" : "Inactive")
+                </MudChip>
             </MudTd>
-            <MudTd DataLabel="Transfer Date">@("—")</MudTd>
             <MudTd DataLabel="Actions">
-                <MudText Typo="Typo.body2">—</MudText>
+                <MudText Typo="Typo.body2">Available</MudText>
             </MudTd>
         </RowTemplate>
         <PagerContent>
@@ -88,17 +101,42 @@
 </MudDialog>
 
 @code {
-    private List<object> _transfers = new();
+    private List<WarehouseDto> _warehouses = new();
+    private Guid? _selectedWarehouseId;
     private bool _isLoading = false;
     private bool _isDialogOpen = false;
     private bool _isEditMode = false;
 
     protected override async Task OnInitializedAsync()
     {
-        // Load stock transfers - to be implemented with IStockTransferService
-        _isLoading = true;
-        await Task.Delay(500); // Simulated load
-        _isLoading = false;
+        await LoadWarehousesAsync();
+    }
+
+    private async Task LoadWarehousesAsync()
+    {
+        try
+        {
+            var stores = await StoreRepository.FindAsync(s => s.IsActive);
+            var warehouses = new List<WarehouseDto>();
+
+            foreach (var store in stores)
+            {
+                warehouses.AddRange(await WarehouseService.GetActiveByStoreAsync(store.Id));
+            }
+
+            _warehouses = warehouses;
+            _selectedWarehouseId ??= _warehouses.FirstOrDefault()?.Id;
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error loading warehouses: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private Task OnWarehouseChanged(Guid? warehouseId)
+    {
+        _selectedWarehouseId = warehouseId;
+        return Task.CompletedTask;
     }
 
     private void OpenCreateDialog()

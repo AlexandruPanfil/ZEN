@@ -3,7 +3,6 @@
 @using ZEN.Application.Services.Interfaces
 @using ZEN.Domain.Entities
 @using ZEN.Domain.Interfaces
-@using ZEN.Shared.Components.Common
 @inject IWarehouseService WarehouseService
 @inject global::ZEN.Domain.Interfaces.IRepository<Store> StoreRepository
 @inject ISnackbar Snackbar
@@ -11,15 +10,18 @@
 
 @attribute [Authorize(Roles = "Administrator,Manager,InventoryManager")]
 
-<ZEN.Shared.Components.Common.PageTitle>Warehouses - ZEN POS</ZEN.Shared.Components.Common.PageTitle>
+@* <ZEN.Shared.Components.Common.PageTitle>Warehouses - ZEN POS</ZEN.Shared.Components.Common.PageTitle> *@
+
+<Microsoft.AspNetCore.Components.Web.PageTitle>Warehouses - ZEN POS</Microsoft.AspNetCore.Components.Web.PageTitle>
 
 <MudText Typo="Typo.h3" GutterBottom="true">Warehouse Management</MudText>
 
 <MudPaper Class="pa-4 mb-4">
-    <div class="d-flex align-center justify-space-between mb-4">
+    <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="mb-4">
         <MudSelect T="Guid?" 
                    Label="Filter by Store" 
-                   @bind-Value="_selectedStoreFilter" 
+                   Value="_selectedStoreFilter"
+                   ValueChanged="OnStoreFilterChanged"
                    Variant="Variant.Outlined" 
                    Style="min-width: 250px;"
                    Margin="Margin.Dense">
@@ -30,17 +32,15 @@
             }
         </MudSelect>
 
-        <MudSpacer />
-
         <MudButton Variant="Variant.Filled" 
                    Color="Color.Primary" 
                    StartIcon="@Icons.Material.Filled.Add" 
                    OnClick="OpenCreateDialog">
             Add Warehouse
         </MudButton>
-    </div>
+    </MudStack>
 
-<MudTable T="WarehouseDto" Items="@FilteredWarehouses" Hover="true" Breakpoint="Breakpoint.Sm" Loading="@_isLoading" LoadingProgressColor="Color.Info">
+    <MudTable T="WarehouseDto" Items="@FilteredWarehouses" Hover="true" Breakpoint="Breakpoint.Sm" Loading="@_isLoading" LoadingProgressColor="Color.Info">
         <ToolBarContent>
             <MudText Typo="Typo.h6">Warehouses List</MudText>
         </ToolBarContent>
@@ -53,25 +53,25 @@
             <MudTh>Status</MudTh>
             <MudTh>Actions</MudTh>
         </HeaderContent>
-        <RowTemplate>
-            <MudTd DataLabel="Code">@context.Code</MudTd>
-            <MudTd DataLabel="Name">@context.Name</MudTd>
-            <MudTd DataLabel="Store">@context.StoreName</MudTd>
-            <MudTd DataLabel="Address">@(context.Address ?? "—")</MudTd>
+        <RowTemplate Context="warehouse">
+            <MudTd DataLabel="Code">@warehouse.Code</MudTd>
+            <MudTd DataLabel="Name">@warehouse.Name</MudTd>
+            <MudTd DataLabel="Store">@warehouse.StoreName</MudTd>
+            <MudTd DataLabel="Address">@(warehouse.Address ?? "—")</MudTd>
             <MudTd DataLabel="Main">
-                @if (context.IsMain)
+                @if (warehouse.IsMain)
                 {
                     <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" />
                 }
             </MudTd>
             <MudTd DataLabel="Status">
-                <MudChip T="string" Color="@(context.IsActive ? Color.Success : Color.Error)" Size="Size.Small">
-                    @(context.IsActive ? "Active" : "Inactive")
+                <MudChip T="string" Color="@(warehouse.IsActive ? Color.Success : Color.Error)" Size="Size.Small">
+                    @(warehouse.IsActive ? "Active" : "Inactive")
                 </MudChip>
             </MudTd>
             <MudTd DataLabel="Actions">
-                <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" OnClick="@(() => OpenEditDialog(context))" />
-                <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" OnClick="@(() => DeleteWarehouse(context))" />
+                <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" OnClick="@(() => OpenEditDialog(warehouse))" />
+                <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" OnClick="@(() => DeleteWarehouse(warehouse))" />
             </MudTd>
         </RowTemplate>
         <PagerContent>
@@ -86,7 +86,7 @@
         <MudText Typo="Typo.h6">@(_isEditMode ? "Edit Warehouse" : "Create Warehouse")</MudText>
     </TitleContent>
     <DialogContent>
-        <MudForm @ref="_form" @bind-IsValid="@_formIsValid">
+        <MudStack Spacing="3">
             <MudGrid>
                 <MudItem xs="12" sm="6">
                     <MudTextField T="string" Label="Warehouse Code" 
@@ -123,20 +123,20 @@
                     </MudItem>
                 }
                 <MudItem xs="12">
-                    <MudSwitch T="bool" @bind-Value="_editingWarehouse.IsMain" Color="Color.Warning" Label="Main Warehouse" />
+                    <MudSwitch @bind-Value="_editingWarehouse.IsMain" Color="Color.Warning" Label="Main Warehouse" />
                 </MudItem>
                 <MudItem xs="12">
-                    <MudSwitch T="bool" @bind-Value="_editingWarehouse.IsActive" Color="Color.Primary" Label="Active" />
+                    <MudSwitch @bind-Value="_editingWarehouse.IsActive" Color="Color.Primary" Label="Active" />
                 </MudItem>
             </MudGrid>
-        </MudForm>
+        </MudStack>
     </DialogContent>
     <DialogActions>
         <MudButton OnClick="CloseDialog">Cancel</MudButton>
         <MudButton Color="Color.Primary" 
                    Variant="Variant.Filled" 
                    OnClick="SaveWarehouse"
-                   Disabled="!_formIsValid">
+                    >
             @(_isEditMode ? "Update" : "Create")
         </MudButton>
     </DialogActions>
@@ -150,9 +150,6 @@
     private bool _isLoading = false;
     private bool _isDialogOpen = false;
     private bool _isEditMode = false;
-    private bool _formIsValid = false;
-    private MudForm? _form;
-
     private WarehouseEditModel _editingWarehouse = new();
 
     protected override async Task OnInitializedAsync()
@@ -230,12 +227,14 @@
 
     private async Task SaveWarehouse()
     {
-        if (_form == null)
+        if (string.IsNullOrWhiteSpace(_editingWarehouse.Code) || string.IsNullOrWhiteSpace(_editingWarehouse.Name))
             return;
 
-        _form.Validate();
-        if (!_formIsValid)
+        if (!_editingWarehouse.StoreId.HasValue)
+        {
+            Snackbar.Add("Store is required.", Severity.Warning);
             return;
+        }
 
         try
         {
