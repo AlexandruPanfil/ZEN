@@ -1,0 +1,13 @@
+@page "/sell"
+@inject ZEN.Windows.Services.PosAuthState PosAuthState
+
+<h1>Sell</h1>
+
+@if (!PosAuthState.IsAuthenticated)
+{
+    <p>Please login first.</p>
+}
+else
+{
+    <p>POS selling screen for cashier/admin.</p>
+}

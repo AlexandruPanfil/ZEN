@@ -76,6 +76,11 @@ public class ZenDbContext : IdentityDbContext<AppUser, AppRole, string>
     public DbSet<Coupon> Coupons => Set<Coupon>();
     public DbSet<Promotion> Promotions => Set<Promotion>();
 
+    // Sync
+    public DbSet<SyncState> SyncStates => Set<SyncState>();
+    public DbSet<SyncOutboxItem> SyncOutboxItems => Set<SyncOutboxItem>();
+    public DbSet<ProcessedSyncMessage> ProcessedSyncMessages => Set<ProcessedSyncMessage>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);

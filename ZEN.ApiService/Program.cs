@@ -87,6 +87,7 @@ app.MapGroup("/api/shifts").MapShiftEndpoints();
 app.MapGroup("/api/customers").MapCustomerEndpoints();
 app.MapGroup("/api/suppliers").MapSupplierEndpoints();
 app.MapGroup("/api/reports").MapReportEndpoints();
+app.MapGroup("/api/sync").MapSyncEndpoints();
 
 app.MapDefaultEndpoints();
 

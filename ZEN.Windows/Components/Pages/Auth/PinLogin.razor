@@ -1,111 +1,51 @@
+@page "/"
 @page "/pin-login"
-@inject IAuthService AuthService
-@inject ISnackbar Snackbar
 @inject NavigationManager Navigation
+@inject ZEN.Windows.Services.PosAuthState PosAuthState
 
 <PageTitle>PIN Login - ZEN POS</PageTitle>
 
-<div class="d-flex justify-center align-center" style="height: 80vh;">
-    <MudCard Elevation="4" Class="pa-4" Style="width: 350px;">
-        <MudCardContent>
-            <div class="d-flex flex-column align-center">
-                <MudIcon Icon="@Icons.Material.Filled.Lock" Color="Color.Primary" Size="Size.Large" Class="mb-4" />
-                <MudText Typo="Typo.h5" Align="Align.Center" GutterBottom="true">Enter PIN</MudText>
+<div style="max-width:360px;margin:60px auto;padding:16px;border:1px solid #ddd;border-radius:8px;">
+    <h3>PIN Login</h3>
+    <p style="font-size:.85rem;color:#666;">Demo: admin PIN `1234`, cashier PIN `2222`</p>
 
-                <div class="d-flex justify-center gap-2 mb-6">
-                    @for (int i = 0; i < 4; i++)
-                    {
-                        <div style="width: 40px; height: 40px; border: 2px solid var(--mud-palette-primary); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 1.2rem;">
-                            @(_pin.Length > i ? _pin[i] : "")
-                        </div>
-                    }
-                </div>
+    <input type="password" @bind="_pin" maxlength="6" style="width:100%;padding:8px;margin-top:12px;" placeholder="Enter PIN" />
+    <button @onclick="SubmitPin" style="margin-top:12px;padding:8px 12px;">Login</button>
 
-                <MudGrid Class="mud-grid-fixed">
-                    @foreach (var digit in new[] { "1", "2", "3", "4", "5", "6", "7", "8", "9", "0" })
-                    {
-                        <MudItem xs="4" Class="d-flex justify-center">
-                            <MudButton Variant="Variant.Outlined" 
-                                       OnClick="@(() => AppendDigit(digit))" 
-                                       Style="width: 60px; height: 60px; border-radius: 50%;">
-                                @digit
-                            </MudButton>
-                        </MudItem>
-                    }
-                    <MudItem xs="4" Class="d-flex justify-center">
-                        <MudButton Variant="Variant.Text" 
-                                   Color="Color.Error" 
-                                   OnClick="ClearPin" 
-                                   Style="width: 60px; height: 60px; border-radius: 50%;">
-                            <MudIcon Icon="@Icons.Material.Filled.Backspace" />
-                        </MudButton>
-                    </MudItem>
-                    <MudItem xs="4" Class="d-flex justify-center">
-                        <MudButton Variant="Variant.Filled" 
-                                   Color="Color.Primary" 
-                                   OnClick="SubmitPin" 
-                                   Style="width: 60px; height: 60px; border-radius: 50%;">
-                            <MudIcon Icon="@Icons.Material.Filled.Check" />
-                        </MudButton>
-                    </MudItem>
-                    <MudItem xs="4" Class="d-flex justify-center">
-                        <MudButton Variant="Variant.Text" 
-                                   OnClick="SubmitPin" 
-                                   Style="width: 60px; height: 60px; border-radius: 50%;">
-                            OK
-                        </MudButton>
-                    </MudItem>
-                </MudGrid>
-            </div>
-        </MudCardContent>
-    </MudCard>
+    @if (!string.IsNullOrWhiteSpace(_error))
+    {
+        <p style="color:#b00020;margin-top:10px;">@_error</p>
+    }
 </div>
 
 @code {
-    private string _pin = "";
+    private string _pin = string.Empty;
+    private string? _error;
 
-    private void AppendDigit(string digit)
+    protected override void OnAfterRender(bool firstRender)
     {
-        if (_pin.Length < 6)
-        {
-            _pin += digit;
-            if (_pin.Length == 6)
-            {
-                // Optional: Auto-submit when 6 digits are entered
-                _ = SubmitPin();
-            }
-        }
+        if (firstRender && PosAuthState.IsAuthenticated)
+            Navigation.NavigateTo("/home");
     }
 
-    private void ClearPin()
+    private void SubmitPin()
     {
-        _pin = "";
-    }
+        _error = null;
 
-    private async Task SubmitPin()
-    {
-        if (string.IsNullOrWhiteSpace(_pin) || _pin.Length < 4)
+        if (_pin == "1234")
         {
-            Snackbar.Add("Please enter a valid PIN", Severity.Warning);
+            PosAuthState.SignIn("admin@zen.pos", ZEN.Windows.Services.PosRoles.Administrator);
+            Navigation.NavigateTo("/home");
             return;
         }
 
-        try
+        if (_pin == "2222")
         {
-            var response = await AuthService.PinLoginAsync(new PinLoginRequest(_pin));
-            if (response != null)
-            {
-                Snackbar.Add($"Welcome back, {response.UserName}!", Severity.Success);
-                Navigation.NavigateTo("/");
-            }
+            PosAuthState.SignIn("cashier@zen.pos", ZEN.Windows.Services.PosRoles.Cashier);
+            Navigation.NavigateTo("/home");
+            return;
         }
-        catch (Exception ex)
-        {
-            Snackbar.Add($"Login failed: {ex.Message}", Severity.Error);
-        }
-        finally
-        {
-            _pin = "";
-        }
+
+        _error = "Invalid PIN.";
     }
 }

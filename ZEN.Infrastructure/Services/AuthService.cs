@@ -23,21 +23,18 @@ public class JwtSettings
 public class AuthService : IAuthService
 {
     private readonly UserManager<AppUser> _userManager;
-    private readonly SignInManager<AppUser> _signInManager;
     private readonly IMapper _mapper;
     private readonly IConfiguration _configuration;
     private readonly JwtSettings _jwtSettings;
 
     public AuthService(
         UserManager<AppUser> userManager,
-        SignInManager<AppUser> signInManager,
         IMapper mapper,
         IConfiguration configuration
         //IOptions<JwtSettings> jwtOptions
         )
     {
         _userManager = userManager;
-        _signInManager = signInManager;
         _mapper = mapper;
         _configuration = configuration;
         //_jwtSettings = jwtOptions.Value;
@@ -49,8 +46,8 @@ public class AuthService : IAuthService
         if (user == null || !user.IsActive)
             throw new UnauthorizedAccessException("Invalid credentials");
 
-        var result = await _signInManager.CheckPasswordSignInAsync(user, request.Password, lockoutOnFailure: true);
-        if (!result.Succeeded)
+        var validPassword = await _userManager.CheckPasswordAsync(user, request.Password);
+        if (!validPassword)
             throw new UnauthorizedAccessException("Invalid credentials");
 
         var roles = await _userManager.GetRolesAsync(user);

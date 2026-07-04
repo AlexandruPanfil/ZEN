@@ -1,5 +1,70 @@
-﻿@page "/"
+﻿@page "/home"
+@using Microsoft.EntityFrameworkCore
+@inject ZEN.Windows.Services.PosAuthState PosAuthState
+@inject ZEN.Infrastructure.Persistence.ZenDbContext DbContext
 
-<h1>Hello, world!</h1>
+<h1>ZEN POS</h1>
 
-Welcome to your new app.
+@if (!PosAuthState.IsAuthenticated)
+{
+    <p>Please login with PIN.</p>
+}
+else
+{
+    <p>Welcome, <b>@PosAuthState.UserName</b> (@PosAuthState.Role)</p>
+
+    @if (PosAuthState.IsCashier)
+    {
+        <MudAlert Severity="Severity.Info">Cashier mode: only sales operations are available.</MudAlert>
+    }
+
+    @if (PosAuthState.IsAdmin)
+    {
+        <MudAlert Severity="Severity.Success">Administrator mode: products, equipments and settings are enabled.</MudAlert>
+    }
+
+    <MudPaper Class="pa-4 mt-4">
+        <MudText Typo="Typo.h6">Sync Status</MudText>
+        @if (_isLoading)
+        {
+            <MudText>Loading sync status...</MudText>
+        }
+        else if (_syncState is null)
+        {
+            <MudText>No sync state yet.</MudText>
+        }
+        else
+        {
+            <MudText>Last successful sync: @FormatDate(_syncState.LastSuccessfulSyncUtc)</MudText>
+            <MudText>Last product sync watermark: @FormatDate(_syncState.LastProductsSyncUtc)</MudText>
+            <MudText Color="Color.Error">Last error: @(_syncState.LastError ?? "None")</MudText>
+        }
+    </MudPaper>
+}
+
+@code {
+    private ZEN.Domain.Entities.SyncState? _syncState;
+    private bool _isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _syncState = await DbContext.SyncStates
+                .OrderBy(x => x.CreatedAt)
+                .FirstOrDefaultAsync();
+        }
+        catch (Exception ex)
+        {
+            // Handle case where sync tables don't exist yet (migration pending)
+            System.Diagnostics.Debug.WriteLine($"Failed to load sync state: {ex.Message}");
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private static string FormatDate(DateTime? value)
+        => value?.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss") ?? "Never";
+}

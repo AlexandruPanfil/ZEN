@@ -1,0 +1,17 @@
+@page "/admin/products"
+@inject ZEN.Windows.Services.PosAuthState PosAuthState
+
+<h1>Products</h1>
+
+@if (!PosAuthState.IsAuthenticated)
+{
+    <p>Please login first.</p>
+}
+else if (!PosAuthState.IsAdmin)
+{
+    <p>Access denied. Administrator only.</p>
+}
+else
+{
+    <p>Manage products here.</p>
+}
