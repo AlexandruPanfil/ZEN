@@ -4,98 +4,174 @@
 @using ZEN.Application.DTOs.Products
 @using ZEN.Web.Components.Dialogs
 @inject IProductService ProductService
+@inject ICategoryService CategoryService
+@inject IBrandService BrandService
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
 @attribute [Authorize(Roles = "Administrator,Manager,InventoryManager")]
 
-@* <PageTitle>Products - ZEN POS</PageTitle> *@
+<Microsoft.AspNetCore.Components.Web.PageTitle>Products Catalog - ZEN POS</Microsoft.AspNetCore.Components.Web.PageTitle>
 
-<MudText Typo="Typo.h3" GutterBottom="true">Products</MudText>
-
-<MudPaper Class="pa-4">
-    <div class="d-flex align-center justify-space-between mb-4">
-        <MudTextField @bind-Value="_searchTerm" 
-                      Label="Search Products" 
-                      Variant="Variant.Outlined" 
-                      Adornment="Adornment.Start" 
-                      AdornmentIcon="@Icons.Material.Filled.Search" 
-                      OnKeyDown="@HandleKeyDown" 
-                      Class="flex-grow-1 mr-4" />
-
-        <MudButton Variant="Variant.Filled" 
-                   Color="Color.Primary" 
-                   StartIcon="@Icons.Material.Filled.Add" 
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-2 px-2">
+    <!-- Top Minimal Action Workspace Line -->
+    <div class="d-flex justify-space-between align-center mb-3">
+        <MudText Typo="Typo.h5" Class="font-weight-bold" Color="Color.Primary">Products Matrix</MudText>
+        <MudButton Variant="Variant.Filled"
+                   Color="Color.Primary"
+                   StartIcon="@Icons.Material.Filled.Add"
+                   Size="Size.Small"
                    OnClick="OpenCreateDialog">
-            Add Product
+            Add Product Entry
         </MudButton>
     </div>
 
-    <MudTable Items="@_products" Hover="true" Breakpoint="Breakpoint.Sm" Loading="@_isLoading" LoadingProgressColor="Color.Info">
-        <ToolBarContent>
-            <MudText Typo="Typo.h6">Product List</MudText>
-        </ToolBarContent>
-        <HeaderContent>
-            <MudTh>Name</MudTh>
-            <MudTh>SKU</MudTh>
-            <MudTh>Barcode</MudTh>
-            <MudTh>Cost</MudTh>
-            <MudTh>Sale Price</MudTh>
-            <MudTh>Category</MudTh>
-            <MudTh>Brand</MudTh>
-            <MudTh>Status</MudTh>
-            <MudTh>Actions</MudTh>
-        </HeaderContent>
-        <RowTemplate>
-            <MudTd DataLabel="Name">@context.Name</MudTd>
-            <MudTd DataLabel="SKU">@context.SKU</MudTd>
-            <MudTd DataLabel="Barcode">@context.Barcode</MudTd>
-            <MudTd DataLabel="Cost">@context.CostPrice.ToString("C")</MudTd>
-            <MudTd DataLabel="Sale Price">@context.SalePrice.ToString("C")</MudTd>
-            <MudTd DataLabel="Category">@context.CategoryName</MudTd>
-            <MudTd DataLabel="Brand">@context.BrandName</MudTd>
-            <MudTd DataLabel="Status">
-                <MudChip T="string" Color="@(context.IsActive ? Color.Success : Color.Error)" Size="Size.Small">
-                    @(context.IsActive ? "Active" : "Inactive")
-                </MudChip>
-            </MudTd>
-            <MudTd DataLabel="Actions">
-                <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Info" OnClick="@(() => OpenEditDialog(context))" />
-                <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" OnClick="@(() => DeleteProduct(context))" />
-            </MudTd>
-        </RowTemplate>
-        <PagerContent>
-            <MudTablePager />
-        </PagerContent>
-    </MudTable>
-</MudPaper>
+    <MudGrid Spacing="2">
+        <!-- LEFT DATA PANEL: CORE PRODUCTS MATRIX WORKSPACE -->
+        <MudItem xs="12" md="9">
+            <!-- Inline Search Toolbar Filtering Node -->
+            <MudPaper Class="pa-2 mb-2" Outlined="true">
+                <MudTextField T="string"
+                              @bind-Value="_searchTerm"
+                              Placeholder="Filter live warehouse records matching search criteria..."
+                              Variant="Variant.Outlined"
+                              Adornment="Adornment.Start"
+                              AdornmentIcon="@Icons.Material.Filled.Search"
+                              OnKeyDown="@HandleKeyDown"
+                              Clearable="true"
+                              OnClearButtonClick="LoadProducts"
+                              Margin="Margin.Dense"
+                              Style="font-size: 0.8rem;" />
+            </MudPaper>
 
-<MudDialog @bind-Visible="_isDialogOpen">
+            <!-- COMPACT PRODUCT LEDGER VIEWPORTS -->
+            <MudTable T="ProductDto" Items="@_products" Hover="true" Striped="true" Outlined="true" Dense="true" Breakpoint="Breakpoint.Md" Loading="@_isLoading" LoadingProgressColor="Color.Info">
+                <HeaderContent>
+                    <MudTh Style="font-size: 0.77rem; font-weight: 700;"><MudTableSortLabel SortBy="new Func<ProductDto, object>(x => x.Name)">Identity Designation</MudTableSortLabel></MudTh>
+                    <MudTh Style="font-size: 0.77rem; font-weight: 700;">SKU Code</MudTh>
+                    <MudTh Style="font-size: 0.77rem; font-weight: 700;">Barcode ID</MudTh>
+                    <MudTh Style="text-align: right; font-size: 0.77rem; font-weight: 700;"><MudTableSortLabel SortBy="new Func<ProductDto, object>(x => x.CostPrice)">Cost Price</MudTableSortLabel></MudTh>
+                    <MudTh Style="text-align: right; font-size: 0.77rem; font-weight: 700;"><MudTableSortLabel SortBy="new Func<ProductDto, object>(x => x.SalePrice)">Retail Price</MudTableSortLabel></MudTh>
+                    <MudTh Style="font-size: 0.77rem; font-weight: 700;">Category</MudTh>
+                    <MudTh Style="font-size: 0.77rem; font-weight: 700;">Brand Axis</MudTh>
+                    <MudTh Style="font-size: 0.77rem; font-weight: 700;">Status</MudTh>
+                    <MudTh Style="text-align: right; min-width: 90px; font-size: 0.77rem; font-weight: 700;">Actions</MudTh>
+                </HeaderContent>
+                <RowTemplate Context="product">
+                    <MudTd DataLabel="Name" Class="font-weight-bold" Style="font-size: 0.78rem; padding: 4px 8px;">@product.Name</MudTd>
+                    <MudTd DataLabel="SKU" Style="font-size: 0.75rem; padding: 4px 8px;">
+                        <code class="px-1 font-monospace style-code-box">@(string.IsNullOrWhiteSpace(product.SKU) ? "—" : product.SKU)</code>
+                    </MudTd>
+                    <MudTd DataLabel="Barcode" Style="font-size: 0.75rem; padding: 4px 8px;">@(string.IsNullOrWhiteSpace(product.Barcode) ? "—" : product.Barcode)</MudTd>
+                    <MudTd DataLabel="Cost" Style="text-align: right; font-size: 0.75rem; padding: 4px 8px;">@product.CostPrice.ToString("C")</MudTd>
+                    <MudTd DataLabel="Sale Price" Style="text-align: right; font-size: 0.75rem; padding: 4px 8px;" Class="font-weight-bold text-success">@product.SalePrice.ToString("C")</MudTd>
+                    <MudTd DataLabel="Category" Style="font-size: 0.75rem; padding: 4px 8px;">@product.CategoryName</MudTd>
+                    <MudTd DataLabel="Brand" Style="font-size: 0.75rem; padding: 4px 8px;">@product.BrandName</MudTd>
+                    <MudTd DataLabel="Status" Style="padding: 2px 8px;">
+                        <MudChip T="string" Color="@(product.IsActive ? Color.Success : Color.Error)" Variant="Variant.Text" Size="Size.Small" Class="font-weight-bold pa-0" Style="font-size: 0.72rem; margin: 0;">
+                            @(product.IsActive ? "Active" : "Inactive")
+                        </MudChip>
+                    </MudTd>
+                    <MudTd DataLabel="Actions" Style="text-align: right; white-space: nowrap; padding: 2px 8px;">
+                        <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Info" Size="Size.Small" Class="pa-1" OnClick="@(() => OpenEditDialog(product))" />
+                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small" Class="pa-1" OnClick="@(() => DeleteProduct(product))" />
+                    </MudTd>
+                </RowTemplate>
+                <NoRecordsContent>
+                    <MudText Align="Align.Center" Class="pa-3" Style="font-size: 0.75rem;">No matching storage items located.</MudText>
+                </NoRecordsContent>
+                <PagerContent>
+                    <MudTablePager RowsPerPageString="Rows View:" Style="font-size: 0.72rem;" />
+                </PagerContent>
+            </MudTable>
+        </MudItem>
+
+        <!-- RIGHT UTILITY PANEL: TAXONOMY SUB-CRUD ENGINE -->
+        <MudItem xs="12" md="3">
+            <MudPaper Class="pa-3 mb-2" Outlined="true">
+                <div class="d-flex align-center justify-space-between mb-3">
+                    <MudText Typo="Typo.subtitle2" Class="font-weight-bold">System Lookups</MudText>
+                    <MudToggleGroup T="string" @bind-Value="_activeLookupTab" Color="Color.Primary" Size="Size.Small" Outline="true">
+                        <MudToggleItem Value="@("categories")">Categories</MudToggleItem>
+                        <MudToggleItem Value="@("brands")">Brands</MudToggleItem>
+                    </MudToggleGroup>
+                </div>
+
+                @if (_activeLookupTab == "categories")
+                {
+                    <div class="d-flex align-center justify-space-between mb-2">
+                        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="font-weight-bold">Product Categories Registry</MudText>
+                        <MudIconButton Icon="@Icons.Material.Filled.AddCircle" Color="Color.Primary" Size="Size.Small" OnClick="OpenInlineCategoryDialog" />
+                    </div>
+                    <div style="max-height: 520px; overflow-y: auto;">
+                        <MudList T="CategoryDto" Dense="true" Clickable="false" Class="pa-0">
+                            @foreach (var cat in _categories)
+                            {
+                                <div class="d-flex align-center justify-space-between mud-width-full py-1 border-bottom border-solid mud-border-default">
+                                    <div class="d-flex flex-column">
+                                        <MudText Typo="Typo.caption" Class="font-weight-bold">@cat.Name</MudText>
+                                        @if (!string.IsNullOrWhiteSpace(cat.ParentCategoryName))
+                                        {
+                                            <MudText Typo="Typo.caption" Style="font-size: 0.7rem;" Color="Color.Secondary">Parent: @cat.ParentCategoryName</MudText>
+                                        }
+                                    </div>
+                                    <div class="d-flex">
+                                        <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" Color="Color.Info" Class="pa-1" OnClick="() => OpenEditCategoryInline(cat)" />
+                                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" Class="pa-1" OnClick="() => DeleteCategoryInline(cat)" />
+                                    </div>
+                                </div>
+                            }
+                        </MudList>
+                    </div>
+                }
+                else
+                {
+                    <div class="d-flex align-center justify-space-between mb-2">
+                        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="font-weight-bold">Product Brands Registry</MudText>
+                        <MudIconButton Icon="@Icons.Material.Filled.AddCircle" Color="Color.Primary" Size="Size.Small" OnClick="OpenInlineBrandDialog" />
+                    </div>
+                    <div style="max-height: 520px; overflow-y: auto;">
+                        <MudList T="BrandDto" Dense="true" Clickable="false" Class="pa-0">
+                            @foreach (var brand in _brands)
+                            {
+                                <div class="d-flex align-center justify-space-between mud-width-full py-1 border-bottom border-solid mud-border-default">
+                                    <MudText Typo="Typo.caption" Class="font-weight-bold">@brand.Name</MudText>
+                                    <div class="d-flex">
+                                        <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" Color="Color.Info" Class="pa-1" OnClick="() => OpenEditBrandInline(brand)" />
+                                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" Class="pa-1" OnClick="() => DeleteBrandInline(brand)" />
+                                    </div>
+                                </div>
+                            }
+                        </MudList>
+                    </div>
+                }
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+</MudContainer>
+
+<!-- Edit/Create Entity Structural Flyout Dialog -->
+<MudDialog @bind-Visible="_isDialogOpen" Options="new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true, CloseButton = true }">
     <TitleContent>
-        <MudText Typo="Typo.h6">@( _isEditMode ? "Edit Product" : "Create Product" )</MudText>
+        <MudText Typo="Typo.subtitle1" Class="font-weight-bold">
+            <MudIcon Icon="@(_isEditMode ? Icons.Material.Filled.EditNote : Icons.Material.Filled.PostAdd)" Class="mr-2" />
+            @(_isEditMode ? $"Modify Product: {_editingProduct.Name}" : "Establish New Product Unit Node")
+        </MudText>
     </TitleContent>
     <DialogContent>
         <MudForm @ref="_form" @bind-IsValid="@_formIsValid">
-            <MudGrid>
+            <MudGrid Spacing="2" Class="py-1">
                 <MudItem xs="12" sm="6">
-                    <MudTextField Label="Name" @bind-Value="_editingProduct.Name" Required="true" For="@(() => _editingProduct.Name)" />
+                    <MudTextField Label="Product Standard Designation Name" Variant="Variant.Outlined" @bind-Value="_editingProduct.Name" Required="true" For="@(() => _editingProduct.Name)" Margin="Margin.Dense" Style="font-size: 0.8rem;" />
                 </MudItem>
                 <MudItem xs="12" sm="6">
-                    <MudTextField Label="SKU" @bind-Value="_editingProduct.SKU" For="@(() => _editingProduct.SKU)" />
+                    <MudTextField Label="Stock Keeping Unit (SKU Tag)" Variant="Variant.Outlined" @bind-Value="_editingProduct.SKU" For="@(() => _editingProduct.SKU)" Margin="Margin.Dense" Style="font-size: 0.8rem;" />
                 </MudItem>
                 <MudItem xs="12" sm="6">
-                    <MudTextField Label="Barcode" @bind-Value="_editingProduct.Barcode" For="@(() => _editingProduct.Barcode)" />
+                    <MudTextField Label="EAN / Barcode Value Code" Variant="Variant.Outlined" @bind-Value="_editingProduct.Barcode" For="@(() => _editingProduct.Barcode)" Margin="Margin.Dense" Style="font-size: 0.8rem;" />
                 </MudItem>
                 <MudItem xs="12" sm="6">
-                    <MudTextField Label="Description" @bind-Value="_editingProduct.Description" For="@(() => _editingProduct.Description)" Multiline="true" Lines="2" />
-                </MudItem>
-                <MudItem xs="12" sm="6">
-                    <MudNumericField Label="Cost Price" @bind-Value="_editingProduct.CostPrice" Variant="Variant.Outlined" Format="N2" />
-                </MudItem>
-                <MudItem xs="12" sm="6">
-                    <MudNumericField Label="Sale Price" @bind-Value="_editingProduct.SalePrice" Variant="Variant.Outlined" Format="N2" />
-                </MudItem>
-                <MudItem xs="12" sm="6">
-                    <MudSelect T="Guid?" Label="Category" @bind-Value="_editingProduct.CategoryId" AnchorOrigin="Origin.BottomLeft">
+                    <MudSelect T="Guid?" Label="Assigned Taxonomical Category" Variant="Variant.Outlined" @bind-Value="_editingProduct.CategoryId" AnchorOrigin="Origin.BottomLeft" Margin="Margin.Dense" Style="font-size: 0.8rem;">
+                        <MudSelectItem T="Guid?" Value="@(null)">Unassigned / Base Context</MudSelectItem>
                         @foreach (var cat in _categories)
                         {
                             <MudSelectItem T="Guid?" Value="@cat.Id">@cat.Name</MudSelectItem>
@@ -103,39 +179,146 @@
                     </MudSelect>
                 </MudItem>
                 <MudItem xs="12" sm="6">
-                    <MudSelect T="Guid?" Label="Brand" @bind-Value="_editingProduct.BrandId" AnchorOrigin="Origin.BottomLeft">
+                    <MudSelect T="Guid?" Label="Brand Context Label" Variant="Variant.Outlined" @bind-Value="_editingProduct.BrandId" AnchorOrigin="Origin.BottomLeft" Margin="Margin.Dense" Style="font-size: 0.8rem;">
+                        <MudSelectItem T="Guid?" Value="@(null)">Generic Brand Entity</MudSelectItem>
                         @foreach (var brand in _brands)
                         {
                             <MudSelectItem T="Guid?" Value="@brand.Id">@brand.Name</MudSelectItem>
                         }
                     </MudSelect>
                 </MudItem>
-                @if (_isEditMode)
-                {
-                    <MudItem xs="12">
-                        <MudSwitch @bind-Value="_editingProduct.IsActive" Color="Color.Primary" Label="Active" />
-                    </MudItem>
-                }
+                <MudItem xs="12" sm="6">
+                    <div class="d-flex align-center h-100 ps-1">
+                        @if (_isEditMode)
+                        {
+                            <MudSwitch @bind-Value="_editingProduct.IsActive" Color="Color.Primary" Label="Active and tradable inside POS instances" Dense="true" Style="font-size: 0.75rem;" />
+                        }
+                    </div>
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudNumericField Label="Base Core Purchase Cost" Variant="Variant.Outlined" @bind-Value="_editingProduct.CostPrice" Format="C" Min="0.00m" Margin="Margin.Dense" Style="font-size: 0.8rem;" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudNumericField Label="Standard Outbound Retail Price" Variant="Variant.Outlined" @bind-Value="_editingProduct.SalePrice" Format="C" Min="0.00m" Margin="Margin.Dense" Style="font-size: 0.8rem;" />
+                </MudItem>
+                <MudItem xs="12">
+                    <MudTextField Label="Detailed Inventory Description Manifest" Variant="Variant.Outlined" @bind-Value="_editingProduct.Description" For="@(() => _editingProduct.Description)" Multiline="true" Lines="2" Style="font-size: 0.8rem;" />
+                </MudItem>
             </MudGrid>
         </MudForm>
     </DialogContent>
     <DialogActions>
-        <MudButton OnClick="CloseDialog">Cancel</MudButton>
-        <MudButton Color="Color.Primary" OnClick="SaveProduct" Disabled="@(!_formIsValid)">Save</MudButton>
+        <MudButton OnClick="CloseDialog" Size="Size.Small">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveProduct" Disabled="@(!_formIsValid)" Size="Size.Small">Save Product</MudButton>
     </DialogActions>
 </MudDialog>
+
+<!-- Sub-Dialog Wrapper for Category CRUD Forms -->
+<MudDialog @bind-Visible="_isCategoryDialogOpen" Options="new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseButton = true }">
+    <TitleContent>
+        <MudText Typo="Typo.subtitle1" Class="font-weight-bold">
+            <MudIcon Icon="@Icons.Material.Filled.Category" Class="mr-2" /> @(_isLookupEditMode ? "Modify Category" : "Add Category Entry")
+        </MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudForm @ref="_categoryForm" @bind-IsValid="@_categoryFormIsValid">
+            <MudGrid Spacing="2">
+                <MudItem xs="12">
+                    <MudTextField Label="Category Name" Variant="Variant.Outlined" @bind-Value="_editingCategory.Name" Required="true" For="@(() => _editingCategory.Name)" Margin="Margin.Dense" Style="font-size: 0.8rem;" />
+                </MudItem>
+                <MudItem xs="12">
+                    <MudTextField Label="Description" Variant="Variant.Outlined" @bind-Value="_editingCategory.Description" Multiline="true" Lines="2" Margin="Margin.Dense" Style="font-size: 0.8rem;" />
+                </MudItem>
+                <MudItem xs="12">
+                    <MudSelect T="Guid?" Label="Parent Category" Variant="Variant.Outlined" @bind-Value="_editingCategory.ParentCategoryId" AnchorOrigin="Origin.BottomLeft" Margin="Margin.Dense" Style="font-size: 0.8rem;">
+                        <MudSelectItem T="Guid?" Value="@null">None</MudSelectItem>
+                        @foreach (var cat in _categories.Where(c => c.Id != _editingCategory.Id))
+                        {
+                            <MudSelectItem T="Guid?" Value="@cat.Id">@cat.Name</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudNumericField @bind-Value="_editingCategory.SortOrder" Label="Sort Order" Min="0" Variant="Variant.Outlined" Margin="Margin.Dense" Style="font-size: 0.8rem;" />
+                </MudItem>
+                <MudItem xs="12" sm="6" Class="d-flex align-center">
+                    <MudSwitch @bind-Value="_editingCategory.IsActive" Color="Color.Primary" Label="Active" Dense="true" Style="font-size: 0.75rem;" />
+                </MudItem>
+            </MudGrid>
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="(() => _isCategoryDialogOpen = false)" Size="Size.Small">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveCategoryInline" Disabled="@(!_categoryFormIsValid)" Size="Size.Small">@(_isLookupEditMode ? "Update" : "Create")</MudButton>
+    </DialogActions>
+</MudDialog>
+
+<!-- Sub-Dialog Wrapper for Brand CRUD Forms -->
+<MudDialog @bind-Visible="_isBrandDialogOpen" Options="new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseButton = true }">
+    <TitleContent>
+        <MudText Typo="Typo.subtitle1" Class="font-weight-bold">
+            <MudIcon Icon="@Icons.Material.Filled.Stars" Class="mr-2" /> @(_isLookupEditMode ? "Modify Brand" : "Add Brand Entry")
+        </MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudForm @ref="_brandForm" @bind-IsValid="@_brandFormIsValid">
+            <MudGrid Spacing="2">
+                <MudItem xs="12">
+                    <MudTextField Label="Brand Name" Variant="Variant.Outlined" @bind-Value="_editingBrand.Name" Required="true" For="@(() => _editingBrand.Name)" Margin="Margin.Dense" Style="font-size: 0.8rem;" />
+                </MudItem>
+                <MudItem xs="12">
+                    <MudTextField Label="Description" Variant="Variant.Outlined" @bind-Value="_editingBrand.Description" Multiline="true" Lines="2" Margin="Margin.Dense" Style="font-size: 0.8rem;" />
+                </MudItem>
+                <MudItem xs="12">
+                    <MudSwitch @bind-Value="_editingBrand.IsActive" Color="Color.Primary" Label="Active" Dense="true" Style="font-size: 0.75rem;" />
+                </MudItem>
+            </MudGrid>
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="(() => _isBrandDialogOpen = false)" Size="Size.Small">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveBrandInline" Disabled="@(!_brandFormIsValid)" Size="Size.Small">@(_isLookupEditMode ? "Update" : "Create")</MudButton>
+    </DialogActions>
+</MudDialog>
+
+<style>
+    .style-code-box {
+        background-color: var(--mud-palette-background-grey);
+        border-radius: 4px;
+        letter-spacing: 0.5px;
+        font-size: 0.72rem;
+    }
+</style>
 
 @code {
     private IEnumerable<ProductDto> _products = new List<ProductDto>();
     private IEnumerable<CategoryDto> _categories = new List<CategoryDto>();
     private IEnumerable<BrandDto> _brands = new List<BrandDto>();
+
     private string _searchTerm = string.Empty;
+    private string _activeLookupTab = "categories";
     private bool _isLoading = true;
+
+    // Window visibility toggles
     private bool _isDialogOpen = false;
+    private bool _isCategoryDialogOpen = false;
+    private bool _isBrandDialogOpen = false;
     private bool _isEditMode = false;
+    private bool _isLookupEditMode = false;
+
+    // Validation variables
     private bool _formIsValid = false;
+    private bool _categoryFormIsValid = false;
+    private bool _brandFormIsValid = false;
+
     private MudForm _form = default!;
+    private MudForm _categoryForm = default!;
+    private MudForm _brandForm = default!;
+
+    // View Models
     private ProductFormModel _editingProduct = new();
+    private CategoryFormModel _editingCategory = new();
+    private BrandFormModel _editingBrand = new();
 
     protected override async Task OnInitializedAsync()
     {
@@ -175,10 +358,7 @@
 
     private async Task HandleKeyDown(KeyboardEventArgs e)
     {
-        if (e.Key == "Enter")
-        {
-            await SearchProducts();
-        }
+        if (e.Key == "Enter") await SearchProducts();
     }
 
     private async Task SearchProducts()
@@ -186,14 +366,9 @@
         _isLoading = true;
         try
         {
-            if (string.IsNullOrWhiteSpace(_searchTerm))
-            {
-                _products = await ProductService.GetAllAsync();
-            }
-            else
-            {
-                _products = await ProductService.SearchAsync(_searchTerm);
-            }
+            _products = string.IsNullOrWhiteSpace(_searchTerm)
+                ? await ProductService.GetAllAsync()
+                : await ProductService.SearchAsync(_searchTerm);
         }
         catch (Exception ex)
         {
@@ -231,46 +406,160 @@
         _isDialogOpen = true;
     }
 
+    // Inline structural interactions for Category models
+    private void OpenInlineCategoryDialog()
+    {
+        _isLookupEditMode = false;
+        _editingCategory = new CategoryFormModel();
+        _isCategoryDialogOpen = true;
+    }
+
+    private void OpenEditCategoryInline(CategoryDto item)
+    {
+        _isLookupEditMode = true;
+        _editingCategory = new CategoryFormModel
+        {
+            Id = item.Id,
+            Name = item.Name,
+            ParentCategoryId = item.ParentCategoryId,
+            IsActive = true
+        };
+        _isCategoryDialogOpen = true;
+    }
+
+    private async Task SaveCategoryInline()
+    {
+        _categoryForm.Validate();
+        if (!_categoryFormIsValid) return;
+
+        try
+        {
+            if (_isLookupEditMode)
+            {
+                var request = new UpdateCategoryRequest(_editingCategory.Id, _editingCategory.Name, _editingCategory.Description, _editingCategory.ParentCategoryId, _editingCategory.SortOrder, _editingCategory.IsActive);
+                await CategoryService.UpdateAsync(request);
+                Snackbar.Add("Category mapping altered.", Severity.Success);
+            }
+            else
+            {
+                var request = new CreateCategoryRequest(_editingCategory.Name, _editingCategory.Description, _editingCategory.ParentCategoryId, _editingCategory.SortOrder, _editingCategory.IsActive);
+                await CategoryService.CreateAsync(request);
+                Snackbar.Add("Category node recorded.", Severity.Success);
+            }
+            await LoadLookups();
+            _isCategoryDialogOpen = false;
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private async Task DeleteCategoryInline(CategoryDto item)
+    {
+        var parameters = new DialogParameters { ["Text"] = $"Drop active structural category link: {item.Name}?" };
+        var dialog = await DialogService.ShowAsync<ConfirmationDialog>("Purge Category Link", parameters);
+        var result = await dialog.Result;
+
+        if (result?.Data is bool ok && ok)
+        {
+            try
+            {
+                await CategoryService.DeleteAsync(item.Id);
+                Snackbar.Add("Category context disconnected.", Severity.Success);
+                await LoadLookups();
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add(ex.Message, Severity.Error);
+            }
+        }
+    }
+
+    // Inline structural interactions for Brand models
+    private void OpenInlineBrandDialog()
+    {
+        _isLookupEditMode = false;
+        _editingBrand = new BrandFormModel();
+        _isBrandDialogOpen = true;
+    }
+
+    private void OpenEditBrandInline(BrandDto item)
+    {
+        _isLookupEditMode = true;
+        _editingBrand = new BrandFormModel
+        {
+            Id = item.Id,
+            Name = item.Name,
+            IsActive = true
+        };
+        _isBrandDialogOpen = true;
+    }
+
+    private async Task SaveBrandInline()
+    {
+        _brandForm.Validate();
+        if (!_brandFormIsValid) return;
+
+        try
+        {
+            if (_isLookupEditMode)
+            {
+                var request = new UpdateBrandRequest(_editingBrand.Id, _editingBrand.Name, _editingBrand.Description, _editingBrand.IsActive);
+                await BrandService.UpdateAsync(request);
+                Snackbar.Add("Brand properties verified.", Severity.Success);
+            }
+            else
+            {
+                var request = new CreateBrandRequest(_editingBrand.Name, _editingBrand.Description, _editingBrand.IsActive);
+                await BrandService.CreateAsync(request);
+                Snackbar.Add("Brand schema recorded.", Severity.Success);
+            }
+            await LoadLookups();
+            _isBrandDialogOpen = false;
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private async Task DeleteBrandInline(BrandDto item)
+    {
+        var parameters = new DialogParameters { ["Text"] = $"Drop brand context registration label {item.Name}?" };
+        var dialog = await DialogService.ShowAsync<ConfirmationDialog>("Purge Brand Unit", parameters);
+        var result = await dialog.Result;
+
+        if (result?.Data is bool ok && ok)
+        {
+            try
+            {
+                await BrandService.DeleteAsync(item.Id);
+                Snackbar.Add("Brand node dropped.", Severity.Success);
+                await LoadLookups();
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add(ex.Message, Severity.Error);
+            }
+        }
+    }
+
     private async Task SaveProduct()
     {
         try
         {
             if (_isEditMode)
             {
-                var updateRequest = new UpdateProductRequest(
-                    _editingProduct.Id,
-                    _editingProduct.Name,
-                    _editingProduct.Description,
-                    _editingProduct.Barcode,
-                    _editingProduct.SKU,
-                    _editingProduct.CostPrice,
-                    _editingProduct.SalePrice,
-                    _editingProduct.CategoryId,
-                    _editingProduct.BrandId,
-                    null, // TaxId - not in form yet
-                    _editingProduct.IsActive
-                );
+                var updateRequest = new UpdateProductRequest(_editingProduct.Id, _editingProduct.Name, _editingProduct.Description, _editingProduct.Barcode, _editingProduct.SKU, _editingProduct.CostPrice, _editingProduct.SalePrice, _editingProduct.CategoryId, _editingProduct.BrandId, null, _editingProduct.IsActive);
                 await ProductService.UpdateAsync(updateRequest);
-                Snackbar.Add("Product updated successfully", Severity.Success);
+                Snackbar.Add("Product node configured.", Severity.Success);
             }
             else
             {
-                var createRequest = new CreateProductRequest(
-                    _editingProduct.Name,
-                    _editingProduct.Description,
-                    _editingProduct.Barcode,
-                    _editingProduct.SKU,
-                    _editingProduct.CostPrice,
-                    _editingProduct.SalePrice,
-                    _editingProduct.CategoryId,
-                    _editingProduct.BrandId,
-                    null, // TaxId
-                    null, // SupplierId
-                    true, // TrackStock
-                    _editingProduct.IsActive
-                );
+                var createRequest = new CreateProductRequest(_editingProduct.Name, _editingProduct.Description, _editingProduct.Barcode, _editingProduct.SKU, _editingProduct.CostPrice, _editingProduct.SalePrice, _editingProduct.CategoryId, _editingProduct.BrandId, null, null, true, _editingProduct.IsActive);
                 await ProductService.CreateAsync(createRequest);
-                Snackbar.Add("Product created successfully", Severity.Success);
+                Snackbar.Add("Product listing recorded.", Severity.Success);
             }
             await LoadProducts();
             CloseDialog();
@@ -283,25 +572,18 @@
 
     private async Task DeleteProduct(ProductDto product)
     {
-        var parameters = new DialogParameters { ["Text"] = $"Are you sure you want to delete product {product.Name}?" };
-        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small, FullScreen = false };
-
-        var dialog = await DialogService.ShowAsync<ConfirmationDialog>("Delete Product", parameters, options);
+        var parameters = new DialogParameters { ["Text"] = $"Drop target catalog product mapping {product.Name}?" };
+        var dialog = await DialogService.ShowAsync<ConfirmationDialog>("Purge Ledger Product", parameters);
         var result = await dialog.Result;
 
-        if (result?.Data is bool confirmed && confirmed)
+        if (result?.Data is bool ok && ok)
         {
             try
             {
-                var success = await ProductService.DeleteAsync(product.Id);
-                if (success)
+                if (await ProductService.DeleteAsync(product.Id))
                 {
-                    Snackbar.Add("Product deleted successfully", Severity.Success);
+                    Snackbar.Add("Product data model dropped out of catalog registry.", Severity.Success);
                     await LoadProducts();
-                }
-                else
-                {
-                    Snackbar.Add("Failed to delete product", Severity.Error);
                 }
             }
             catch (Exception ex)
@@ -311,10 +593,7 @@
         }
     }
 
-    private void CloseDialog()
-    {
-        _isDialogOpen = false;
-    }
+    private void CloseDialog() => _isDialogOpen = false;
 
     private class ProductFormModel
     {
@@ -327,6 +606,24 @@
         public decimal SalePrice { get; set; }
         public Guid? CategoryId { get; set; }
         public Guid? BrandId { get; set; }
+        public bool IsActive { get; set; } = true;
+    }
+
+    private class CategoryFormModel
+    {
+        public Guid Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string? Description { get; set; }
+        public Guid? ParentCategoryId { get; set; }
+        public int SortOrder { get; set; }
+        public bool IsActive { get; set; } = true;
+    }
+
+    private class BrandFormModel
+    {
+        public Guid Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string? Description { get; set; }
         public bool IsActive { get; set; } = true;
     }
 }

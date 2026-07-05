@@ -69,14 +69,26 @@ public class CouponService : ICouponService
         if (existing != null)
             throw new InvalidOperationException("Coupon code already exists");
 
-        var discountType = Enum.TryParse<DiscountType>(request.DiscountType, true, out var parsedType)
-            ? parsedType
-            : DiscountType.Percentage;
+        // Fix: Explicitly map the string values coming from your Blazor frontend
+        DiscountType discountType;
+        if (string.Equals(request.DiscountType, "FixedAmount", StringComparison.OrdinalIgnoreCase))
+        {
+            discountType = DiscountType.FixedAmount; // <-- Update to match your actual backend Enum item name
+        }
+        else if (string.Equals(request.DiscountType, "Percentage", StringComparison.OrdinalIgnoreCase))
+        {
+            discountType = DiscountType.Percentage;
+        }
+        else
+        {
+            // Fallback or validation error
+            throw new ArgumentException($"Invalid discount type: {request.DiscountType}");
+        }
 
         var discount = new Discount
         {
             Name = request.Code,
-            Type = discountType,
+            Type = discountType, // Uses the correctly mapped type
             Value = request.DiscountValue,
             MinimumAmount = null,
             MaxUsages = request.UsageLimit,

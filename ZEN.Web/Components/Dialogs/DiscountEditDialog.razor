@@ -5,72 +5,126 @@
 @using ZEN.Domain.Entities
 @using ZEN.Domain.Interfaces
 @using MudBlazor
+
 @inject IDiscountService DiscountService
 @inject IRepository<Category> CategoryRepository
 @inject IRepository<Product> ProductRepository
 @inject ISnackbar Snackbar
 
 <MudDialog>
-    <DialogContent>
-        <MudForm @ref="form" @bind-IsValid="isFormValid">
-            <MudStack Spacing="3">
-                <MudTextField T="string" Label="Code" @bind-Value="editModel.Code" 
-                             Required="true" RequiredError="Code is required"
-                             Variant="Variant.Outlined" />
-
-                <MudTextField T="string" Label="Description" @bind-Value="editModel.Description"
-                             Variant="Variant.Outlined" Lines="2" />
-
-                <MudSelect T="string" Label="Type" @bind-Value="editModel.Type" 
-                          Required="true" Variant="Variant.Outlined">
-                    <MudSelectItem Value="@("Fixed")">Fixed Amount</MudSelectItem>
-                    <MudSelectItem Value="@("Percentage")">Percentage</MudSelectItem>
-                    <MudSelectItem Value="@("Tiered")">Tiered</MudSelectItem>
-                </MudSelect>
-
-                <MudNumericField T="decimal" Label="Value" @bind-Value="editModel.Value"
-                                Required="true" RequiredError="Value is required"
-                                Min="0" Variant="Variant.Outlined" />
-
-                <MudDatePicker Label="Valid From" @bind-Date="editModel.ValidFrom"
-                              Variant="Variant.Outlined" />
-
-                <MudDatePicker Label="Valid To" @bind-Date="editModel.ValidTo"
-                              Variant="Variant.Outlined" />
-
-                <MudCheckBox T="bool" @bind-Value="editModel.IsActive" Label="Active" />
-
-                <MudDivider />
-
-                <MudText Typo="Typo.subtitle2">Conditions (Apply To)</MudText>
-                <MudCheckBox T="bool" @bind-Value="includeAllProducts" Label="Apply to all products" />
-
-                @if (!includeAllProducts)
+    <TitleContent>
+        <MudStack Row="true" Spacing="2" Class="align-center">
+            <MudIcon Icon="@(IsEditMode ? Icons.Material.Filled.LocalOffer : Icons.Material.Filled.Loyalty)"
+                     Color="Color.Primary" Size="Size.Large" />
+            <MudStack Spacing="0">
+                <MudText Typo="Typo.h6">@(IsEditMode ? "Modify Discount Rule" : "Create Promotional Discount")</MudText>
+                @if (IsEditMode)
                 {
-                    <MudAutocomplete T="Category" 
-                                    Label="Categories" 
-                                    @bind-Value="selectedCategory"
-                                    SearchFunc="SearchCategories"
-                                    ToStringFunc="@(c => c?.Name ?? "")"
-                                    Variant="Variant.Outlined"
-                                    Dense="true" />
-
-                    <MudAutocomplete T="Product" 
-                                    Label="Products" 
-                                    @bind-Value="selectedProduct"
-                                    SearchFunc="SearchProducts"
-                                    ToStringFunc="@(p => p?.Name ?? "")"
-                                    Variant="Variant.Outlined"
-                                    Dense="true" />
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">System Rule ID: @Discount!.Id</MudText>
                 }
             </MudStack>
+        </MudStack>
+    </TitleContent>
+
+    <DialogContent>
+        <MudForm @ref="form" @bind-IsValid="isFormValid">
+            <MudGrid Spacing="3" Class="py-2">
+
+                @* ==================== CORE CONFIGURATION ==================== *@
+                <MudItem xs="12" sm="8">
+                    <MudTextField T="string" Label="Discount Code" @bind-Value="editModel.Code"
+                                  Required="true" RequiredError="Administrative identification code is required"
+                                  Variant="Variant.Outlined" Placeholder="e.g., WINTER_CLEARANCE_2026"
+                                  Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Label" />
+                </MudItem>
+
+                <MudItem xs="12" sm="4" Class="d-flex align-center">
+                    <MudSwitch T="bool" @bind-Value="editModel.IsActive" Color="Color.Success"
+                               Label="@(editModel.IsActive ? "Rule is Active" : "Rule is Suspended")" />
+                </MudItem>
+
+                <MudItem xs="12">
+                    <MudTextField T="string" Label="Description / Campaign Notes" @bind-Value="editModel.Description"
+                                  Variant="Variant.Outlined" Lines="2" Placeholder="Provide context regarding this price reduction ruleset..." />
+                </MudItem>
+
+                @* ==================== MECHANISM & VALUES ==================== *@
+                <MudItem xs="12" sm="6">
+                    <MudSelect T="string" Label="Calculation Type" @bind-Value="editModel.Type"
+                               Required="true" Variant="Variant.Outlined" AnchorOrigin="Origin.BottomCenter">
+                        <MudSelectItem Value="@("FixedAmount")">💵 Fixed Amount Reduction</MudSelectItem>
+                        <MudSelectItem Value="@("Percentage")">📈 Percentage Rate Drop</MudSelectItem>
+                        <MudSelectItem Value="@("Tiered")">📊 Tiered Volume Structure</MudSelectItem>
+                    </MudSelect>
+                </MudItem>
+
+                <MudItem xs="12" sm="6">
+                    <MudNumericField T="decimal" Label="Discount Value" @bind-Value="editModel.Value"
+                                     Required="true" RequiredError="Value assignment is required"
+                                     Min="0" Variant="Variant.Outlined" Format="N2"
+                                     Adornment="Adornment.Start" AdornmentIcon="@GetAdornmentIcon()" />
+                </MudItem>
+
+                @* ==================== TIMELINE LIFESPAN ==================== *@
+                <MudItem xs="12" sm="6">
+                    <MudDatePicker Label="Valid From Date" @bind-Date="editModel.ValidFrom"
+                                   Variant="Variant.Outlined" Editable="true" Clearable="true"
+                                   Placeholder="Immediate release criteria" />
+                </MudItem>
+
+                <MudItem xs="12" sm="6">
+                    <MudDatePicker Label="Valid Until Date" @bind-Date="editModel.ValidTo"
+                                   Variant="Variant.Outlined" Editable="true" Clearable="true"
+                                   Placeholder="Infinite system lifecycle" />
+                </MudItem>
+
+                @* ==================== APPLICATION SCOPE CONDITIONS ==================== *@
+                <MudItem xs="12">
+                    <MudText Typo="Typo.subtitle1" Class="font-weight-bold mb-1">Target Criteria Conditions</MudText>
+                    <MudPaper Variant="Variant.Outlined" Class="pa-4" Style="background-color: var(--mud-palette-background-grey);">
+                        <MudCheckBox T="bool" @bind-Value="includeAllProducts" Color="Color.Primary"
+                                     Label="Global Scope (Apply rule uniformly to all stock entries)" Class="mb-2" />
+
+                        @if (!includeAllProducts)
+                        {
+                            <MudGrid Spacing="2" Class="pt-2">
+                                <MudItem xs="12" sm="6">
+                                    <MudAutocomplete T="Category"
+                                                     Label="Target Category Scope"
+                                                     @bind-Value="selectedCategory"
+                                                     SearchFunc="SearchCategories"
+                                                     ToStringFunc="@(c => c?.Name ?? "")"
+                                                     Variant="Variant.Outlined"
+                                                     Dense="true" Placeholder="Search inventories..."
+                                                     Adornment="Adornment.End" AdornmentIcon="@Icons.Material.Filled.Category" />
+                                </MudItem>
+
+                                <MudItem xs="12" sm="6">
+                                    <MudAutocomplete T="Product"
+                                                     Label="Target Specific Product"
+                                                     @bind-Value="selectedProduct"
+                                                     SearchFunc="SearchProducts"
+                                                     ToStringFunc="@(p => p?.Name ?? "")"
+                                                     Variant="Variant.Outlined"
+                                                     Dense="true" Placeholder="Search sku catalog..."
+                                                     Adornment="Adornment.End" AdornmentIcon="@Icons.Material.Filled.Inventory2" />
+                                </MudItem>
+                            </MudGrid>
+                        }
+                    </MudPaper>
+                </MudItem>
+            </MudGrid>
         </MudForm>
     </DialogContent>
+
     <DialogActions>
-        <MudButton OnClick="Cancel">Cancel</MudButton>
-        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveDiscount" Disabled="!isFormValid">
-            Save
-        </MudButton>
+        <MudStack Row="true" Class="px-6 py-4 w-100 justify-end" Spacing="2">
+            <MudButton OnClick="Cancel" Variant="Variant.Text" Class="px-4">Dismiss</MudButton>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveDiscount"
+                       Disabled="!isFormValid" StartIcon="@Icons.Material.Filled.CheckCircle" Class="px-6">
+                Commit Strategy
+            </MudButton>
+        </MudStack>
     </DialogActions>
 </MudDialog>
 
@@ -86,11 +140,19 @@
     private Product? selectedProduct;
     private List<Category> categories = [];
     private List<Product> products = [];
+    private bool IsEditMode => Discount is not null;
 
     protected override async Task OnInitializedAsync()
     {
-        categories = (await CategoryRepository.GetAllAsync()).ToList();
-        products = (await ProductRepository.GetAllAsync()).ToList();
+        try
+        {
+            categories = (await CategoryRepository.GetAllAsync()).ToList();
+            products = (await ProductRepository.GetAllAsync()).ToList();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Infrastructure lookup failed: {ex.Message}", Severity.Warning);
+        }
 
         if (Discount is not null)
         {
@@ -104,7 +166,20 @@
                 ValidTo = Discount.ValidTo,
                 IsActive = Discount.IsActive
             };
+
+            // If the model contains specific conditions/scoping targets, initialize selection state here
+            includeAllProducts = Discount.Conditions == null || !Discount.Conditions.Any();
         }
+    }
+
+    private string GetAdornmentIcon()
+    {
+        return editModel.Type switch
+        {
+            "Percentage" => Icons.Material.Filled.Percent,
+            "Tiered" => Icons.Material.Filled.Layers,
+            _ => Icons.Material.Filled.AttachMoney
+        };
     }
 
     private Task<IEnumerable<Category>> SearchCategories(string value, CancellationToken cancellationToken)
@@ -123,8 +198,16 @@
 
     private async Task SaveDiscount()
     {
-        if (!isFormValid)
-            return;
+        await form.Validate();
+        if (!isFormValid) return;
+
+        // Sync local scoping condition maps back to business rules list layout
+        editModel.Conditions.Clear();
+        if (!includeAllProducts)
+        {
+            if (selectedCategory != null) editModel.Conditions.Add($"Category:{selectedCategory.Id}");
+            if (selectedProduct != null) editModel.Conditions.Add($"Product:{selectedProduct.Id}");
+        }
 
         try
         {
@@ -161,7 +244,7 @@
         }
         catch (Exception ex)
         {
-            Snackbar.Add($"Error saving discount: {ex.Message}", Severity.Error);
+            Snackbar.Add($"Error mutating discount rules engine context: {ex.Message}", Severity.Error);
         }
     }
 
@@ -171,7 +254,7 @@
     {
         public string Code { get; set; } = "";
         public string? Description { get; set; }
-        public string Type { get; set; } = "Fixed";
+        public string Type { get; set; } = "FixedAmount";
         public decimal Value { get; set; }
         public DateTime? ValidFrom { get; set; }
         public DateTime? ValidTo { get; set; }

@@ -1,4 +1,5 @@
 @page "/suppliers"
+@* @rendermode InteractiveServer *@
 @using Microsoft.AspNetCore.Authorization
 @using ZEN.Application.Services.Interfaces
 @using ZEN.Application.DTOs.Suppliers
@@ -13,130 +14,151 @@
 
 <PageTitle>Suppliers - ZEN POS</PageTitle>
 
-<MudText Typo="Typo.h3" GutterBottom="true">Suppliers</MudText>
-
-<MudPaper Class="pa-4 mb-4">
-    <div class="d-flex align-center justify-space-between mb-4">
-        <MudTextField @bind-Value="_searchTerm" 
-                      Label="Search Suppliers" 
-                      Variant="Variant.Outlined" 
-                      Adornment="Adornment.Start" 
-                      AdornmentIcon="@Icons.Material.Filled.Search" 
-                      OnKeyDown="@HandleKeyDown" 
-                      Class="flex-grow-1 mr-4" />
-
-        <MudButton Variant="Variant.Filled" 
-                   Color="Color.Primary" 
-                   StartIcon="@Icons.Material.Filled.Add" 
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-2 py-0">
+    <div class="d-flex justify-space-between align-center mb-3">
+        <div>
+            <MudText Typo="Typo.h5" Class="font-weight-bold" Color="Color.Primary">Suppliers</MudText>
+        </div>
+        <MudButton Variant="Variant.Filled"
+                   Color="Color.Primary"
+                   Size="Size.Small"
                    OnClick="OpenCreateDialog">
             Add Supplier
         </MudButton>
     </div>
 
-    <MudTable Items="@_suppliers" Hover="true" Breakpoint="Breakpoint.Sm" Loading="@_isLoading" LoadingProgressColor="Color.Info">
+    <MudTable Items="@_suppliers"
+              Hover="true"
+              Dense="true"
+              Bordered="false"
+              Striped="true"
+              Elevation="1"
+              Breakpoint="Breakpoint.Md"
+              Loading="@_isLoading"
+              LoadingProgressColor="Color.Primary"
+              Filter="new Func<SupplierDto,bool>(FilterSearchLogic)">
+
         <ToolBarContent>
-            <MudText Typo="Typo.h6">Supplier List</MudText>
+            <MudText Typo="Typo.subtitle1" Class="font-weight-bold">Vendor Inventory Ledger</MudText>
+            <MudSpacer />
+            <MudTextField @bind-Value="_searchTerm"
+                          Placeholder="Quick Search..."
+                          Adornment="Adornment.Start"
+                          AdornmentIcon="@Icons.Material.Filled.Search"
+                          Class="mt-0"
+                          Clearable="true"
+                          Immediate="true"
+                          Variant="Variant.Outlined"
+                          Margin="Margin.Dense" style="max-width: 300px;" />
         </ToolBarContent>
+
         <HeaderContent>
-            <MudTh>Name</MudTh>
-            <MudTh>Contact Person</MudTh>
-            <MudTh>Email</MudTh>
-            <MudTh>Phone</MudTh>
-            <MudTh>Balance</MudTh>
-            <MudTh>Status</MudTh>
-            <MudTh>Actions</MudTh>
+            <MudTh><MudTableSortLabel SortBy="new Func<SupplierDto, object>(x => x.Name)"><MudText Typo="Typo.body2" Class="font-weight-bold">Name</MudText></MudTableSortLabel></MudTh>
+            <MudTh><MudText Typo="Typo.body2" Class="font-weight-bold">Contact Person</MudText></MudTh>
+            <MudTh><MudText Typo="Typo.body2" Class="font-weight-bold">Email</MudText></MudTh>
+            <MudTh><MudText Typo="Typo.body2" Class="font-weight-bold">Phone</MudText></MudTh>
+            <MudTh><MudTableSortLabel SortBy="new Func<SupplierDto, object>(x => x.Balance)"><MudText Typo="Typo.body2" Class="font-weight-bold">Outstanding Balance</MudText></MudTableSortLabel></MudTh>
+            <MudTh><MudText Typo="Typo.body2" Class="font-weight-bold">Status</MudText></MudTh>
+            <MudTh Style="text-align: right;"><MudText Typo="Typo.body2" Class="font-weight-bold">Actions</MudText></MudTh>
         </HeaderContent>
+
         <RowTemplate>
-            <MudTd DataLabel="Name">@context.Name</MudTd>
-            <MudTd DataLabel="Contact Person">@context.ContactPerson</MudTd>
-            <MudTd DataLabel="Email">@context.Email</MudTd>
-            <MudTd DataLabel="Phone">@context.Phone</MudTd>
-            <MudTd DataLabel="Balance">@context.Balance.ToString("C")</MudTd>
+            <MudTd DataLabel="Name"><MudText Typo="Typo.body2" Class="font-weight-bold">@context.Name</MudText></MudTd>
+            <MudTd DataLabel="Contact Person"><MudText Typo="Typo.body2">@context.ContactPerson</MudText></MudTd>
+            <MudTd DataLabel="Email"><MudText Typo="Typo.body2">@context.Email</MudText></MudTd>
+            <MudTd DataLabel="Phone"><MudText Typo="Typo.body2">@context.Phone</MudText></MudTd>
+            <MudTd DataLabel="Balance"><MudText Typo="Typo.body2" Class="@(context.Balance > 0 ? "red-text font-weight-bold" : "")">@context.Balance.ToString("C")</MudText></MudTd>
             <MudTd DataLabel="Status">
-                <MudChip T="string" Color="@(context.IsActive ? Color.Success : Color.Error)" Size="Size.Small">
-                    @(context.IsActive ? "Active" : "Inactive")
+                <MudChip T="string" Color="@(context.IsActive ? Color.Success : Color.Error)" Variant="Variant.Text" Size="Size.Small" Class="ma-0">
+                    @(context.IsActive ? "Active" : "Suspended")
                 </MudChip>
             </MudTd>
-            <MudTd DataLabel="Actions">
-                <MudIconButton Icon="@Icons.Material.Filled.History" Color="Color.Info" OnClick="@(() => OpenHistoryDialog(context))" />
-                <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" OnClick="@(() => OpenEditDialog(context))" />
-                <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" OnClick="@(() => DeleteSupplier(context))" />
+            <MudTd DataLabel="Actions" Style="text-align: right; white-space: nowrap;">
+                <MudIconButton Icon="@Icons.Material.Filled.History" Color="Color.Info" Size="Size.Small" OnClick="@(() => OpenHistoryDialog(context))" />
+                <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small" OnClick="@(() => OpenEditDialog(context))" />
+                <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small" OnClick="@(() => DeleteSupplier(context))" />
             </MudTd>
         </RowTemplate>
+
+        <NoRecordsContent>
+            <MudText Align="Align.Center" Typo="Typo.body2" Class="pa-2">No matching suppliers found.</MudText>
+        </NoRecordsContent>
+
         <PagerContent>
-            <MudTablePager />
+            <MudTablePager RowsPerPageString="Records per page:" />
         </PagerContent>
     </MudTable>
-</MudPaper>
+</MudContainer>
 
-<!-- Create/Edit Dialog -->
-<MudDialog @bind-Visible="_isDialogOpen">
+<MudDialog @bind-Visible="_isDialogOpen" Options="new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseButton = true }">
     <TitleContent>
-        <MudText Typo="Typo.h6">@( _isEditMode ? "Edit Supplier" : "Create Supplier" )</MudText>
+        <MudText Typo="Typo.subtitle1" Class="font-weight-bold">
+            @( _isEditMode ? "Modify Supplier Context" : "Register New Supplier Partner" )
+        </MudText>
     </TitleContent>
     <DialogContent>
         <MudForm @ref="_form" @bind-IsValid="@_formIsValid">
-            <MudGrid>
-                <MudItem xs="12" sm="6">
-                    <MudTextField Label="Name" @bind-Value="_editingSupplier.Name" Required="true" For="@(() => _editingSupplier.Name)" />
-                </MudItem>
-                <MudItem xs="12" sm="6">
-                    <MudTextField Label="Contact Person" @bind-Value="_editingSupplier.ContactPerson" For="@(() => _editingSupplier.ContactPerson)" />
-                </MudItem>
-                <MudItem xs="12" sm="6">
-                    <MudTextField Label="Email" @bind-Value="_editingSupplier.Email" For="@(() => _editingSupplier.Email)" />
-                </MudItem>
-                <MudItem xs="12" sm="6">
-                    <MudTextField Label="Phone" @bind-Value="_editingSupplier.Phone" For="@(() => _editingSupplier.Phone)" />
-                </MudItem>
-                <MudItem xs="12">
-                    <MudTextField Label="Address" @bind-Value="_editingSupplier.Address" For="@(() => _editingSupplier.Address)" Multiline="true" Lines="2" />
-                </MudItem>
+            <MudStack Spacing="2" Class="py-1">
+                <MudTextField Label="Company Name" @bind-Value="_editingSupplier.Name" Required="true" RequiredError="Required." Variant="Variant.Outlined" Margin="Margin.Dense" For="@(() => _editingSupplier.Name)" />
+
+                <MudTextField Label="Contact Representative" @bind-Value="_editingSupplier.ContactPerson" Variant="Variant.Outlined" Margin="Margin.Dense" For="@(() => _editingSupplier.ContactPerson)" />
+
+                <MudGrid Spacing="2">
+                    <MudItem xs="12" sm="6">
+                        <MudTextField Label="Email Address" @bind-Value="_editingSupplier.Email" InputType="InputType.Email" Variant="Variant.Outlined" Margin="Margin.Dense" For="@(() => _editingSupplier.Email)" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudTextField Label="Phone Line" @bind-Value="_editingSupplier.Phone" InputType="InputType.Telephone" Variant="Variant.Outlined" Margin="Margin.Dense" For="@(() => _editingSupplier.Phone)" />
+                    </MudItem>
+                </MudGrid>
+
+                <MudTextField Label="Postal/HQ Address" @bind-Value="_editingSupplier.Address" Variant="Variant.Outlined" Margin="Margin.Dense" For="@(() => _editingSupplier.Address)" Multiline="true" Lines="2" />
+
                 @if (_isEditMode)
                 {
-                    <MudItem xs="12">
-                        <MudSwitch @bind-Value="_editingSupplier.IsActive" Color="Color.Primary" Label="Active" />
-                    </MudItem>
+                    <div class="d-flex justify-space-between align-center pt-2">
+                        <MudText Typo="Typo.body2" Color="Color.Secondary">Allow point of sale purchasing operations:</MudText>
+                        <MudSwitch T="bool" @bind-Value="_editingSupplier.IsActive" Color="Color.Success" Label="@(_editingSupplier.IsActive ? "Operational" : "Deactivated")" Dense="true" />
+                    </div>
                 }
-            </MudGrid>
+            </MudStack>
         </MudForm>
     </DialogContent>
     <DialogActions>
-        <MudButton OnClick="CloseDialog">Cancel</MudButton>
-        <MudButton Color="Color.Primary" OnClick="SaveSupplier" Disabled="@(!_formIsValid)">Save</MudButton>
+        <MudButton OnClick="CloseDialog" Variant="Variant.Text" Size="Size.Small">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" Size="Size.Small" OnClick="SaveSupplier">Save Vendor Partner</MudButton>
     </DialogActions>
 </MudDialog>
 
-<!-- Purchase History Dialog -->
-<MudDialog @bind-Visible="_isHistoryDialogOpen">
+<MudDialog @bind-Visible="_isHistoryDialogOpen" Options="new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true, CloseButton = true }">
     <TitleContent>
-        <MudText Typo="Typo.h6">Purchase History - @(_selectedSupplier?.Name)</MudText>
+        <div>
+            <MudText Typo="Typo.subtitle1" Class="font-weight-bold">Financial Ledger History</MudText>
+            <MudText Typo="Typo.caption" Color="Color.Secondary">Supplier Entity: @(_selectedSupplier?.Name)</MudText>
+        </div>
     </TitleContent>
     <DialogContent>
-        <MudTable Items="@_purchases" Hover="true" Breakpoint="Breakpoint.Sm" Dense="true">
-            <ToolBarContent>
-                <MudText Typo="Typo.subtitle2">All stock purchases from this supplier</MudText>
-            </ToolBarContent>
+        <MudTable Items="@_purchases" Hover="true" Breakpoint="Breakpoint.Sm" Dense="true" Elevation="0" MaxHeight="300px" FixedHeader="true">
             <HeaderContent>
-                <MudTh>Number</MudTh>
-                <MudTh>Date</MudTh>
-                <MudTh>Total</MudTh>
-                <MudTh>Paid</MudTh>
-                <MudTh>Status</MudTh>
+                <MudTh><MudText Typo="Typo.body2" Class="font-weight-bold">Purchase Ref No.</MudText></MudTh>
+                <MudTh><MudText Typo="Typo.body2" Class="font-weight-bold">Receipt Settlement Date</MudText></MudTh>
+                <MudTh><MudText Typo="Typo.body2" Class="font-weight-bold">Gross Aggregate</MudText></MudTh>
+                <MudTh><MudText Typo="Typo.body2" Class="font-weight-bold">Settled Amount</MudText></MudTh>
+                <MudTh><MudText Typo="Typo.body2" Class="font-weight-bold">Tracking Status</MudText></MudTh>
             </HeaderContent>
             <RowTemplate>
-                <MudTd DataLabel="Number">@context.Number</MudTd>
-                <MudTd DataLabel="Date">@context.ReceiptDate.ToShortDateString()</MudTd>
-                <MudTd DataLabel="Total">@context.TotalAmount.ToString("C")</MudTd>
-                <MudTd DataLabel="Paid">@context.PaidAmount.ToString("C")</MudTd>
+                <MudTd DataLabel="Number"><MudText Typo="Typo.body2" Class="font-weight-bold">@context.Number</MudText></MudTd>
+                <MudTd DataLabel="Date"><MudText Typo="Typo.body2">@context.ReceiptDate.ToShortDateString()</MudText></MudTd>
+                <MudTd DataLabel="Total"><MudText Typo="Typo.body2" Class="font-weight-bold">@context.TotalAmount.ToString("C")</MudText></MudTd>
+                <MudTd DataLabel="Paid"><MudText Typo="Typo.body2" Color="Color.Success">@context.PaidAmount.ToString("C")</MudText></MudTd>
                 <MudTd DataLabel="Status">
-                    <MudChip T="string" Color="Color.Info" Size="Size.Small">@context.Status</MudChip>
+                    <MudChip T="string" Color="Color.Info" Size="Size.Small" Variant="Variant.Text" Class="ma-0">@context.Status</MudChip>
                 </MudTd>
             </RowTemplate>
         </MudTable>
     </DialogContent>
     <DialogActions>
-        <MudButton OnClick="CloseHistoryDialog">Close</MudButton>
+        <MudButton OnClick="CloseHistoryDialog" Color="Color.Secondary" Variant="Variant.Outlined" Size="Size.Small">Close View</MudButton>
     </DialogActions>
 </MudDialog>
 
@@ -151,6 +173,7 @@
     private MudForm _form = default!;
     private SupplierFormModel _editingSupplier = new();
     private SupplierDto? _selectedSupplier;
+    private bool _isHistoryDialogOpen = false;
 
     protected override async Task OnInitializedAsync()
     {
@@ -174,43 +197,28 @@
         }
     }
 
-    private async Task HandleKeyDown(KeyboardEventArgs e)
-    {
-        if (e.Key == "Enter")
-        {
-            await SearchSuppliers();
-        }
-    }
+    private bool FilterSearchLogic(SupplierDto supplier) => FilterFunc(supplier, _searchTerm);
 
-    private async Task SearchSuppliers()
+    private bool FilterFunc(SupplierDto supplier, string searchString)
     {
-        _isLoading = true;
-        try
-        {
-            if (string.IsNullOrWhiteSpace(_searchTerm))
-            {
-                _suppliers = await SupplierService.GetAllAsync();
-            }
-            else
-            {
-                _suppliers = await SupplierService.SearchAsync(_searchTerm);
-            }
-        }
-        catch (Exception ex)
-        {
-            Snackbar.Add(ex.Message, Severity.Error);
-        }
-        finally
-        {
-            _isLoading = false;
-        }
+        if (string.IsNullOrWhiteSpace(searchString))
+            return true;
+        if (supplier.Name.Contains(searchString, StringComparison.OrdinalIgnoreCase))
+            return true;
+        if (supplier.ContactPerson?.Contains(searchString, StringComparison.OrdinalIgnoreCase) ?? false)
+            return true;
+        if (supplier.Email?.Contains(searchString, StringComparison.OrdinalIgnoreCase) ?? false)
+            return true;
+        return false;
     }
 
     private void OpenCreateDialog()
     {
         _isEditMode = false;
         _editingSupplier = new SupplierFormModel();
+        _formIsValid = false;
         _isDialogOpen = true;
+        StateHasChanged();
     }
 
     private void OpenEditDialog(SupplierDto supplier)
@@ -226,11 +234,19 @@
             Address = supplier.Address,
             IsActive = supplier.IsActive
         };
+        _formIsValid = true;
         _isDialogOpen = true;
+        StateHasChanged();
     }
 
     private async Task SaveSupplier()
     {
+        if (_form != null)
+        {
+            await _form.Validate();
+            if (!_formIsValid) return;
+        }
+
         try
         {
             if (_isEditMode)
@@ -257,7 +273,7 @@
                     _editingSupplier.Address
                 );
                 await SupplierService.CreateAsync(createRequest);
-                Snackbar.Add("Supplier created successfully", Severity.Success);
+                Snackbar.Add("Supplier registered successfully", Severity.Success);
             }
             await LoadSuppliers();
             CloseDialog();
@@ -283,12 +299,12 @@
                 var success = await SupplierService.DeleteAsync(supplier.Id);
                 if (success)
                 {
-                    Snackbar.Add("Supplier deleted successfully", Severity.Success);
+                    Snackbar.Add("Supplier removed successfully", Severity.Success);
                     await LoadSuppliers();
                 }
                 else
                 {
-                    Snackbar.Add("Failed to delete supplier", Severity.Error);
+                    Snackbar.Add("Failed to remove supplier", Severity.Error);
                 }
             }
             catch (Exception ex)
@@ -311,19 +327,20 @@
         {
             Snackbar.Add($"Error loading purchase history: {ex.Message}", Severity.Error);
         }
+        StateHasChanged();
     }
 
     private void CloseDialog()
     {
         _isDialogOpen = false;
+        StateHasChanged();
     }
 
     private void CloseHistoryDialog()
     {
         _isHistoryDialogOpen = false;
+        StateHasChanged();
     }
-
-    private bool _isHistoryDialogOpen = false;
 
     private class SupplierFormModel
     {

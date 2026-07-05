@@ -6,96 +6,111 @@
 @inject ICustomerService CustomerService
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
+
 @attribute [Authorize(Roles = "Administrator,Manager,Cashier")]
 
 <PageTitle>Customers - ZEN POS</PageTitle>
 
-<MudText Typo="Typo.h3" GutterBottom="true">Customers</MudText>
-
-<MudPaper Class="pa-4">
-    <div class="d-flex align-center justify-space-between mb-4">
-        <MudTextField @bind-Value="_searchTerm" 
-                      Label="Search Customers" 
-                      Variant="Variant.Outlined" 
-                      Adornment="Adornment.Start" 
-                      AdornmentIcon="@Icons.Material.Filled.Search" 
-                      OnKeyDown="@HandleKeyDown" 
-                      Class="flex-grow-1 mr-4" />
-
-        <MudButton Variant="Variant.Filled" 
-                   Color="Color.Primary" 
-                   StartIcon="@Icons.Material.Filled.Add" 
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="py-2">
+    <div class="d-flex justify-space-between align-center mb-2">
+        <MudText Typo="Typo.h5" Class="font-weight-bold">Customers</MudText>
+        <MudButton Variant="Variant.Filled"
+                   Color="Color.Primary"
+                   StartIcon="@Icons.Material.Filled.Add"
+                   Size="Size.Small"
                    OnClick="OpenCreateDialog">
             Add Customer
         </MudButton>
     </div>
 
-    <MudTable Items="@_customers" Hover="true" Breakpoint="Breakpoint.Sm" Loading="@_isLoading" LoadingProgressColor="Color.Info">
+    <MudTable Items="@_customers"
+              Hover="true"
+              Striped="true"
+              Dense="true"
+              Elevation="1"
+              Breakpoint="Breakpoint.Md"
+              Loading="@_isLoading"
+              LoadingProgressColor="Color.Primary"
+              Filter="new Func<CustomerDto,bool>(FilterSearchLogic)">
+
         <ToolBarContent>
-            <MudText Typo="Typo.h6">Customer List</MudText>
+            <MudText Typo="Typo.subtitle1" Class="font-weight-bold">Customer Directory</MudText>
+            <MudSpacer />
+            <MudTextField @bind-Value="_searchTerm"
+                          Placeholder="Search name, phone, email..."
+                          Adornment="Adornment.Start"
+                          AdornmentIcon="@Icons.Material.Filled.Search"
+                          Class="mt-0"
+                          Clearable="true"
+                          Immediate="true"
+                          Variant="Variant.Outlined"
+                          Margin="Margin.Dense" style="max-width: 300px;" />
         </ToolBarContent>
+
         <HeaderContent>
-            <MudTh>Name</MudTh>
-            <MudTh>Email</MudTh>
-            <MudTh>Phone</MudTh>
-            <MudTh>Loyalty Points</MudTh>
-            <MudTh>Total Spent</MudTh>
-            <MudTh>Status</MudTh>
-            <MudTh>Actions</MudTh>
+            <MudTh><MudTableSortLabel SortBy="new Func<CustomerDto, object>(x => x.Name)"><MudText Typo="Typo.body2" Class="font-weight-bold">Name</MudText></MudTableSortLabel></MudTh>
+            <MudTh><MudText Typo="Typo.body2" Class="font-weight-bold">Email</MudText></MudTh>
+            <MudTh><MudText Typo="Typo.body2" Class="font-weight-bold">Phone</MudText></MudTh>
+            <MudTh><MudTableSortLabel SortBy="new Func<CustomerDto, object>(x => x.LoyaltyPoints)"><MudText Typo="Typo.body2" Class="font-weight-bold">Loyalty Points</MudText></MudTableSortLabel></MudTh>
+            <MudTh><MudTableSortLabel SortBy="new Func<CustomerDto, object>(x => x.TotalSpent)"><MudText Typo="Typo.body2" Class="font-weight-bold">Total Spent</MudText></MudTableSortLabel></MudTh>
+            <MudTh><MudText Typo="Typo.body2" Class="font-weight-bold">Status</MudText></MudTh>
+            <MudTh Style="text-align: right;"><MudText Typo="Typo.body2" Class="font-weight-bold">Actions</MudText></MudTh>
         </HeaderContent>
+
         <RowTemplate>
-            <MudTd DataLabel="Name">@context.Name</MudTd>
-            <MudTd DataLabel="Email">@context.Email</MudTd>
-            <MudTd DataLabel="Phone">@context.Phone</MudTd>
-            <MudTd DataLabel="Loyalty Points">@context.LoyaltyPoints</MudTd>
-            <MudTd DataLabel="Total Spent">@context.TotalSpent.ToString("C")</MudTd>
+            <MudTd DataLabel="Name"><MudText Typo="Typo.body2" Class="font-weight-bold">@context.Name</MudText></MudTd>
+            <MudTd DataLabel="Email"><MudText Typo="Typo.body2">@context.Email</MudText></MudTd>
+            <MudTd DataLabel="Phone"><MudText Typo="Typo.body2">@context.Phone</MudText></MudTd>
+            <MudTd DataLabel="Loyalty Points"><MudText Typo="Typo.body2">@context.LoyaltyPoints</MudText></MudTd>
+            <MudTd DataLabel="Total Spent"><MudText Typo="Typo.body2" Class="font-weight-bold text-success">@context.TotalSpent.ToString("C")</MudText></MudTd>
             <MudTd DataLabel="Status">
-                <MudChip T="string" Color="@(context.IsActive ? Color.Success : Color.Error)" Size="Size.Small">
+                <MudChip T="string" Color="@(context.IsActive ? Color.Success : Color.Error)" Variant="Variant.Text" Size="Size.Small" Class="ma-0">
                     @(context.IsActive ? "Active" : "Inactive")
                 </MudChip>
             </MudTd>
-            <MudTd DataLabel="Actions">
-                <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Info" OnClick="@(() => OpenEditDialog(context))" />
-                <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" OnClick="@(() => DeleteCustomer(context))" />
+            <MudTd DataLabel="Actions" Style="text-align: right; white-space: nowrap;">
+                <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small" OnClick="@(() => OpenEditDialog(context))" />
+                <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small" OnClick="@(() => DeleteCustomer(context))" />
             </MudTd>
         </RowTemplate>
+
+        <NoRecordsContent>
+            <MudText Align="Align.Center" Typo="Typo.body2" Class="pa-2">No matching customers found.</MudText>
+        </NoRecordsContent>
+
         <PagerContent>
-            <MudTablePager />
+            <MudTablePager RowsPerPageString="Rows per page:" />
         </PagerContent>
     </MudTable>
-</MudPaper>
+</MudContainer>
 
-<MudDialog @bind-Visible="_isDialogOpen">
+<MudDialog @bind-Visible="_isDialogOpen" Options="new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseButton = true }">
     <TitleContent>
-        <MudText Typo="Typo.h6">@( _isEditMode ? "Edit Customer" : "Create Customer" )</MudText>
+        <MudText Typo="Typo.subtitle1" Class="font-weight-bold">
+            @( _isEditMode ? "Modify Account Context" : "Register Profile Data" )
+        </MudText>
     </TitleContent>
     <DialogContent>
         <MudForm @ref="_form" @bind-IsValid="@_formIsValid">
-            <MudGrid>
-                <MudItem xs="12" sm="6">
-                    <MudTextField Label="Name" @bind-Value="_editingCustomer.Name" Required="true" For="@(() => _editingCustomer.Name)" />
-                </MudItem>
-                <MudItem xs="12" sm="6">
-                    <MudTextField Label="Email" @bind-Value="_editingCustomer.Email" For="@(() => _editingCustomer.Email)" />
-                </MudItem>
-                <MudItem xs="12" sm="6">
-                    <MudTextField Label="Phone" @bind-Value="_editingCustomer.Phone" For="@(() => _editingCustomer.Phone)" />
-                </MudItem>
-                <MudItem xs="12" sm="6">
-                    <MudTextField Label="Address" @bind-Value="_editingCustomer.Address" For="@(() => _editingCustomer.Address)" />
-                </MudItem>
+            <MudStack Spacing="2" Class="py-1">
+                <MudTextField Label="Full Name / Entity Name" @bind-Value="_editingCustomer.Name" Required="true" RequiredError="Required." Variant="Variant.Outlined" Margin="Margin.Dense" For="@(() => _editingCustomer.Name)" />
+                <MudTextField Label="Email Address" @bind-Value="_editingCustomer.Email" InputType="InputType.Email" Variant="Variant.Outlined" Margin="Margin.Dense" For="@(() => _editingCustomer.Email)" />
+                <MudTextField Label="Phone Line" @bind-Value="_editingCustomer.Phone" InputType="InputType.Telephone" Variant="Variant.Outlined" Margin="Margin.Dense" For="@(() => _editingCustomer.Phone)" />
+                <MudTextField Label="Billing/Delivery Address" @bind-Value="_editingCustomer.Address" Variant="Variant.Outlined" Margin="Margin.Dense" For="@(() => _editingCustomer.Address)" Multiline="true" Lines="2" />
+
                 @if (_isEditMode)
                 {
-                    <MudItem xs="12">
-                        <MudSwitch @bind-Value="_editingCustomer.IsActive" Color="Color.Primary" Label="Active" />
-                    </MudItem>
+                    <div class="d-flex justify-space-between align-center pt-2">
+                        <MudText Typo="Typo.body2" Color="Color.Secondary">Operational Status:</MudText>
+                        <MudSwitch @bind-Value="_editingCustomer.IsActive" Color="Color.Success" Label="@(_editingCustomer.IsActive ? "Active" : "Deactivated")" Dense="true" />
+                    </div>
                 }
-            </MudGrid>
+            </MudStack>
         </MudForm>
     </DialogContent>
     <DialogActions>
-        <MudButton OnClick="CloseDialog">Cancel</MudButton>
-        <MudButton Color="Color.Primary" OnClick="SaveCustomer" Disabled="@(!_formIsValid)">Save</MudButton>
+        <MudButton OnClick="CloseDialog" Variant="Variant.Text" Size="Size.Small">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" Size="Size.Small" OnClick="SaveCustomer" Disabled="@(!_formIsValid)">Save Profile</MudButton>
     </DialogActions>
 </MudDialog>
 
@@ -131,36 +146,19 @@
         }
     }
 
-    private async Task HandleKeyDown(KeyboardEventArgs e)
-    {
-        if (e.Key == "Enter")
-        {
-            await SearchCustomers();
-        }
-    }
+    private bool FilterSearchLogic(CustomerDto customer) => FilterFunc(customer, _searchTerm);
 
-    private async Task SearchCustomers()
+    private bool FilterFunc(CustomerDto customer, string searchString)
     {
-        _isLoading = true;
-        try
-        {
-            if (string.IsNullOrWhiteSpace(_searchTerm))
-            {
-                _customers = await CustomerService.GetAllAsync();
-            }
-            else
-            {
-                _customers = await CustomerService.SearchAsync(_searchTerm);
-            }
-        }
-        catch (Exception ex)
-        {
-            Snackbar.Add(ex.Message, Severity.Error);
-        }
-        finally
-        {
-            _isLoading = false;
-        }
+        if (string.IsNullOrWhiteSpace(searchString))
+            return true;
+        if (customer.Name.Contains(searchString, StringComparison.OrdinalIgnoreCase))
+            return true;
+        if (customer.Phone?.Contains(searchString, StringComparison.OrdinalIgnoreCase) ?? false)
+            return true;
+        if (customer.Email?.Contains(searchString, StringComparison.OrdinalIgnoreCase) ?? false)
+            return true;
+        return false;
     }
 
     private void OpenCreateDialog()
@@ -192,7 +190,7 @@
             if (_isEditMode)
             {
                 await CustomerService.UpdateAsync(_editingCustomer);
-                Snackbar.Add("Customer updated successfully", Severity.Success);
+                Snackbar.Add("Customer profile updated successfully", Severity.Success);
             }
             else
             {
@@ -204,7 +202,7 @@
                     _editingCustomer.CustomerGroupId
                 );
                 await CustomerService.CreateAsync(createRequest);
-                Snackbar.Add("Customer created successfully", Severity.Success);
+                Snackbar.Add("Customer profile registered successfully", Severity.Success);
             }
             await LoadCustomers();
             CloseDialog();
@@ -217,10 +215,10 @@
 
     private async Task DeleteCustomer(CustomerDto customer)
     {
-        var parameters = new DialogParameters { ["Text"] = $"Are you sure you want to delete {customer.Name}?" };
+        var parameters = new DialogParameters { ["Text"] = $"Are you sure you want to delete account records for {customer.Name}?" };
         var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small, FullScreen = false };
 
-        var dialog = await DialogService.ShowAsync<ConfirmationDialog>("Delete Customer", parameters, options);
+        var dialog = await DialogService.ShowAsync<ConfirmationDialog>("Purge Customer Data", parameters, options);
         var result = await dialog.Result;
 
         if (result?.Data is bool confirmed && confirmed)
@@ -230,12 +228,12 @@
                 var success = await CustomerService.DeleteAsync(customer.Id);
                 if (success)
                 {
-                    Snackbar.Add("Customer deleted successfully", Severity.Success);
+                    Snackbar.Add("Customer removed successfully", Severity.Success);
                     await LoadCustomers();
                 }
                 else
                 {
-                    Snackbar.Add("Failed to delete customer", Severity.Error);
+                    Snackbar.Add("Failed to clean client registry entity", Severity.Error);
                 }
             }
             catch (Exception ex)
@@ -245,8 +243,5 @@
         }
     }
 
-    private void CloseDialog()
-    {
-        _isDialogOpen = false;
-    }
+    private void CloseDialog() => _isDialogOpen = false;
 }

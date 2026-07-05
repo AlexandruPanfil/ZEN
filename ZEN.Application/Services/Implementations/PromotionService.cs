@@ -8,13 +8,16 @@ namespace ZEN.Application.Services.Implementations;
 public class PromotionService : IPromotionService
 {
     private readonly IRepository<Promotion> _promotionRepository;
+    private readonly IRepository<Discount> _discountRepository;
     private readonly IUnitOfWork _unitOfWork;
 
     public PromotionService(
         IRepository<Promotion> promotionRepository,
+        IRepository<Discount> discountRepository,
         IUnitOfWork unitOfWork)
     {
         _promotionRepository = promotionRepository;
+        _discountRepository = discountRepository;
         _unitOfWork = unitOfWork;
     }
 
@@ -51,13 +54,25 @@ public class PromotionService : IPromotionService
 
     public async Task<PromotionDto> CreateAsync(CreatePromotionRequest request, CancellationToken cancellationToken = default)
     {
+        if (request.DiscountIds == null || !request.DiscountIds.Any())
+        {
+            throw new ArgumentException("At least one discount must be specified.");
+        }
+
+        var discountId = request.DiscountIds.First();
+        var discount = await _discountRepository.GetByIdAsync(discountId, cancellationToken);
+        if (discount == null)
+        {
+            throw new KeyNotFoundException("Discount with ID " + discountId + " not found.");
+        }
+
         var promotion = new Promotion
         {
             Name = request.Name,
             Description = request.Description,
             StartDate = request.StartDate ?? DateTime.UtcNow,
             EndDate = request.EndDate ?? DateTime.UtcNow,
-            DiscountId = request.DiscountIds.FirstOrDefault(),
+            DiscountId = discountId,
             AppliesTo = PromotionAppliesTo.All,
             ReferenceId = null,
             IsActive = request.Status.Equals("Active", StringComparison.OrdinalIgnoreCase)
@@ -75,11 +90,23 @@ public class PromotionService : IPromotionService
         if (promotion == null)
             throw new KeyNotFoundException("Promotion not found");
 
+        if (request.DiscountIds == null || !request.DiscountIds.Any())
+        {
+            throw new ArgumentException("At least one discount must be specified.");
+        }
+
+        var discountId = request.DiscountIds.First();
+        var discount = await _discountRepository.GetByIdAsync(discountId, cancellationToken);
+        if (discount == null)
+        {
+            throw new KeyNotFoundException("Discount with ID " + discountId + " not found.");
+        }
+
         promotion.Name = request.Name;
         promotion.Description = request.Description;
         promotion.StartDate = request.StartDate ?? promotion.StartDate;
         promotion.EndDate = request.EndDate ?? promotion.EndDate;
-        promotion.DiscountId = request.DiscountIds.FirstOrDefault();
+        promotion.DiscountId = discountId;
         promotion.IsActive = request.Status.Equals("Active", StringComparison.OrdinalIgnoreCase);
 
         _promotionRepository.Update(promotion);

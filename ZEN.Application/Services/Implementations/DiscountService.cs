@@ -58,14 +58,29 @@ public class DiscountService : IDiscountService
 
     public async Task<DiscountDto> CreateAsync(CreateDiscountRequest request, CancellationToken cancellationToken = default)
     {
-        var type = Enum.TryParse<DiscountType>(request.Type, true, out var parsedType)
-            ? parsedType
-            : DiscountType.Percentage;
+        // Fix: Explicitly map the string values coming from your Blazor frontend
+        DiscountType type;
+        if (string.Equals(request.Type, "FixedAmount", StringComparison.OrdinalIgnoreCase))
+        {
+            type = DiscountType.FixedAmount; // <-- Adjust if your Enum value is exactly "Fixed" or "FixedAmount"
+        }
+        else if (string.Equals(request.Type, "Percentage", StringComparison.OrdinalIgnoreCase))
+        {
+            type = DiscountType.Percentage;
+        }
+        //else if (string.Equals(request.Type, "Tiered", StringComparison.OrdinalIgnoreCase))
+        //{
+        //    type = DiscountType.TieredVolume; // <-- Adjust to match your actual backend Enum name for tiered
+        //}
+        else
+        {
+            throw new ArgumentException($"Unsupported calculation type mapping context: {request.Type}");
+        }
 
         var discount = new Discount
         {
             Name = request.Code,
-            Type = type,
+            Type = type, // Uses the correctly mapped type variable
             Value = request.Value,
             MinimumAmount = null,
             MaxUsages = null,

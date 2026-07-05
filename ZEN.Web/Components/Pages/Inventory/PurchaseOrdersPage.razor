@@ -20,36 +20,72 @@
 
 <Microsoft.AspNetCore.Components.Web.PageTitle>Purchase Orders - ZEN POS</Microsoft.AspNetCore.Components.Web.PageTitle>
 
-<MudText Typo="Typo.h3" GutterBottom="true">Purchase Orders</MudText>
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-4">
+    <div class="d-flex justify-space-between align-center mb-6">
+        <div>
+            <MudText Typo="Typo.h4" Class="font-weight-bold" Color="Color.Primary">Purchase Orders</MudText>
+            <MudText Typo="Typo.subtitle2" Color="Color.Secondary">Procure stock from commercial vendors, verify inbound items, and route product inventory allocations.</MudText>
+        </div>
+        <MudButton Variant="Variant.Filled"
+                   Color="Color.Primary"
+                   StartIcon="@Icons.Material.Filled.Add"
+                   Size="Size.Large"
+                   OnClick="OpenCreateDialog">
+            Create Purchase Order
+        </MudButton>
+    </div>
 
-<MudPaper Class="pa-4 mb-4">
-    <MudStack Spacing="3">
-        <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
-            <MudTextField T="string"
-                          Label="Search Purchase Orders"
-                          Variant="Variant.Outlined"
-                          Adornment="Adornment.Start"
-                          AdornmentIcon="@Icons.Material.Filled.Search"
-                          @bind-Value="_searchTerm"
-                          Immediate="true"
-                          Class="flex-grow-1 mr-4" />
+    <MudGrid Class="mb-6">
+        <MudItem xs="12" sm="4">
+            <MudPaper Class="pa-4 d-flex align-center" Elevation="1">
+                <MudIcon Icon="@Icons.Material.Filled.ReceiptLong" Color="Color.Primary" Size="Size.Large" Class="mr-4" />
+                <div>
+                    <MudText Typo="Typo.subtitle2" Color="Color.Secondary">Active Records</MudText>
+                    <MudText Typo="Typo.h5" Class="font-weight-bold">@FilteredPurchaseOrders.Count()</MudText>
+                </div>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="12" sm="4">
+            <MudPaper Class="pa-4 d-flex align-center" Elevation="1">
+                <MudIcon Icon="@Icons.Material.Filled.PendingActions" Color="Color.Warning" Size="Size.Large" Class="mr-4" />
+                <div>
+                    <MudText Typo="Typo.subtitle2" Color="Color.Secondary">Draft Orders Pending</MudText>
+                    <MudText Typo="Typo.h5" Class="font-weight-bold">@_purchaseOrders.Count(p => p.Status == PurchaseOrderStatus.Draft)</MudText>
+                </div>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="12" sm="4">
+            <MudPaper Class="pa-4 d-flex align-center" Elevation="1">
+                <MudIcon Icon="@Icons.Material.Filled.AccountBalanceWallet" Color="Color.Success" Size="Size.Large" Class="mr-4" />
+                <div>
+                    <MudText Typo="Typo.subtitle2" Color="Color.Secondary">Total Document Valuation</MudText>
+                    <MudText Typo="Typo.h5" Class="font-weight-bold">@FilteredPurchaseOrders.Sum(p => p.TotalAmount).ToString("C")</MudText>
+                </div>
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
 
-            <MudButton Variant="Variant.Filled"
-                       Color="Color.Primary"
-                       StartIcon="@Icons.Material.Filled.Add"
-                       OnClick="OpenCreateDialog">
-                Create Purchase Order
-            </MudButton>
-        </MudStack>
-
-        <MudGrid>
-            <MudItem xs="12" sm="6" md="4">
+    <MudPaper Class="pa-4 mb-4" Elevation="1">
+        <MudGrid Class="align-center mb-2">
+            <MudItem xs="12" md="6" lg="7">
+                <MudTextField T="string"
+                              Placeholder="Filter by order #, supplier name, or fulfillment details..."
+                              Variant="Variant.Outlined"
+                              Adornment="Adornment.Start"
+                              AdornmentIcon="@Icons.Material.Filled.Search"
+                              @bind-Value="_searchTerm"
+                              Immediate="true"
+                              Clearable="true"
+                              Margin="Margin.Dense" />
+            </MudItem>
+            <MudItem xs="12" md="6" lg="5">
                 <MudSelect T="Guid?"
-                           Label="Warehouse filter"
+                           Label="Warehouse Distribution Node"
                            Variant="Variant.Outlined"
                            Value="_selectedWarehouseId"
-                           ValueChanged="OnWarehouseChanged">
-                    <MudSelectItem T="Guid?" Value="@(null)">All available</MudSelectItem>
+                           ValueChanged="OnWarehouseChanged"
+                           Margin="Margin.Dense">
+                    <MudSelectItem T="Guid?" Value="@(null)">All Available Stores & Warehouses</MudSelectItem>
                     @foreach (var warehouse in _warehouses)
                     {
                         <MudSelectItem T="Guid?" Value="@warehouse.Id">@warehouse.Name</MudSelectItem>
@@ -57,61 +93,80 @@
                 </MudSelect>
             </MudItem>
         </MudGrid>
+    </MudPaper>
 
-        <MudAlert Severity="Severity.Info">
-            <strong>Purchase Orders Module:</strong> Manage supplier orders, track status, and convert approved orders into stock purchases.
-        </MudAlert>
+    <MudTable T="PurchaseOrderDto" Items="@FilteredPurchaseOrders" Hover="true" Striped="true" Elevation="1" Breakpoint="Breakpoint.Md" Loading="@_isLoading">
+        <ToolBarContent>
+            <MudText Typo="Typo.h6" Class="font-weight-bold">Procurement Directory Ledger</MudText>
+        </ToolBarContent>
+        <HeaderContent>
+            <MudTh><MudTableSortLabel SortBy="new Func<PurchaseOrderDto, object>(x => x.Number)">Order #</MudTableSortLabel></MudTh>
+            <MudTh>Supplier Partner</MudTh>
+            <MudTh>Target Warehouse</MudTh>
+            <MudTh><MudTableSortLabel SortBy="new Func<PurchaseOrderDto, object>(x => x.OrderDate)">Issued Date</MudTableSortLabel></MudTh>
+            <MudTh>Expected Delivery</MudTh>
+            <MudTh>Fulfillment Status</MudTh>
+            <MudTh><MudTableSortLabel SortBy="new Func<PurchaseOrderDto, object>(x => x.TotalAmount)">Financial Valuation</MudTableSortLabel></MudTh>
+            <MudTh Style="text-align: right; min-width: 220px;">Control Actions</MudTh>
+        </HeaderContent>
+        <RowTemplate Context="order">
+            <MudTd DataLabel="Order #" Class="font-weight-bold">@order.Number</MudTd>
+            <MudTd DataLabel="Supplier">@order.SupplierName</MudTd>
+            <MudTd DataLabel="Warehouse">
+                <span class="d-flex align-center gap-1">
+                    <MudIcon Icon="@Icons.Material.Filled.Warehouse" Size="Size.Small" Color="Color.Secondary" Class="mr-1" />
+                    @order.WarehouseName
+                </span>
+            </MudTd>
+            <MudTd DataLabel="Order Date">@order.OrderDate.ToString("yyyy-MM-dd")</MudTd>
+            <MudTd DataLabel="Expected Date">@(order.ExpectedDate?.ToString("yyyy-MM-dd") ?? "—")</MudTd>
+            <MudTd DataLabel="Status">
+                <MudChip T="string" Color="@GetStatusColor(order.Status)" Variant="Variant.Text" Size="Size.Small" Class="font-weight-bold">
+                    @order.Status
+                </MudChip>
+            </MudTd>
+            <MudTd DataLabel="Total" Class="font-weight-bold color-primary">@order.TotalAmount.ToString("C")</MudTd>
+            <MudTd DataLabel="Actions" Style="text-align: right; white-space: nowrap;">
+                <MudTooltip Text="Inspect Manifest">
+                    <MudIconButton Icon="@Icons.Material.Filled.Visibility" Variant="Variant.Outlined" Color="Color.Info" Size="Size.Small" Class="mr-1" OnClick="@(() => ViewDetails(order))" />
+                </MudTooltip>
+                <MudTooltip Text="Modify Structure">
+                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small" Class="mr-1" OnClick="@(() => OpenEditDialog(order))" />
+                </MudTooltip>
+                <MudTooltip Text="Approve & Commit Manifest">
+                    <MudIconButton Icon="@Icons.Material.Filled.Done" Variant="Variant.Outlined" Color="Color.Success" Size="Size.Small" Class="mr-1" Disabled="@(order.Status != PurchaseOrderStatus.Draft)" OnClick="@(() => ApproveOrder(order))" />
+                </MudTooltip>
+                <MudTooltip Text="Abort Procure Cycle">
+                    <MudIconButton Icon="@Icons.Material.Filled.Cancel" Variant="Variant.Outlined" Color="Color.Warning" Size="Size.Small" Class="mr-1" Disabled="@(order.Status is PurchaseOrderStatus.Cancelled or PurchaseOrderStatus.Received)" OnClick="@(() => CancelOrder(order))" />
+                </MudTooltip>
+                <MudTooltip Text="Purge Record Draft">
+                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Variant="Variant.Outlined" Color="Color.Error" Size="Size.Small" Disabled="@(order.Status != PurchaseOrderStatus.Draft)" OnClick="@(() => DeleteOrder(order))" />
+                </MudTooltip>
+            </MudTd>
+        </RowTemplate>
+        <NoRecordsContent>
+            <MudText Align="Align.Center" Class="pa-4 color-secondary">No purchase orders meet current spatial filter parameters.</MudText>
+        </NoRecordsContent>
+        <PagerContent>
+            <MudTablePager RowsPerPageString="Items per spreadsheet context:" />
+        </PagerContent>
+    </MudTable>
+</MudContainer>
 
-        <MudTable T="PurchaseOrderDto" Items="@FilteredPurchaseOrders" Hover="true" Breakpoint="Breakpoint.Sm" Loading="@_isLoading">
-            <ToolBarContent>
-                <MudText Typo="Typo.h6">Purchase Orders List</MudText>
-            </ToolBarContent>
-            <HeaderContent>
-                <MudTh>Order #</MudTh>
-                <MudTh>Supplier</MudTh>
-                <MudTh>Warehouse</MudTh>
-                <MudTh>Order Date</MudTh>
-                <MudTh>Expected Date</MudTh>
-                <MudTh>Status</MudTh>
-                <MudTh>Total</MudTh>
-                <MudTh>Actions</MudTh>
-            </HeaderContent>
-            <RowTemplate Context="order">
-                <MudTd DataLabel="Order #">@order.Number</MudTd>
-                <MudTd DataLabel="Supplier">@order.SupplierName</MudTd>
-                <MudTd DataLabel="Warehouse">@order.WarehouseName</MudTd>
-                <MudTd DataLabel="Order Date">@order.OrderDate.ToString("yyyy-MM-dd")</MudTd>
-                <MudTd DataLabel="Expected Date">@(order.ExpectedDate?.ToString("yyyy-MM-dd") ?? "—")</MudTd>
-                <MudTd DataLabel="Status">
-                    <MudChip T="string" Color="@GetStatusColor(order.Status)" Size="Size.Small">@order.Status</MudChip>
-                </MudTd>
-                <MudTd DataLabel="Total">@order.TotalAmount.ToString("C")</MudTd>
-                <MudTd DataLabel="Actions">
-                    <MudIconButton Icon="@Icons.Material.Filled.Visibility" Color="Color.Info" Size="Size.Small" OnClick="@(() => ViewDetails(order))" />
-                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small" OnClick="@(() => OpenEditDialog(order))" />
-                    <MudIconButton Icon="@Icons.Material.Filled.Done" Color="Color.Success" Size="Size.Small" Disabled="@(order.Status != PurchaseOrderStatus.Draft)" OnClick="@(() => ApproveOrder(order))" />
-                    <MudIconButton Icon="@Icons.Material.Filled.Cancel" Color="Color.Warning" Size="Size.Small" Disabled="@(order.Status is PurchaseOrderStatus.Cancelled or PurchaseOrderStatus.Received)" OnClick="@(() => CancelOrder(order))" />
-                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small" Disabled="@(order.Status != PurchaseOrderStatus.Draft)" OnClick="@(() => DeleteOrder(order))" />
-                </MudTd>
-            </RowTemplate>
-            <PagerContent>
-                <MudTablePager />
-            </PagerContent>
-        </MudTable>
-    </MudStack>
-</MudPaper>
-
-<MudDialog @bind-Visible="_isDialogOpen">
+<MudDialog @bind-Visible="_isDialogOpen" Options="new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true, CloseButton = true }">
     <TitleContent>
-        <MudText Typo="Typo.h6">@(_isEditMode ? "Edit Purchase Order" : "Create Purchase Order")</MudText>
+        <MudText Typo="Typo.h6" Class="font-weight-bold">
+            <MudIcon Icon="@(_isEditMode ? Icons.Material.Filled.Layers : Icons.Material.Filled.NoteAdd)" Class="mr-2" />
+            @(_isEditMode ? $"Modify Order Profile Struct: {_editingModel.Number}" : "Draft Inbound Inventory Route Request")
+        </MudText>
     </TitleContent>
     <DialogContent>
-        <MudStack Spacing="3">
+        <MudStack Spacing="3" Class="py-2">
             <MudGrid>
                 @if (!_isEditMode)
                 {
                     <MudItem xs="12" sm="6">
-                        <MudSelect T="Guid?" Label="Supplier" Variant="Variant.Outlined" @bind-Value="_editingModel.SupplierId" Required="true">
+                        <MudSelect T="Guid?" Label="Commercial Supplier Partner" Variant="Variant.Outlined" @bind-Value="_editingModel.SupplierId" Required="true" Margin="Margin.Dense">
                             @foreach (var supplier in _suppliers)
                             {
                                 <MudSelectItem T="Guid?" Value="@supplier.Id">@supplier.Name</MudSelectItem>
@@ -119,7 +174,7 @@
                         </MudSelect>
                     </MudItem>
                     <MudItem xs="12" sm="6">
-                        <MudSelect T="Guid?" Label="Warehouse" Variant="Variant.Outlined" @bind-Value="_editingModel.WarehouseId" Required="true">
+                        <MudSelect T="Guid?" Label="Target Depot / Warehouse Location" Variant="Variant.Outlined" @bind-Value="_editingModel.WarehouseId" Required="true" Margin="Margin.Dense">
                             @foreach (var warehouse in _warehouses)
                             {
                                 <MudSelectItem T="Guid?" Value="@warehouse.Id">@warehouse.Name</MudSelectItem>
@@ -129,14 +184,14 @@
                 }
                 else
                 {
-                    <MudItem xs="12" sm="6">
-                        <MudTextField T="string" Label="Supplier" Value="@_editingModel.SupplierName" ReadOnly="true" Variant="Variant.Outlined" />
+                    <MudItem xs="12" sm="4">
+                        <MudTextField T="string" Label="Vendor Context Entity" Value="@_editingModel.SupplierName" ReadOnly="true" Variant="Variant.Outlined" Margin="Margin.Dense" />
                     </MudItem>
-                    <MudItem xs="12" sm="6">
-                        <MudTextField T="string" Label="Warehouse" Value="@_editingModel.WarehouseName" ReadOnly="true" Variant="Variant.Outlined" />
+                    <MudItem xs="12" sm="4">
+                        <MudTextField T="string" Label="Assigned Receiving Store Node" Value="@_editingModel.WarehouseName" ReadOnly="true" Variant="Variant.Outlined" Margin="Margin.Dense" />
                     </MudItem>
-                    <MudItem xs="12" sm="6">
-                        <MudSelect T="PurchaseOrderStatus" Label="Status" Variant="Variant.Outlined" @bind-Value="_editingModel.Status">
+                    <MudItem xs="12" sm="4">
+                        <MudSelect T="PurchaseOrderStatus" Label="Transition State Status" Variant="Variant.Outlined" @bind-Value="_editingModel.Status" Margin="Margin.Dense">
                             @foreach (var status in Enum.GetValues<PurchaseOrderStatus>())
                             {
                                 <MudSelectItem T="PurchaseOrderStatus" Value="@status">@status</MudSelectItem>
@@ -146,87 +201,100 @@
                 }
 
                 <MudItem xs="12" sm="6">
-                    <MudDatePicker Label="Expected Date" Variant="Variant.Outlined" @bind-Date="_editingModel.ExpectedDate" />
+                    <MudDatePicker Label="Target Expected Logistics Window" Variant="Variant.Outlined" @bind-Date="_editingModel.ExpectedDate" Margin="Margin.Dense" />
                 </MudItem>
 
                 <MudItem xs="12">
-                    <MudTextField T="string" Label="Notes" Variant="Variant.Outlined" @bind-Value="_editingModel.Notes" Lines="3" Multiline="true" />
+                    <MudTextField T="string" Label="Operational Workflow Context Notes" Variant="Variant.Outlined" @bind-Value="_editingModel.Notes" Lines="2" Multiline="true" />
                 </MudItem>
 
                 @if (!_isEditMode)
                 {
                     <MudItem xs="12">
-                        <MudDivider Class="my-2" />
-                        <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="mb-2">
-                            <MudText Typo="Typo.h6">Items</MudText>
-                            <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Add" OnClick="AddLineItem">Add item</MudButton>
-                        </MudStack>
+                        <MudDivider Class="my-4" />
+                        <div class="d-flex align-center justify-space-between mb-3">
+                            <MudText Typo="Typo.h6" Class="font-weight-bold color-primary">Product Stock Matrix Items</MudText>
+                            <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" Size="Size.Small" OnClick="AddLineItem">Add Item Entry</MudButton>
+                        </div>
 
-                        @foreach (var item in _editingModel.Items)
-                        {
-                            <MudGrid Class="mb-2">
-                                <MudItem xs="12" sm="5">
-                                    <MudSelect T="Guid?" Label="Product" Variant="Variant.Outlined" @bind-Value="item.ProductId" Required="true">
-                                        @foreach (var product in _products)
-                                        {
-                                            <MudSelectItem T="Guid?" Value="@product.Id">@product.Name</MudSelectItem>
-                                        }
-                                    </MudSelect>
-                                </MudItem>
-                                <MudItem xs="12" sm="2">
-                                    <MudNumericField T="decimal" Label="Qty" Variant="Variant.Outlined" @bind-Value="item.Quantity" Min="0" />
-                                </MudItem>
-                                <MudItem xs="12" sm="3">
-                                    <MudNumericField T="decimal" Label="Unit Cost" Variant="Variant.Outlined" @bind-Value="item.UnitPrice" Min="0" />
-                                </MudItem>
-                                <MudItem xs="12" sm="2" Class="d-flex align-end">
-                                    <MudButton Color="Color.Error" Variant="Variant.Outlined" OnClick="@(() => RemoveLineItem(item))">Remove</MudButton>
-                                </MudItem>
-                            </MudGrid>
-                        }
+                        <div style="max-height: 280px; overflow-y: auto;" class="pe-2">
+                            @foreach (var item in _editingModel.Items)
+                            {
+                                <MudGrid Class="align-center mb-1" Spacing="2">
+                                    <MudItem xs="12" sm="5">
+                                        <MudSelect T="Guid?" Label="Select Inventory Item" Variant="Variant.Outlined" @bind-Value="item.ProductId" Required="true" Margin="Margin.Dense">
+                                            @foreach (var product in _products)
+                                            {
+                                                <MudSelectItem T="Guid?" Value="@product.Id">@product.Name</MudSelectItem>
+                                            }
+                                        </MudSelect>
+                                    </MudItem>
+                                    <MudItem xs="6" sm="2">
+                                        <MudNumericField T="decimal" Label="Quantity Ordered" Variant="Variant.Outlined" @bind-Value="item.Quantity" Min="0.01m" Margin="Margin.Dense" />
+                                    </MudItem>
+                                    <MudItem xs="6" sm="3">
+                                        <MudNumericField T="decimal" Label="Contract Unit Cost" Variant="Variant.Outlined" @bind-Value="item.UnitPrice" Min="0.00m" Format="C" Margin="Margin.Dense" />
+                                    </MudItem>
+                                    <MudItem xs="12" sm="2" Class="d-flex align-center justify-end">
+                                        <MudIconButton Icon="@Icons.Material.Filled.RemoveCircleOutline" Color="Color.Error" Size="Size.Medium" Disabled="@(_editingModel.Items.Count <= 1)" OnClick="@(() => RemoveLineItem(item))" />
+                                    </MudItem>
+                                </MudGrid>
+                            }
+                        </div>
                     </MudItem>
                 }
             </MudGrid>
         </MudStack>
     </DialogContent>
     <DialogActions>
-        <MudButton OnClick="CloseDialog">Cancel</MudButton>
-        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SavePurchaseOrder">Save</MudButton>
+        <MudButton OnClick="CloseDialog" Variant="Variant.Text">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SavePurchaseOrder">Commit Purchase Context</MudButton>
     </DialogActions>
 </MudDialog>
 
 @if (_selectedOrder is not null)
 {
-    <MudDialog @bind-Visible="_isDetailsOpen">
+    <MudDialog @bind-Visible="_isDetailsOpen" Options="new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseButton = true }">
         <TitleContent>
-            <MudText Typo="Typo.h6">Purchase Order @(_selectedOrder.Number)</MudText>
+            <MudText Typo="Typo.h6" Class="font-weight-bold color-primary">
+                <MudIcon Icon="@Icons.Material.Filled.FindInPage" Class="mr-2" />
+                Manifest Record: @_selectedOrder.Number
+            </MudText>
         </TitleContent>
         <DialogContent>
-            <MudStack Spacing="2">
-                <MudText><strong>Supplier:</strong> @_selectedOrder.SupplierName</MudText>
-                <MudText><strong>Warehouse:</strong> @_selectedOrder.WarehouseName</MudText>
-                <MudText><strong>Status:</strong> @_selectedOrder.Status</MudText>
-                <MudText><strong>Expected:</strong> @(_selectedOrder.ExpectedDate?.ToString("yyyy-MM-dd") ?? "—")</MudText>
-                <MudText><strong>Total:</strong> @_selectedOrder.TotalAmount.ToString("C")</MudText>
-                <MudDivider />
-                <MudTable T="PurchaseOrderItemDto" Items="@_selectedOrder.Items" Dense="true" Hover="true">
+            <MudStack Spacing="3" Class="py-1">
+                <div class="d-flex justify-space-between align-center">
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">Supplier: <strong>@_selectedOrder.SupplierName</strong></MudText>
+                    <MudChip T="string" Size="Size.Small" Color="@GetStatusColor(_selectedOrder.Status)" Variant="Variant.Text" Class="font-weight-bold">@_selectedOrder.Status</MudChip>
+                </div>
+                <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mt-n1">Warehouse: <strong>@_selectedOrder.WarehouseName</strong></MudText>
+                <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mt-n1">Target Window: <strong>@(_selectedOrder.ExpectedDate?.ToString("yyyy-MM-dd") ?? "—")</strong></MudText>
+
+                <MudDivider Class="my-2" />
+
+                <MudTable T="PurchaseOrderItemDto" Items="@_selectedOrder.Items" Dense="true" Hover="true" Elevation="0" Outlined="true">
                     <HeaderContent>
-                        <MudTh>Product</MudTh>
-                        <MudTh>Qty</MudTh>
-                        <MudTh>Unit Price</MudTh>
-                        <MudTh>Total</MudTh>
+                        <MudTh>Product Context Name</MudTh>
+                        <MudTh Style="text-align: right;">Qty</MudTh>
+                        <MudTh Style="text-align: right;">Unit Cost</MudTh>
+                        <MudTh Style="text-align: right;">Extended Total</MudTh>
                     </HeaderContent>
                     <RowTemplate Context="item">
                         <MudTd DataLabel="Product">@item.ProductName</MudTd>
-                        <MudTd DataLabel="Qty">@item.Quantity</MudTd>
-                        <MudTd DataLabel="Unit Price">@item.UnitPrice.ToString("C")</MudTd>
-                        <MudTd DataLabel="Total">@item.Total.ToString("C")</MudTd>
+                        <MudTd DataLabel="Qty" Style="text-align: right;">@item.Quantity</MudTd>
+                        <MudTd DataLabel="Unit Price" Style="text-align: right;">@item.UnitPrice.ToString("C")</MudTd>
+                        <MudTd DataLabel="Total" Style="text-align: right;" Class="font-weight-bold text-success">@item.Total.ToString("C")</MudTd>
                     </RowTemplate>
                 </MudTable>
+
+                <div class="d-flex justify-space-between align-center mt-2 px-2">
+                    <MudText Typo="Typo.subtitle2" Color="Color.Secondary">Total Inbound Valuation Summary:</MudText>
+                    <MudText Typo="Typo.h6" Class="font-weight-bold color-success">@_selectedOrder.TotalAmount.ToString("C")</MudText>
+                </div>
             </MudStack>
         </DialogContent>
         <DialogActions>
-            <MudButton OnClick="CloseDetailsDialog">Close</MudButton>
+            <MudButton Color="Color.Primary" OnClick="CloseDetailsDialog" Variant="Variant.Text">Dismiss View</MudButton>
         </DialogActions>
     </MudDialog>
 }
@@ -283,7 +351,6 @@
             }
 
             _warehouses = warehouses;
-
             _selectedWarehouseId ??= _warehouses.FirstOrDefault()?.Id;
         }
         catch (Exception ex)
@@ -304,7 +371,7 @@
             else
             {
                 _purchaseOrders = [];
-                Snackbar.Add("Select a warehouse to view purchase orders.", Severity.Info);
+                Snackbar.Add("Select an operational warehouse node to inspect active data parameters.", Severity.Info);
             }
         }
         catch (Exception ex)
@@ -341,6 +408,7 @@
         _editingModel = new PurchaseOrderFormModel
         {
             Id = order.Id,
+            Number = order.Number,
             SupplierId = order.SupplierId,
             SupplierName = order.SupplierName,
             WarehouseId = order.WarehouseId,
@@ -393,13 +461,13 @@
                     _editingModel.Status);
 
                 await PurchaseOrderService.UpdateAsync(request);
-                Snackbar.Add("Purchase order updated successfully", Severity.Success);
+                Snackbar.Add("Purchase order record modified successfully.", Severity.Success);
             }
             else
             {
                 if (!_editingModel.SupplierId.HasValue || !_editingModel.WarehouseId.HasValue)
                 {
-                    Snackbar.Add("Supplier and warehouse are required.", Severity.Warning);
+                    Snackbar.Add("Supplier and target allocation metrics are mandatory properties.", Severity.Warning);
                     return;
                 }
 
@@ -410,7 +478,7 @@
 
                 if (items.Count == 0)
                 {
-                    Snackbar.Add("Add at least one item to the purchase order.", Severity.Warning);
+                    Snackbar.Add("Specify at least one distinct item manifest entry line.", Severity.Warning);
                     return;
                 }
 
@@ -422,7 +490,7 @@
                     items);
 
                 await PurchaseOrderService.CreateAsync(request);
-                Snackbar.Add("Purchase order created successfully", Severity.Success);
+                Snackbar.Add("Inbound purchase manifest established successfully.", Severity.Success);
             }
 
             CloseDialog();
@@ -440,7 +508,7 @@
         {
             if (await PurchaseOrderService.ApproveAsync(order.Id))
             {
-                Snackbar.Add("Purchase order approved", Severity.Success);
+                Snackbar.Add("Purchase order status committed and approved successfully.", Severity.Success);
                 await LoadPurchaseOrdersAsync();
             }
         }
@@ -456,7 +524,7 @@
         {
             if (await PurchaseOrderService.CancelAsync(order.Id))
             {
-                Snackbar.Add("Purchase order cancelled", Severity.Warning);
+                Snackbar.Add("Target distribution workflow halted and cancelled.", Severity.Warning);
                 await LoadPurchaseOrdersAsync();
             }
         }
@@ -468,8 +536,8 @@
 
     private async Task DeleteOrder(PurchaseOrderDto order)
     {
-        var parameters = new DialogParameters { ["Text"] = $"Delete purchase order {order.Number}?" };
-        var dialog = await DialogService.ShowAsync<global::ZEN.Shared.Components.Common.ConfirmDialog>("Delete Purchase Order", parameters);
+        var parameters = new DialogParameters { ["Text"] = $"Are you sure you want to drop purchase document draft {order.Number}?" };
+        var dialog = await DialogService.ShowAsync<global::ZEN.Shared.Components.Common.ConfirmDialog>("Purge Record Struct", parameters);
         var result = await dialog.Result;
 
         if (result?.Data is bool confirmed && confirmed)
@@ -478,7 +546,7 @@
             {
                 if (await PurchaseOrderService.DeleteAsync(order.Id))
                 {
-                    Snackbar.Add("Purchase order deleted successfully", Severity.Success);
+                    Snackbar.Add("Document entity deleted out of active registry contexts.", Severity.Success);
                     await LoadPurchaseOrdersAsync();
                 }
             }
@@ -489,10 +557,7 @@
         }
     }
 
-    private void CloseDialog()
-    {
-        _isDialogOpen = false;
-    }
+    private void CloseDialog() => _isDialogOpen = false;
 
     private static Color GetStatusColor(PurchaseOrderStatus status) => status switch
     {
@@ -507,6 +572,7 @@
     private sealed class PurchaseOrderFormModel
     {
         public Guid Id { get; set; }
+        public string Number { get; set; } = string.Empty;
         public Guid? SupplierId { get; set; }
         public string SupplierName { get; set; } = string.Empty;
         public Guid? WarehouseId { get; set; }

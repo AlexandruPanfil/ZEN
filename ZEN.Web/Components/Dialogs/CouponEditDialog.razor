@@ -1,65 +1,119 @@
 @using ZEN.Application.Services.Interfaces
 @using ZEN.Application.DTOs.Promotions
 @using MudBlazor
+
 @inject ICouponService CouponService
 @inject ISnackbar Snackbar
 
 <MudDialog>
-    <DialogContent>
-        <MudForm @ref="form" @bind-IsValid="isFormValid">
-            <MudStack Spacing="3">
+    <TitleContent>
+        <MudStack Row="true" Spacing="2" Class="align-center">
+            <MudIcon Icon="@(IsEditMode ? Icons.Material.Filled.ConfirmationNumber : Icons.Material.Filled.AddCard)"
+                     Color="Color.Primary" Size="Size.Large" />
+            <MudStack Spacing="0">
+                <MudText Typo="Typo.h6">@(IsEditMode ? "Modify Coupon Code" : "Generate Promotional Coupon")</MudText>
                 @if (IsEditMode)
                 {
-                    <MudTextField T="string" Label="Code" @bind-Value="editModel.Code" 
-                                 ReadOnly="true" Variant="Variant.Outlined" />
-                }
-                else
-                {
-                    <MudStack Row="true" Spacing="2">
-                        <MudTextField T="string" Label="Custom Code (optional)" @bind-Value="editModel.Code"
-                                     Variant="Variant.Outlined" Class="flex-grow-1" />
-                        <MudButton Variant="Variant.Outlined" OnClick="GenerateCode" Class="mt-1">
-                            Generate
-                        </MudButton>
-                    </MudStack>
-                }
-
-                <MudSelect T="string" Label="Discount Type" @bind-Value="editModel.DiscountType"
-                          Required="true" Variant="Variant.Outlined">
-                    <MudSelectItem Value="@("Fixed")">Fixed Amount</MudSelectItem>
-                    <MudSelectItem Value="@("Percentage")">Percentage</MudSelectItem>
-                </MudSelect>
-
-                <MudNumericField T="decimal" Label="Discount Value" @bind-Value="editModel.DiscountValue"
-                                Required="true" RequiredError="Value is required"
-                                Min="0" Variant="Variant.Outlined" />
-
-                <MudNumericField T="int?" Label="Usage Limit (0 = unlimited)" @bind-Value="editModel.UsageLimit"
-                                Min="0" Variant="Variant.Outlined" />
-
-                <MudDatePicker Label="Expiry Date" @bind-Date="editModel.ExpiryDate"
-                              Required="true" RequiredError="Expiry date is required"
-                              Variant="Variant.Outlined" />
-
-                <MudTextField T="string" Label="Description (optional)" @bind-Value="editModel.Description"
-                             Variant="Variant.Outlined" Lines="2" />
-
-                @if (IsEditMode)
-                {
-                    <MudStack Spacing="2">
-                        <MudDivider />
-                        <MudText Typo="Typo.subtitle2">Usage Tracking</MudText>
-                        <MudText Typo="Typo.body2">Times Used: @Coupon?.TimesUsed ?? 0</MudText>
-                    </MudStack>
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">ID: @Coupon!.Id</MudText>
                 }
             </MudStack>
+        </MudStack>
+    </TitleContent>
+
+    <DialogContent>
+        <MudForm @ref="form" @bind-IsValid="isFormValid">
+            <MudGrid Spacing="3" Class="py-2">
+
+                @* ==================== CODE ALLOCATION REGISTER ==================== *@
+                <MudItem xs="12">
+                    @if (IsEditMode)
+                    {
+                        <MudTextField T="string" Label="Active Coupon Code" @bind-Value="editModel.Code"
+                                      ReadOnly="true" Variant="Variant.Outlined"
+                                      Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Lock" />
+                    }
+                    else
+                    {
+                        <MudStack Row="true" Spacing="2" Class="align-center">
+                            <MudTextField T="string" Label="Custom Coupon Code (Optional)" @bind-Value="editModel.Code"
+                                          Variant="Variant.Outlined" Class="flex-grow-1"
+                                          Placeholder="e.g., SUMMER50" HelperText="Leave empty to auto-generate a unique ledger key" />
+                            <MudButton Variant="Variant.Outlined" Color="Color.Secondary" OnClick="GenerateCode"
+                                       StartIcon="@Icons.Material.Filled.Autorenew" Style="height: 56px; margin-bottom: 22px;">
+                                Generate
+                            </MudButton>
+                        </MudStack>
+                    }
+                </MudItem>
+
+                @* ==================== VALUE DEFINITION RULES ==================== *@
+                <MudItem xs="12" sm="6">
+                    <MudSelect T="string" Label="Discount Mechanism Type" @bind-Value="editModel.DiscountType"
+                               Required="true" Variant="Variant.Outlined" AnchorOrigin="Origin.BottomCenter">
+                        <MudSelectItem Value="@("FixedAmount")">💵 Fixed Cash Value reduction</MudSelectItem>
+                        <MudSelectItem Value="@("Percentage")">📈 Percentage Rate reduction</MudSelectItem>
+                    </MudSelect>
+                </MudItem>
+
+                <MudItem xs="12" sm="6">
+                    <MudNumericField T="decimal" Label="Discount Value" @bind-Value="editModel.DiscountValue"
+                                     Required="true" RequiredError="operational rule requires a numerical value"
+                                     Min="0.01m" Variant="Variant.Outlined" Format="N2"
+                                     Adornment="Adornment.Start"
+                                     AdornmentIcon="@(editModel.DiscountType == "FixedAmount" ? Icons.Material.Filled.AttachMoney : Icons.Material.Filled.Percent)" />
+                </MudItem>
+
+                @* ==================== CONSTRAINTS & LIMITATIONS ==================== *@
+                <MudItem xs="12" sm="6">
+                    <MudNumericField T="int?" Label="Total Usage Limit" @bind-Value="editModel.UsageLimit"
+                                     Min="0" Variant="Variant.Outlined" Placeholder="0 = Unlimited operational context"
+                                     HelperText="Maximum redemption count threshold" Adornment="Adornment.Start"
+                                     AdornmentIcon="@Icons.Material.Filled.DataUsage" />
+                </MudItem>
+
+                <MudItem xs="12" sm="6">
+                    <MudDatePicker Label="Validation Expiry Date" @bind-Date="editModel.ExpiryDate"
+                                   Required="true" RequiredError="Operational window boundary required"
+                                   Variant="Variant.Outlined" Editable="true" Placeholder="Select valid context window" />
+                </MudItem>
+
+                <MudItem xs="12">
+                    <MudTextField T="string" Label="Internal Ledger Description" @bind-Value="editModel.Description"
+                                  Variant="Variant.Outlined" Lines="2" Placeholder="Provide administrative notes for customer context on receipt layouts..." />
+                </MudItem>
+
+                @* ==================== METRICS TELEMETRY TRACKER ==================== *@
+                @if (IsEditMode && Coupon != null)
+                {
+                    <MudItem xs="12" Class="pt-0">
+                        <MudDivider Class="my-2" />
+                        <MudPaper Variant="Variant.Outlined" Class="pa-4" Style="background-color: var(--mud-palette-background-grey);">
+                            <MudStack Row="true" Spacing="4" Class="justify-space-around align-center">
+                                <MudStack Alignment="Alignment.Center" Spacing="0">
+                                    <MudText Typo="Typo.caption" Color="Color.Secondary">REDEMPTIONS COUNTER</MudText>
+                                    <MudText Typo="Typo.h5" Class="font-weight-bold">@Coupon.TimesUsed</MudText>
+                                </MudStack>
+                                <MudDivider Vertical="true" FlexItem="true" />
+                                <MudStack Alignment="Alignment.Center" Spacing="0">
+                                    <MudText Typo="Typo.caption" Color="Color.Secondary">OPERATIONAL THRESHOLD</MudText>
+                                    <MudText Typo="Typo.h5" Class="font-weight-bold">@(Coupon.UsageLimit.HasValue ? Coupon.UsageLimit.Value.ToString() : "∞ Unlimited")</MudText>
+                                </MudStack>
+                            </MudStack>
+                        </MudPaper>
+                    </MudItem>
+                }
+            </MudGrid>
         </MudForm>
     </DialogContent>
+
     <DialogActions>
-        <MudButton OnClick="Cancel">Cancel</MudButton>
-        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveCoupon" Disabled="!isFormValid">
-            Save
-        </MudButton>
+        <MudStack Row="true" Class="px-6 py-4 w-100 justify-end" Spacing="2">
+            <MudButton OnClick="Cancel" Variant="Variant.Text" Class="px-4">Discard Changes</MudButton>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveCoupon"
+                       Disabled="!isFormValid" StartIcon="@Icons.Material.Filled.Save" Class="px-6">
+                Commit Changes
+            </MudButton>
+        </MudStack>
     </DialogActions>
 </MudDialog>
 
@@ -97,13 +151,21 @@
 
     private void GenerateCode()
     {
-        editModel.Code = $"COUP{DateTime.UtcNow:yyyyMMdd}{Guid.NewGuid().ToString().Substring(0, 6).ToUpper()}";
+        // Generates structured context codes, e.g., ZEN-2026-X8B9R4
+        var randomToken = Guid.NewGuid().ToString().Replace("-", "").Substring(0, 6).ToUpper();
+        editModel.Code = $"ZEN-{DateTime.UtcNow:yyyy}-{randomToken}";
     }
 
     private async Task SaveCoupon()
     {
-        if (!isFormValid)
-            return;
+        await form.Validate();
+        if (!isFormValid) return;
+
+        // Force fallback layout checks to avoid null reference exceptions up-stream
+        if (string.IsNullOrWhiteSpace(editModel.Code))
+        {
+            GenerateCode();
+        }
 
         try
         {
@@ -135,7 +197,7 @@
         }
         catch (Exception ex)
         {
-            Snackbar.Add($"Error saving coupon: {ex.Message}", Severity.Error);
+            Snackbar.Add($"Error saving token context: {ex.Message}", Severity.Error);
         }
     }
 
@@ -144,7 +206,7 @@
     private class CouponEditModel
     {
         public string? Code { get; set; }
-        public string DiscountType { get; set; } = "Fixed";
+        public string DiscountType { get; set; } = "FixedAmount";
         public decimal DiscountValue { get; set; }
         public int? UsageLimit { get; set; }
         public DateTime? ExpiryDate { get; set; }

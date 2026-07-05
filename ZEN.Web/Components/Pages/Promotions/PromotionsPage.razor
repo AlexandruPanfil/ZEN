@@ -1,89 +1,287 @@
 @page "/promotions"
+@page "/marketing"
+
 @using PromotionServiceDto = ZEN.Application.Services.Interfaces.PromotionDto
+@using CouponServiceDto = ZEN.Application.Services.Interfaces.CouponDto
+@using DiscountServiceDto = ZEN.Application.Services.Interfaces.DiscountDto
+@using DiscountUpdateRequest = ZEN.Application.Services.Interfaces.UpdateDiscountRequest
 @using ZEN.Application.Services.Interfaces
+@using ZEN.Web.Components.Dialogs
 @using MudBlazor
+
 @inject IPromotionService PromotionService
+@inject ICouponService CouponService
 @inject IDiscountService DiscountService
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
 
-<PageTitle>Promotions</PageTitle>
+<PageTitle>Marketing Management</PageTitle>
 
-<MudContainer MaxWidth="MaxWidth.Large" Class="py-8">
-    <MudStack Spacing="4">
-        <MudStack Row="true" Class="justify-between align-center">
-            <MudText Typo="Typo.h4">Promotions & Campaigns</MudText>
-            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="OpenCreateDialog">
-                <MudIcon Icon="@Icons.Material.Filled.Add" Class="mr-2" />
-                New Promotion
-            </MudButton>
-        </MudStack>
+<MudContainer MaxWidth="MaxWidth.Large" Class="py-4">
+    <MudText Typo="Typo.h5" Class="mb-4 font-weight-bold">Marketing & Campaigns Dashboard</MudText>
 
-        <MudPaper Class="pa-4">
+    <MudTabs Outlined="true" Position="Position.Top" Rounded="true" Border="true" ApplyEffectsToContainer="true" Class="mt-2" PanelClass="pa-4">
+        
+        @* ==================== PROMOTIONS TAB ==================== *@
+        <MudTabPanel Text="Promotions" Icon="@Icons.Material.Filled.Campaign">
             <MudStack Spacing="3">
-                <MudStack Row="true" Spacing="2">
-                    <MudTextField T="string" Label="Search promotions..." 
-                                  @bind-Value="searchText" 
-                                  Variant="Variant.Outlined"
-                                  Adornment="Adornment.Start"
-                                  AdornmentIcon="@Icons.Material.Filled.Search"
-                                  Class="flex-grow-1" />
-                    <MudSelect T="string?" Label="Status" MultiSelection="false" 
-                              @bind-Value="filterStatus"
-                              Variant="Variant.Outlined">
-                        <MudSelectItem Value="@((string?)null)">All Statuses</MudSelectItem>
-                        <MudSelectItem Value="@("Draft")">Draft</MudSelectItem>
-                        <MudSelectItem Value="@("Active")">Active</MudSelectItem>
-                        <MudSelectItem Value="@("Scheduled")">Scheduled</MudSelectItem>
-                        <MudSelectItem Value="@("Completed")">Completed</MudSelectItem>
-                    </MudSelect>
-                    <MudCheckBox T="bool" @bind-Value="showArchived" Label="Show Archived" />
+                <MudStack Row="true" Class="justify-between align-center">
+                    <MudText Typo="Typo.subtitle1" Class="font-weight-bold">Promotions & Campaigns</MudText>
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" OnClick="OpenCreatePromotionDialog">
+                        <MudIcon Icon="@Icons.Material.Filled.Add" Size="Size.Small" Class="mr-1" />
+                        New Promotion
+                    </MudButton>
                 </MudStack>
-            </MudStack>
-        </MudPaper>
 
-        <MudTable T="PromotionServiceDto" Items="FilteredPromotions" Hover="true" Striped="true" Dense="false">
-            <HeaderContent>
-                <MudTh>Name</MudTh>
-                <MudTh>Status</MudTh>
-                <MudTh>Start Date</MudTh>
-                <MudTh>End Date</MudTh>
-                <MudTh>Discounts</MudTh>
-                <MudTh Style="text-align:right">Actions</MudTh>
-            </HeaderContent>
-            <RowTemplate>
-                <MudTd DataLabel="Name">@context.Name</MudTd>
-                <MudTd DataLabel="Status">
-                    <MudChip T="string" Size="Size.Small" Color="GetStatusColor(context.Status)">
-                        @context.Status
-                    </MudChip>
-                </MudTd>
-                <MudTd DataLabel="Start Date">@context.StartDate?.ToString("MMM dd, yyyy")</MudTd>
-                <MudTd DataLabel="End Date">@context.EndDate?.ToString("MMM dd, yyyy")</MudTd>
-                <MudTd DataLabel="Discounts">@context.DiscountIds?.Count ?? 0</MudTd>
-                <MudTd Style="text-align:right">
-                    <MudIconButton Icon="@Icons.Material.Filled.Edit" 
-                                  Size="Size.Small"
-                                  OnClick="@(() => OpenEditDialog(context))" />
-                    <MudIconButton Icon="@Icons.Material.Filled.Delete" 
-                                  Size="Size.Small"
-                                  Color="Color.Error"
-                                  OnClick="@(() => DeletePromotion(context))" />
-                </MudTd>
-            </RowTemplate>
-        </MudTable>
-    </MudStack>
+                <MudPaper Class="pa-2" Outlined="true">
+                    <MudStack Row="true" Spacing="2" Class="align-center">
+                        <MudTextField T="string" Label="Search promotions..." 
+                                      @bind-Value="promotionSearchText" 
+                                      Variant="Variant.Outlined"
+                                      Margin="Margin.Dense"
+                                      Adornment="Adornment.Start"
+                                      AdornmentIcon="@Icons.Material.Filled.Search"
+                                      Class="flex-grow-1" />
+                        <MudSelect T="string?" Label="Status" MultiSelection="false" 
+                                   @bind-Value="filterPromotionStatus"
+                                   Variant="Variant.Outlined" Margin="Margin.Dense" Style="min-width: 130px;">
+                            <MudSelectItem Value="@((string?)null)">All Statuses</MudSelectItem>
+                            <MudSelectItem Value="@("Draft")">Draft</MudSelectItem>
+                            <MudSelectItem Value="@("Active")">Active</MudSelectItem>
+                            <MudSelectItem Value="@("Scheduled")">Scheduled</MudSelectItem>
+                            <MudSelectItem Value="@("Completed")">Completed</MudSelectItem>
+                        </MudSelect>
+                        <MudCheckBox T="bool" @bind-Value="showArchivedPromotions" Label="Show Archived" Dense="true" Color="Color.Primary" />
+                    </MudStack>
+                </MudPaper>
+
+                <MudTable T="PromotionServiceDto" Items="FilteredPromotions" Hover="true" Striped="true" Dense="true">
+                    <HeaderContent>
+                        <MudTh><MudText Typo="Typo.body2" Class="font-weight-bold">Name</MudText></MudTh>
+                        <MudTh><MudText Typo="Typo.body2" Class="font-weight-bold">Status</MudText></MudTh>
+                        <MudTh><MudText Typo="Typo.body2" Class="font-weight-bold">Start Date</MudText></MudTh>
+                        <MudTh><MudText Typo="Typo.body2" Class="font-weight-bold">End Date</MudText></MudTh>
+                        <MudTh><MudText Typo="Typo.body2" Class="font-weight-bold">Discounts</MudText></MudTh>
+                        <MudTh Style="text-align:right"><MudText Typo="Typo.body2" Class="font-weight-bold">Actions</MudText></MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd DataLabel="Name"><MudText Typo="Typo.body2">@context.Name</MudText></MudTd>
+                        <MudTd DataLabel="Status">
+                            <MudChip T="string" Size="Size.Small" Color="GetPromotionStatusColor(context.Status)" Class="ma-0">
+                                @context.Status
+                            </MudChip>
+                        </MudTd>
+                        <MudTd DataLabel="Start Date"><MudText Typo="Typo.body2">@context.StartDate?.ToString("MMM dd, yyyy")</MudText></MudTd>
+                        <MudTd DataLabel="End Date"><MudText Typo="Typo.body2">@context.EndDate?.ToString("MMM dd, yyyy")</MudText></MudTd>
+                        <MudTd DataLabel="Discounts"><MudText Typo="Typo.body2">@((context.DiscountIds?.Count) ?? 0)</MudText></MudTd>
+                        <MudTd Style="text-align:right">
+                            <MudIconButton Icon="@Icons.Material.Filled.Edit" 
+                                           Size="Size.Small"
+                                           OnClick="@(() => OpenEditPromotionDialog(context))" />
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" 
+                                           Size="Size.Small"
+                                           Color="Color.Error"
+                                           OnClick="@(() => DeletePromotion(context))" />
+                        </MudTd>
+                    </RowTemplate>
+                </MudTable>
+            </MudStack>
+        </MudTabPanel>
+
+        @* ==================== COUPONS TAB ==================== *@
+        <MudTabPanel Text="Coupons" Icon="@Icons.Material.Filled.ConfirmationNumber">
+            <MudStack Spacing="3">
+                <MudStack Row="true" Class="justify-between align-center">
+                    <MudText Typo="Typo.subtitle1" Class="font-weight-bold">Coupon Codes</MudText>
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" OnClick="OpenCreateCouponDialog">
+                        <MudIcon Icon="@Icons.Material.Filled.Add" Size="Size.Small" Class="mr-1" />
+                        Generate Coupon
+                    </MudButton>
+                </MudStack>
+
+                <MudPaper Class="pa-2" Outlined="true">
+                    <MudStack Row="true" Spacing="2" Class="align-center">
+                        <MudTextField T="string" Label="Search by code..." 
+                                      @bind-Value="couponSearchText" 
+                                      Variant="Variant.Outlined"
+                                      Margin="Margin.Dense"
+                                      Adornment="Adornment.Start"
+                                      AdornmentIcon="@Icons.Material.Filled.Search"
+                                      Class="flex-grow-1" />
+                        <MudSelect T="string?" Label="Status" MultiSelection="false" 
+                                   @bind-Value="filterCouponStatus"
+                                   Variant="Variant.Outlined" Margin="Margin.Dense" Style="min-width: 130px;">
+                            <MudSelectItem Value="@((string?)null)">All Status</MudSelectItem>
+                            <MudSelectItem Value="@("Active")">Active</MudSelectItem>
+                            <MudSelectItem Value="@("Used")">Used</MudSelectItem>
+                            <MudSelectItem Value="@("Expired")">Expired</MudSelectItem>
+                        </MudSelect>
+                    </MudStack>
+                </MudPaper>
+
+                <MudTable T="CouponServiceDto" Items="FilteredCoupons" Hover="true" Striped="true" Dense="true">
+                    <HeaderContent>
+                        <MudTh><MudText Typo="Typo.body2" Class="font-weight-bold">Code</MudText></MudTh>
+                        <MudTh><MudText Typo="Typo.body2" Class="font-weight-bold">Discount Value</MudText></MudTh>
+                        <MudTh><MudText Typo="Typo.body2" Class="font-weight-bold">Limit</MudText></MudTh>
+                        <MudTh><MudText Typo="Typo.body2" Class="font-weight-bold">Used</MudText></MudTh>
+                        <MudTh><MudText Typo="Typo.body2" Class="font-weight-bold">Valid Until</MudText></MudTh>
+                        <MudTh><MudText Typo="Typo.body2" Class="font-weight-bold">Status</MudText></MudTh>
+                        <MudTh Style="text-align:right"><MudText Typo="Typo.body2" Class="font-weight-bold">Actions</MudText></MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd DataLabel="Code">
+                            <MudStack Row="true" Spacing="1" Class="align-center">
+                                <MudText Typo="Typo.body2" Class="font-weight-bold">@context.Code</MudText>
+                                <MudCopyToClipboard Text="@context.Code" Icon="@Icons.Material.Filled.ContentCopy" Size="Size.Small" />
+                            </MudStack>
+                        </MudTd>
+                        <MudTd DataLabel="Discount Value">
+                            <MudText Typo="Typo.body2">
+                                @if (context.DiscountType == "FixedAmount")
+                                {
+                                    <text>@context.DiscountValue$</text>
+                                }
+                                else
+                                {
+                                    <text>@context.DiscountValue%</text>
+                                }
+                            </MudText>
+                        </MudTd>
+                        <MudTd DataLabel="Limit"><MudText Typo="Typo.body2">@(context.UsageLimit ?? 0)</MudText></MudTd>
+                        <MudTd DataLabel="Used"><MudText Typo="Typo.body2">@context.TimesUsed</MudText></MudTd>
+                        <MudTd DataLabel="Valid Until"><MudText Typo="Typo.body2">@context.ExpiryDate.ToString("MMM dd, yyyy")</MudText></MudTd>
+                        <MudTd DataLabel="Status">
+                            <MudChip T="string" Size="Size.Small" Color="GetCouponStatusColor(GetCouponStatus(context))" Class="ma-0">
+                                @GetCouponStatus(context)
+                            </MudChip>
+                        </MudTd>
+                        <MudTd Style="text-align:right">
+                            <MudIconButton Icon="@Icons.Material.Filled.Edit" 
+                                           Size="Size.Small"
+                                           OnClick="@(() => OpenEditCouponDialog(context))" />
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" 
+                                           Size="Size.Small"
+                                           Color="Color.Error"
+                                           OnClick="@(() => DeleteCoupon(context))" />
+                        </MudTd>
+                    </RowTemplate>
+                </MudTable>
+            </MudStack>
+        </MudTabPanel>
+
+        @* ==================== DISCOUNTS TAB ==================== *@
+        <MudTabPanel Text="Discounts" Icon="@Icons.Material.Filled.LocalOffer">
+            <MudStack Spacing="3">
+                <MudStack Row="true" Class="justify-between align-center">
+                    <MudText Typo="Typo.subtitle1" Class="font-weight-bold">Discounts</MudText>
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" OnClick="OpenCreateDiscountDialog">
+                        <MudIcon Icon="@Icons.Material.Filled.Add" Size="Size.Small" Class="mr-1" />
+                        New Discount
+                    </MudButton>
+                </MudStack>
+
+                <MudPaper Class="pa-2" Outlined="true">
+                    <MudStack Row="true" Spacing="2" Class="align-center">
+                        <MudTextField T="string" Label="Search discounts..." 
+                                      @bind-Value="discountSearchText" 
+                                      Variant="Variant.Outlined"
+                                      Margin="Margin.Dense"
+                                      Adornment="Adornment.Start"
+                                      AdornmentIcon="@Icons.Material.Filled.Search"
+                                      Class="flex-grow-1" />
+                        <MudSelect T="string?" Label="Type" MultiSelection="false" 
+                                   @bind-Value="filterDiscountType"
+                                   Variant="Variant.Outlined" Margin="Margin.Dense" Style="min-width: 130px;">
+                            <MudSelectItem Value="@((string?)null)">All Types</MudSelectItem>
+                            <MudSelectItem Value="@("FixedAmount")">Fixed Amount</MudSelectItem>
+                            <MudSelectItem Value="@("Percentage")">Percentage</MudSelectItem>
+                            @* <MudSelectItem Value="@("Tiered")">Tiered</MudSelectItem> *@
+                        </MudSelect>
+                        <MudCheckBox T="bool" @bind-Value="showInactiveDiscounts" Label="Show Inactive" Dense="true" Color="Color.Primary" />
+                    </MudStack>
+                </MudPaper>
+
+                <MudTable T="DiscountServiceDto" Items="FilteredDiscounts" Hover="true" Striped="true" Dense="true">
+                    <HeaderContent>
+                        <MudTh><MudText Typo="Typo.body2" Class="font-weight-bold">Code</MudText></MudTh>
+                        <MudTh><MudText Typo="Typo.body2" Class="font-weight-bold">Description</MudText></MudTh>
+                        <MudTh><MudText Typo="Typo.body2" Class="font-weight-bold">Type</MudText></MudTh>
+                        <MudTh><MudText Typo="Typo.body2" Class="font-weight-bold">Value</MudText></MudTh>
+                        <MudTh><MudText Typo="Typo.body2" Class="font-weight-bold">Valid From</MudText></MudTh>
+                        <MudTh><MudText Typo="Typo.body2" Class="font-weight-bold">Valid To</MudText></MudTh>
+                        <MudTh><MudText Typo="Typo.body2" Class="font-weight-bold">Active</MudText></MudTh>
+                        <MudTh Style="text-align:right"><MudText Typo="Typo.body2" Class="font-weight-bold">Actions</MudText></MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd DataLabel="Code"><MudText Typo="Typo.body2">@context.Code</MudText></MudTd>
+                        <MudTd DataLabel="Description"><MudText Typo="Typo.body2">@context.Description</MudText></MudTd>
+                        <MudTd DataLabel="Type">
+                            <MudChip T="string" Size="Size.Small" Color="GetDiscountTypeColor(context.Type)" Class="ma-0">
+                                @GetDiscountTypeLabel(context.Type)
+                            </MudChip>
+                        </MudTd>
+                        <MudTd DataLabel="Value">
+                            <MudText Typo="Typo.body2">
+                                @if (context.Type == "FixedAmount")
+                                {
+                                    <text>@context.Value$</text>
+                                }
+                                else if (context.Type == "Percentage")
+                                {
+                                    <text>@context.Value%</text>
+                                }
+                                else
+                                {
+                                    <text>Tiered</text>
+                                }
+                            </MudText>
+                        </MudTd>
+                        <MudTd DataLabel="Valid From"><MudText Typo="Typo.body2">@context.ValidFrom?.ToString("MMM dd, yyyy")</MudText></MudTd>
+                        <MudTd DataLabel="Valid To"><MudText Typo="Typo.body2">@context.ValidTo?.ToString("MMM dd, yyyy")</MudText></MudTd>
+                        <MudTd DataLabel="Active">
+                            <MudSwitch T="bool" 
+                                       Checked="@context.IsActive"
+                                       CheckedChanged="@((bool value) => ToggleDiscountActive(context, value))"
+                                       Color="Color.Primary" Size="Size.Small" />
+                        </MudTd>
+                        <MudTd Style="text-align:right">
+                            <MudIconButton Icon="@Icons.Material.Filled.Edit" 
+                                           Size="Size.Small"
+                                           OnClick="@(() => OpenEditDiscountDialog(context))" />
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" 
+                                           Size="Size.Small"
+                                           Color="Color.Error"
+                                           OnClick="@(() => DeleteDiscount(context))" />
+                        </MudTd>
+                    </RowTemplate>
+                </MudTable>
+            </MudStack>
+        </MudTabPanel>
+    </MudTabs>
 </MudContainer>
 
 @code {
     private List<PromotionServiceDto> promotions = [];
-    private string searchText = "";
-    private string? filterStatus = null;
-    private bool showArchived = false;
+    private List<CouponServiceDto> coupons = [];
+    private List<DiscountServiceDto> discounts = [];
+
+    private string promotionSearchText = "";
+    private string? filterPromotionStatus = null;
+    private bool showArchivedPromotions = false;
+
+    private string couponSearchText = "";
+    private string? filterCouponStatus = null;
+
+    private string discountSearchText = "";
+    private string? filterDiscountType = null;
+    private bool showInactiveDiscounts = false;
 
     protected override async Task OnInitializedAsync()
     {
         await LoadPromotionsAsync();
+        await LoadCouponsAsync();
+        await LoadDiscountsAsync();
     }
 
     private async Task LoadPromotionsAsync()
@@ -99,16 +297,15 @@
         }
     }
 
-    private List<PromotionServiceDto> FilteredPromotions =>
-        promotions
-            .Where(p => (showArchived || !p.IsArchived) &&
-                       (string.IsNullOrEmpty(searchText) || 
-                        p.Name.Contains(searchText, StringComparison.OrdinalIgnoreCase)) &&
-                       (filterStatus == null || p.Status == filterStatus))
-            .OrderByDescending(p => p.StartDate)
-            .ToList();
+    private List<PromotionServiceDto> FilteredPromotions => promotions
+        .Where(p => (showArchivedPromotions || !p.IsArchived) &&
+                   (string.IsNullOrEmpty(promotionSearchText) || 
+                    p.Name.Contains(promotionSearchText, StringComparison.OrdinalIgnoreCase)) &&
+                   (filterPromotionStatus == null || p.Status == filterPromotionStatus))
+        .OrderByDescending(p => p.StartDate)
+        .ToList();
 
-    private async Task OpenCreateDialog()
+    private async Task OpenCreatePromotionDialog()
     {
         var parameters = new DialogParameters { };
         var dialog = await DialogService.ShowAsync<ZEN.Web.Components.Dialogs.PromotionEditDialog>("New Promotion", parameters);
@@ -121,7 +318,7 @@
         }
     }
 
-    private async Task OpenEditDialog(PromotionServiceDto promotion)
+    private async Task OpenEditPromotionDialog(PromotionServiceDto promotion)
     {
         var parameters = new DialogParameters { { "Promotion", promotion } };
         var dialog = await DialogService.ShowAsync<ZEN.Web.Components.Dialogs.PromotionEditDialog>("Edit Promotion", parameters);
@@ -160,13 +357,209 @@
         }
     }
 
-    private Color GetStatusColor(string status) =>
-        status switch
+    private Color GetPromotionStatusColor(string status) => status switch
+    {
+        "Draft" => Color.Default,
+        "Scheduled" => Color.Warning,
+        "Active" => Color.Success,
+        "Completed" => Color.Info,
+        _ => Color.Default
+    };
+
+    private async Task LoadCouponsAsync()
+    {
+        try
         {
-            "Draft" => Color.Default,
-            "Scheduled" => Color.Warning,
-            "Active" => Color.Success,
-            "Completed" => Color.Info,
-            _ => Color.Default
-        };
+            var allCoupons = await CouponService.GetAllAsync();
+            coupons = allCoupons.ToList();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error loading coupons: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private List<CouponServiceDto> FilteredCoupons => coupons
+        .Where(c => (string.IsNullOrEmpty(couponSearchText) || 
+                    c.Code.Contains(couponSearchText, StringComparison.OrdinalIgnoreCase)) &&
+                   (filterCouponStatus == null || GetCouponStatus(c) == filterCouponStatus))
+        .OrderByDescending(c => c.CreatedDate)
+        .ToList();
+
+    private async Task OpenCreateCouponDialog()
+    {
+        var parameters = new DialogParameters { };
+        var dialog = await DialogService.ShowAsync<ZEN.Web.Components.Dialogs.CouponEditDialog>("Generate New Coupon", parameters);
+        var result = await dialog.Result;
+
+        if (!result.Canceled && result.Data is CouponServiceDto newCoupon)
+        {
+            coupons.Add(newCoupon);
+            Snackbar.Add("Coupon created successfully", Severity.Success);
+        }
+    }
+
+    private async Task OpenEditCouponDialog(CouponServiceDto coupon)
+    {
+        var parameters = new DialogParameters { { "Coupon", coupon } };
+        var dialog = await DialogService.ShowAsync<ZEN.Web.Components.Dialogs.CouponEditDialog>("Edit Coupon", parameters);
+        var result = await dialog.Result;
+
+        if (!result.Canceled && result.Data is CouponServiceDto updated)
+        {
+            var index = coupons.FindIndex(c => c.Id == updated.Id);
+            if (index >= 0)
+            {
+                coupons[index] = updated;
+                Snackbar.Add("Coupon updated successfully", Severity.Success);
+            }
+        }
+    }
+
+    private async Task DeleteCoupon(CouponServiceDto coupon)
+    {
+        var confirmed = await DialogService.ShowAsync<ZEN.Shared.Components.Common.ConfirmDialog>(
+            "Delete Coupon",
+            new DialogParameters { { "Message", $"Delete coupon '{coupon.Code}'?" } });
+
+        var result = await confirmed.Result;
+        if (!result.Canceled)
+        {
+            try
+            {
+                await CouponService.DeleteAsync(coupon.Id);
+                coupons.Remove(coupon);
+                Snackbar.Add("Coupon deleted", Severity.Success);
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+            }
+        }
+    }
+
+    private string GetCouponStatus(CouponServiceDto coupon)
+    {
+        if (coupon.ExpiryDate < DateTime.UtcNow)
+            return "Expired";
+        if (coupon.UsageLimit.HasValue && coupon.TimesUsed >= coupon.UsageLimit)
+            return "Used";
+        return "Active";
+    }
+
+    private Color GetCouponStatusColor(string status) => status switch
+    {
+        "Active" => Color.Success,
+        "Used" => Color.Warning,
+        "Expired" => Color.Error,
+        _ => Color.Default
+    };
+
+    private async Task LoadDiscountsAsync()
+    {
+        try
+        {
+            var allDiscounts = await DiscountService.GetAllAsync();
+            discounts = allDiscounts.ToList();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error loading discounts: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private List<DiscountServiceDto> FilteredDiscounts => discounts
+        .Where(d => (showInactiveDiscounts || d.IsActive) &&
+                   (string.IsNullOrEmpty(discountSearchText) || 
+                    d.Code.Contains(discountSearchText, StringComparison.OrdinalIgnoreCase) ||
+                    (d.Description?.Contains(discountSearchText, StringComparison.OrdinalIgnoreCase) ?? false)) &&
+                   (filterDiscountType == null || d.Type == filterDiscountType))
+        .OrderByDescending(d => d.ValidFrom)
+        .ToList();
+
+    private async Task OpenCreateDiscountDialog()
+    {
+        var parameters = new DialogParameters { };
+        var dialog = await DialogService.ShowAsync<DiscountEditDialog>("New Discount", parameters);
+        var result = await dialog.Result;
+
+        if (!result.Canceled && result.Data is DiscountServiceDto newDiscount)
+        {
+            discounts.Add(newDiscount);
+            Snackbar.Add("Discount created successfully", Severity.Success);
+        }
+    }
+
+    private async Task OpenEditDiscountDialog(DiscountServiceDto discount)
+    {
+        var parameters = new DialogParameters { { "Discount", discount } };
+        var dialog = await DialogService.ShowAsync<DiscountEditDialog>("Edit Discount", parameters);
+        var result = await dialog.Result;
+
+        if (!result.Canceled && result.Data is DiscountServiceDto updated)
+        {
+            var index = discounts.FindIndex(d => d.Id == updated.Id);
+            if (index >= 0)
+            {
+                discounts[index] = updated;
+                Snackbar.Add("Discount updated successfully", Severity.Success);
+            }
+        }
+    }
+
+    private async Task ToggleDiscountActive(DiscountServiceDto discount, bool active)
+    {
+        try
+        {
+            var request = new DiscountUpdateRequest(discount.Id, discount.Code, discount.Description, 
+                discount.Type, discount.Value, discount.ValidFrom, discount.ValidTo, active, discount.Conditions);
+            var updated = await DiscountService.UpdateAsync(request);
+            var index = discounts.FindIndex(d => d.Id == updated.Id);
+            if (index >= 0)
+                discounts[index] = updated;
+            Snackbar.Add("Discount updated", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task DeleteDiscount(DiscountServiceDto discount)
+    {
+        var confirmed = await DialogService.ShowAsync<ZEN.Shared.Components.Common.ConfirmDialog>(
+            "Delete Discount",
+            new DialogParameters { { "Message", $"Delete discount '{discount.Code}'?" } });
+
+        var result = await confirmed.Result;
+        if (!result.Canceled)
+        {
+            try
+            {
+                await DiscountService.DeleteAsync(discount.Id);
+                discounts.Remove(discount);
+                Snackbar.Add("Discount deleted", Severity.Success);
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+            }
+        }
+    }
+
+    private Color GetDiscountTypeColor(string type) => type switch
+    {
+        "FixedAmount" => Color.Primary,
+        "Percentage" => Color.Warning,
+        // "Tiered" => Color.Info,
+        _ => Color.Default
+    };
+
+    private string GetDiscountTypeLabel(string type) => type switch
+    {
+        "FixedAmount" => "Fixed Amount",
+        "Percentage" => "Percentage",
+        // "Tiered" => "Tiered",
+        _ => type
+    };
 }

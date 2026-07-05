@@ -4,67 +4,122 @@
 @using PromotionUpdateRequest = ZEN.Application.Services.Interfaces.UpdatePromotionRequest
 @using ZEN.Application.Services.Interfaces
 @using MudBlazor
+
 @inject IPromotionService PromotionService
 @inject IDiscountService DiscountService
 @inject ISnackbar Snackbar
 
 <MudDialog>
+    <TitleContent>
+        <MudStack Row="true" Spacing="2" Class="align-center">
+            <MudIcon Icon="@(Promotion == null ? Icons.Material.Filled.Campaign : Icons.Material.Filled.EditCalendar)"
+                     Color="Color.Primary" Size="Size.Large" />
+            <MudStack Spacing="0">
+                <MudText Typo="Typo.h6">@(Promotion == null ? "Create New Promotion" : "Modify Campaign Setup")</MudText>
+                @if (Promotion != null)
+                {
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">System Campaign ID: @Promotion.Id</MudText>
+                }
+            </MudStack>
+        </MudStack>
+    </TitleContent>
+
     <DialogContent>
         <MudForm @ref="form" @bind-IsValid="isFormValid">
-            <MudStack Spacing="3">
-                <MudTextField T="string" Label="Name" @bind-Value="editModel.Name" 
-                             Required="true" RequiredError="Name is required"
-                             Variant="Variant.Outlined" />
+            <MudGrid Spacing="3" Class="py-2">
 
-                <MudTextField T="string" Label="Description" @bind-Value="editModel.Description"
-                             Variant="Variant.Outlined" Lines="3" />
+                @* ==================== CORE METADATA SECTION ==================== *@
+                <MudItem xs="12">
+                    <MudTextField T="string" Label="Promotion Name" @bind-Value="editModel.Name"
+                                  Required="true" RequiredError="Campaign identity name is required"
+                                  Variant="Variant.Outlined" Placeholder="e.g., Anniversary Weekend Super Sale"
+                                  Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Assignment" />
+                </MudItem>
 
-                <MudDatePicker Label="Start Date" @bind-Date="editModel.StartDate"
-                              Required="true" Variant="Variant.Outlined" />
+                <MudItem xs="12">
+                    <MudTextField T="string" Label="Description" @bind-Value="editModel.Description"
+                                  Variant="Variant.Outlined" Lines="2" Placeholder="Provide context displayed on retail outlets or receipts..." />
+                </MudItem>
 
-                <MudDatePicker Label="End Date" @bind-Date="editModel.EndDate"
-                              Variant="Variant.Outlined" />
+                @* ==================== STATUS & TIMELINE ==================== *@
+                <MudItem xs="12" sm="6">
+                    <MudSelect T="string" Label="Workflow Status" @bind-Value="editModel.Status"
+                               Variant="Variant.Outlined" AnchorOrigin="Origin.BottomCenter" Required="true">
+                        <MudSelectItem Value="@("Draft")">📝 Draft Setup</MudSelectItem>
+                        <MudSelectItem Value="@("Scheduled")">📅 Scheduled Sync</MudSelectItem>
+                        <MudSelectItem Value="@("Active")">⚡ Live Active</MudSelectItem>
+                        <MudSelectItem Value="@("Completed")">🏁 Completed</MudSelectItem>
+                    </MudSelect>
+                </MudItem>
 
-                <MudSelect T="string" Label="Status" @bind-Value="editModel.Status"
-                          Variant="Variant.Outlined">
-                    <MudSelectItem Value="@("Draft")">Draft</MudSelectItem>
-                    <MudSelectItem Value="@("Scheduled")">Scheduled</MudSelectItem>
-                    <MudSelectItem Value="@("Active")">Active</MudSelectItem>
-                    <MudSelectItem Value="@("Completed")">Completed</MudSelectItem>
-                </MudSelect>
+                <MudItem xs="12" sm="6">
+                    <MudStack Row="true" Spacing="2">
+                        <MudDatePicker Label="Start Date" @bind-Date="editModel.StartDate" Required="true" Variant="Variant.Outlined" Editable="true" />
+                        <MudDatePicker Label="End Date" @bind-Date="editModel.EndDate" Variant="Variant.Outlined" Clearable="true" Editable="true" />
+                    </MudStack>
+                </MudItem>
 
-                <MudDivider />
+                @* ==================== MAPPED ARCHITECTURAL RULES ==================== *@
+                <MudItem xs="12">
+                    <MudDivider Class="my-2" />
+                    <MudStack Row="true" Class="justify-space-between align-center mb-2">
+                        <MudText Typo="Typo.subtitle2" Color="Color.Primary">
+                            <MudIcon Icon="@Icons.Material.Filled.LocalOffer" Size="Size.Small" Class="mr-1 vertical-align-middle" />
+                            Targeted Rules Configuration
+                        </MudText>
+                        <MudChip T="string" Color="Color.Info" Size="Size.Small" Variant="Variant.Text">
+                            @editModel.DiscountIds.Count rules mapped
+                        </MudChip>
+                    </MudStack>
 
-                <MudText Typo="Typo.subtitle2">Associated Discounts</MudText>
+                    @if (availableDiscounts.Any())
+                    {
+                        <MudPaper Outlined="true" Class="pa-2" Style="max-height: 220px; overflow-y: auto; background-color: var(--mud-palette-background-grey);">
+                            @foreach (var discount in availableDiscounts)
+                            {
+                                var currentId = discount.Id;
+                                var isChecked = editModel.DiscountIds.Contains(currentId);
 
-                @if (availableDiscounts.Any())
+                                <MudCheckBox T="bool"
+                                             Value="@isChecked"
+                                             ValueChanged="@((bool selected) => ToggleDiscount(currentId, selected))"
+                                             Color="Color.Primary"
+                                             Dense="true"
+                                             Class="pa-2 my-1 d-flex align-center rounded hover-lighten"
+                                             Label="@($"{discount.Code} • {discount.Description ?? "No description template assigned"}")" />
+                            }
+                        </MudPaper>
+                    }
+                    else
+                    {
+                        <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Dense="true" Class="mt-1">
+                            No available active discounts found. Generate a discount template rule first.
+                        </MudAlert>
+                    }
+                </MudItem>
+
+                @* ==================== ARCHIVE CONTROLS ==================== *@
+                @if (Promotion != null)
                 {
-                    <MudGrid>
-                        @foreach (var discount in availableDiscounts)
-                        {
-                            <MudItem xs="12">
-                                <MudCheckBox T="bool" 
-                                           Checked="@editModel.DiscountIds.Contains(discount.Id)"
-                                           CheckedChanged="@((bool selected) => ToggleDiscount(discount.Id, selected))"
-                                           Label="@($"{discount.Code} - {discount.Description}")" />
-                            </MudItem>
-                        }
-                    </MudGrid>
+                    <MudItem xs="12" Class="pt-0">
+                        <MudPaper Class="pa-3 border-dashed border-mud-error" Style="background-color: rgba(255,0,0,0.03);" Outlined="true">
+                            <MudCheckBox T="bool" @bind-Value="editModel.IsArchived" Color="Color.Error"
+                                         Label="Archive this campaign (Instantly hide from all retail outlet and POS registers)" />
+                        </MudPaper>
+                    </MudItem>
                 }
-                else
-                {
-                    <MudText Typo="Typo.body2" Color="Color.Secondary">No discounts available</MudText>
-                }
-
-                <MudCheckBox T="bool" @bind-Value="editModel.IsArchived" Label="Archive Promotion" />
-            </MudStack>
+            </MudGrid>
         </MudForm>
     </DialogContent>
+
     <DialogActions>
-        <MudButton OnClick="Cancel">Cancel</MudButton>
-        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SavePromotion" Disabled="!isFormValid">
-            Save
-        </MudButton>
+        <MudStack Row="true" Class="px-6 py-4 w-100 justify-end" Spacing="2">
+            <MudButton OnClick="Cancel" Variant="Variant.Text" Class="px-4">Discard Changes</MudButton>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SavePromotion"
+                       Disabled="!isFormValid" StartIcon="@Icons.Material.Filled.CloudUpload" Class="px-6">
+                Commit Strategy
+            </MudButton>
+        </MudStack>
     </DialogActions>
 </MudDialog>
 
@@ -79,7 +134,16 @@
 
     protected override async Task OnInitializedAsync()
     {
-        availableDiscounts = (await DiscountService.GetActiveAsync()).ToList();
+        try
+        {
+            // Fully evaluate immediately inside separate call logic execution thread frame
+            var result = await DiscountService.GetActiveAsync();
+            availableDiscounts = result?.ToList() ?? new List<PromotionDiscountDto>();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Infrastructure trace warning: {ex.Message}", Severity.Warning);
+        }
 
         if (Promotion is not null)
         {
@@ -97,21 +161,31 @@
         else
         {
             editModel.StartDate = DateTime.Today;
+            editModel.EndDate = DateTime.Today.AddMonths(1);
+            editModel.Status = "Draft";
+            editModel.IsArchived = false;
         }
     }
 
     private void ToggleDiscount(Guid discountId, bool selected)
     {
-        if (selected && !editModel.DiscountIds.Contains(discountId))
-            editModel.DiscountIds.Add(discountId);
-        else if (!selected)
+        if (selected)
+        {
+            if (!editModel.DiscountIds.Contains(discountId))
+            {
+                editModel.DiscountIds.Add(discountId);
+            }
+        }
+        else
+        {
             editModel.DiscountIds.Remove(discountId);
+        }
     }
 
     private async Task SavePromotion()
     {
-        if (!isFormValid)
-            return;
+        await form.Validate();
+        if (!isFormValid) return;
 
         try
         {
@@ -125,6 +199,7 @@
                     editModel.EndDate,
                     editModel.Status,
                     editModel.DiscountIds);
+
                 result = await PromotionService.CreateAsync(request);
             }
             else
@@ -138,6 +213,7 @@
                     editModel.Status,
                     editModel.DiscountIds,
                     editModel.IsArchived);
+
                 result = await PromotionService.UpdateAsync(request);
             }
 
@@ -145,7 +221,7 @@
         }
         catch (Exception ex)
         {
-            Snackbar.Add($"Error saving promotion: {ex.Message}", Severity.Error);
+            Snackbar.Add($"Error saving ruleset configuration engine: {ex.Message}", Severity.Error);
         }
     }
 
