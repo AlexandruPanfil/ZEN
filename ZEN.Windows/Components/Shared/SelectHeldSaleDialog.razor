@@ -1,0 +1,91 @@
+@using System.Text.Json
+@using MudBlazor
+@using ZEN.Application.DTOs.Sales
+@* @using MudBlazor.Dialog *@
+
+<MudDialog>
+    <TitleContent>
+        <div class="d-flex align-items-center">
+            <MudIcon Icon="@Icons.Material.Filled.History" Size="Size.Medium" />
+            <span class="ml-2">Select Held Sale to Resume</span>
+        </div>
+    </TitleContent>
+    <DialogContent>
+        @if (HeldSales == null || !HeldSales.Any())
+        {
+            <p>No held sales available.</p>
+        }
+        else
+        {
+            <MudSimpleTable>
+                <thead>
+                    <tr>
+                        <th>Held At</th>
+                        <th>Customer</th>
+                        <th>Items</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var heldSale in HeldSales)
+                    {
+                        <tr @onclick="() => SelectSale(heldSale)" style="cursor:pointer;">
+                            <td>@heldSale.HeldAt.ToLocalTime():g</td>
+                            <td>@(heldSale.CustomerName != null ? heldSale.CustomerName : "Walk-in")</td>
+                            <td>
+                                @try
+                                {
+                                    var items = JsonSerializer.Deserialize<List<HeldSaleItemDto>>(heldSale.SerializedItems);
+                                    // Wrapping the output in a fragment or explicit text syntax
+                                    @:@(items?.Count ?? 0) items
+                                }
+                                catch
+                                {
+                                    @:Invalid data
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </MudSimpleTable>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" Color="Color.Error" OnClick="Cancel">
+            Cancel
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [Parameter]
+    public List<HeldSaleDto> HeldSales { get; set; } = new();
+
+    [Parameter]
+    public EventCallback<HeldSaleDto> OnSelected { get; set; }
+
+    [CascadingParameter]
+    private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    private class HeldSaleItemDto
+    {
+        public Guid ProductId { get; set; }
+        public decimal Quantity { get; set; }
+        public decimal UnitPrice { get; set; }
+        public decimal Discount { get; set; }
+        public decimal TaxRate { get; set; }
+    }
+
+    private void SelectSale(HeldSaleDto heldSale)
+    {
+        MudDialog.Close(DialogResult.Ok(heldSale));
+        if (OnSelected.HasDelegate)
+        {
+            _ = OnSelected.InvokeAsync(heldSale); // Fire and forget
+        }
+    }
+
+    private void Cancel()
+    {
+        MudDialog.Close(DialogResult.Cancel());
+    }
+}

@@ -1,13 +1,554 @@
 @page "/sell"
 @inject ZEN.Windows.Services.PosAuthState PosAuthState
+@inject IProductService ProductService
+@inject ISaleService SaleService
+@inject IStoreContext StoreContext
+@inject IShiftService ShiftService
+@inject ITaxService TaxService
+@inject AuthenticationStateProvider AuthStateProvider
+@inject ISnackbar Snackbar
+@inject MudBlazor.IDialogService DialogService
 
-<h1>Sell</h1>
+@using System.Text.Json
+@using System.Security.Claims
+@using ZEN.Application.DTOs.Products
+@using ZEN.Application.DTOs.Sales
+@using ZEN.Domain.Enums
+@using Microsoft.AspNetCore.Components.Authorization
+@using MudBlazor
+@* @using MudBlazor.Dialog *@
+@using MudBlazor
+@using ZEN.Windows.Components.Shared
 
-@if (!PosAuthState.IsAuthenticated)
-{
-    <p>Please login first.</p>
-}
-else
-{
-    <p>POS selling screen for cashier/admin.</p>
+<PageTitle>Point of Sale - ZEN POS</PageTitle>
+
+<AuthorizeView Context="authContext">
+    <Authorized>
+        <MudPaper Class="pa-4" Elevation="4">
+            <div class="d-flex align-items-center mb-4">
+                <MudText Typo="Typo.h5">Point of Sale</MudText>
+                <MudSpacer />
+                <MudText Typo="Typo.body2">User: @authContext.User.Identity?.Name ?? "Unknown"</MudText>
+            </div>
+
+            <MudGrid>
+                <MudItem xs="12" sm="6" md="4">
+                    <MudPaper Elevation="1" Class="pa-3">
+                        <MudText Typo="Typo.h6">Product Search</MudText>
+                        <MudTextField @bind-Value="SearchText"
+                                      Label="Search by name or barcode"
+                                      Adornment="Adornment.Start"
+                                      AdornmentIcon="@Icons.Material.Filled.Search"
+                                      IconSize="Size.Small"
+                                      Immediate=true
+                                      @onkeypress="HandleSearchKeyPress"
+                                      Variant="Variant.Filled" />
+                        <MudList T="ProductDto">
+                            @if (SearchResults == null)
+                            {
+                                <myp>Type to search...</myp>
+                            }
+                            else if (SearchResults.Count == 0)
+                            {
+                                <myp>No products found.</myp>
+                            }
+                            else
+                            {
+                                @foreach (var product in SearchResults)
+                                {
+                                    <MudListItem T="ProductDto" @onclick="() => AddToCart(product)" Dense="true"
+                                                 Text="@product.Name"
+                                                 SecondaryText="@product.SalePrice.ToString("C")" />
+                                }
+                            }
+                        </MudList>
+                    </MudPaper>
+                </MudItem>
+
+                <MudItem xs="12" sm="6" md="5">
+                    <MudPaper Elevation="1" Class="pa-3">
+                        <MudText Typo="Typo.h6">Cart</MudText>
+                        @if (Cart == null || Cart.Count == 0)
+                        {
+                            <MudText Typo="Typo.body2">Your cart is empty.</MudText>
+                        }
+                        else
+                        {
+                            <MudTable Items="Cart" Hover="true">
+                                <HeaderContent>
+                                    <MudTh>Product</MudTh>
+                                    <MudTh>Qty</MudTh>
+                                    <MudTh>Price</MudTh>
+                                    <MudTh>Discount</MudTh>
+                                    <MudTh>Tax</MudTh>
+                                    <MudTh>Total</MudTh>
+                                    <MudTh></MudTh>
+                                </HeaderContent>
+                                <RowTemplate Context="cartItem">
+                                    <MudTd>
+                                        <MudText>@cartItem.Product.Name</MudText>
+                                    </MudTd>
+                                    <MudTd>
+                                        <MudNumericField T="decimal" @bind-Value="cartItem.Quantity"
+                                                         Format="N2"
+                                                         Min="0.01m"
+                                                         Step="0.01m"
+                                                         @onchange="async (e) => await UpdateQuantity(cartItem, e.Value as decimal?)"
+                                                         Style="width: 80px;" />
+                                    </MudTd>
+                                    <MudTd>
+                                        <MudText>@cartItem.UnitPrice.ToString("C")</MudText>
+                                    </MudTd>
+                                    <MudTd>
+                                        <MudNumericField T="decimal" @bind-Value="cartItem.Discount"
+                                                         Format="N2"
+                                                         Min="0m"
+                                                         Step="0.01m"
+                                                         @onchange="async (e) => await UpdateDiscount(cartItem, e.Value as decimal?)"
+                                                         Style="width: 80px;" />
+                                    </MudTd>
+                                    <MudTd>
+                                        <MudText>@cartItem.TaxRate.ToString("F1")%</MudText>
+                                    </MudTd>
+                                    <MudTd>
+                                        <MudText>@cartItem.LineTotal.ToString("C")</MudText>
+                                    </MudTd>
+                                    <MudTd>
+                                        <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                                     Color="Color.Error"
+                                                     Size="Size.Small"
+                                                     OnClick="() => RemoveFromCart(cartItem)" />
+                                    </MudTd>
+                                </RowTemplate>
+                            </MudTable>
+                        }
+                    </MudPaper>
+                </MudItem>
+
+                <MudItem xs="12" sm="12" md="3">
+                    <MudPaper Elevation="1" Class="pa-3">
+                        <MudText Typo="Typo.h6">Order Summary</MudText>
+                        <MudTable Items="SummaryRows" HideHeaders="true">
+                            <RowTemplate>
+                                @{
+                                    var row = (SummaryRow)context;
+                                    var labelClass = row.IsBold ? "font-weight-bold" : "";
+                                    var valueClass = "text-right " + (row.IsBold ? "font-weight-bold" : "");
+                                }
+                                <MudTd Class="@labelClass">@row.Label</MudTd>
+                                <MudTd Class="@valueClass">@row.Value</MudTd>
+                            </RowTemplate>
+                        </MudTable>
+
+                        <MudDivider Class="my-4" />
+
+                        <MudText Typo="Typo.subtitle2">Payment</MudText>
+                        <MudSelect T="PaymentMethod" Label="Payment Method"
+                                   @bind-Value="SelectedPaymentMethod">
+                            @foreach (PaymentMethod method in Enum.GetValues(typeof(PaymentMethod)))
+                            {
+                                <MudItem Value="method">@method.ToString()</MudItem>
+                            }
+                        </MudSelect>
+                        <MudTextField Label="Amount Received"
+                                      @bind-Value="AmountReceivedString"
+                                      Type="Type.Number"
+                                      InputType="InputType.Number"
+                                      @onchange="CalculateChange"
+                                      Variant="Variant.Filled" />
+                        <MudText Label="Change Due:" Class="text-right">
+                            @ChangeDue.ToString("C")
+                        </MudText>
+
+                        <MudDivider Class="my-4" />
+
+                        <MudGrid>
+                            <MudItem xs="6">
+                                <MudButton Variant="Variant.Text" Color="Color.Error"
+                                           StartIcon="@Icons.Material.Filled.Undo"
+                                           OnClick="ClearCart">
+                                    New Sale
+                                </MudButton>
+                            </MudItem>
+                            <MudItem xs="6">
+                                <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                                           StartIcon="@Icons.Material.Filled.Check"
+                                           Disable="@(Cart == null || Cart.Count == 0 || AmountReceived < TotalAmount)"
+                                           OnClick="ProcessPayment">
+                                    Pay
+                                </MudButton>
+                            </MudItem>
+                        </MudGrid>
+
+                        <MudDivider Class="my-4" />
+
+                        <MudGrid>
+                            <MudItem xs="6">
+                                <MudButton Variant="Variant.Text" Color="Color.Info"
+                                           StartIcon="@Icons.Material.Filled.Save"
+                                           OnClick="HoldSale">
+                                    Hold Sale
+                                </MudButton>
+                            </MudItem>
+                            <MudItem xs="6">
+                                <MudButton Variant="Variant.Text" Color="Color.Warning"
+                                           StartIcon="@Icons.Material.Filled.Restore"
+                                           OnClick="ResumeSale">
+                                    Resume Sale
+                                </MudButton>
+                            </MudItem>
+                        </MudGrid>
+                    </MudPaper>
+                </MudItem>
+            </MudGrid>
+        </MudPaper>
+    </Authorized>
+    <NotAuthorized>
+        <MudText Typo="Typo.h5">You are not authorized to access the POS.</MudText>
+    </NotAuthorized>
+</AuthorizeView>
+
+@code {
+    private string? SearchText = "";
+    private List<ProductDto>? SearchResults;
+    private List<CartItem> Cart = new();
+    private ClaimsPrincipal? _user;
+    private PaymentMethod SelectedPaymentMethod = PaymentMethod.Cash;
+    private string AmountReceivedString = "";
+    private decimal AmountReceived => decimal.TryParse(AmountReceivedString, out var amount) ? amount : 0m;
+
+    private decimal Subtotal => Cart.Sum(item => item.Quantity * item.UnitPrice);
+    private decimal DiscountAmount => Cart.Sum(item => item.Quantity * item.Discount);
+    private decimal TaxAmount => Cart.Sum(item => (item.Quantity * item.UnitPrice - item.Quantity * item.Discount) * (item.TaxRate / 100m));
+    private decimal TotalAmount => Subtotal - DiscountAmount + TaxAmount;
+    private decimal ChangeDue => Math.Max(0, AmountReceived - TotalAmount);
+
+    private class SummaryRow
+    {
+        public string Label { get; set; }
+        public string Value { get; set; }
+        public bool IsBold { get; set; }
+    }
+
+    private IEnumerable<SummaryRow> SummaryRows => new List<SummaryRow>
+    {
+        new SummaryRow { Label = "Subtotal:", Value = Subtotal.ToString("C"), IsBold = false },
+        new SummaryRow { Label = "Discount:", Value = DiscountAmount.ToString("C"), IsBold = false },
+        new SummaryRow { Label = "Tax:", Value = TaxAmount.ToString("C"), IsBold = false },
+        new SummaryRow { Label = "Total:", Value = TotalAmount.ToString("C"), IsBold = true }
+    };
+
+    private class CartItem
+    {
+        public ProductDto Product { get; set; } = default!;
+        public decimal Quantity { get; set; } = 1m;
+        public decimal UnitPrice { get; set; }
+        public decimal Discount { get; set; } // discount per unit
+        public decimal TaxRate { get; set; } // tax rate as percentage (e.g., 21 for 21%)
+
+        public decimal LineTotal => (Quantity * UnitPrice - Quantity * Discount) * (1 + TaxRate / 100m);
+    }
+
+    private class HeldSaleItemDto
+    {
+        public Guid ProductId { get; set; }
+        public decimal Quantity { get; set; }
+        public decimal UnitPrice { get; set; }
+        public decimal Discount { get; set; }
+        public decimal TaxRate { get; set; }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        _user = authState.User;
+    }
+
+    private async Task HandleSearchKeyPress(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await SearchProducts();
+        }
+    }
+
+    private async Task SearchProducts()
+    {
+        if (string.IsNullOrWhiteSpace(SearchText))
+        {
+            SearchResults = new List<ProductDto>();
+            return;
+        }
+
+        try
+        {
+            SearchResults = (await ProductService.SearchAsync(SearchText.Trim())).ToList();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error searching products: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task AddToCart(ProductDto product)
+    {
+        decimal taxRate = 0m;
+        if (product.TaxId.HasValue)
+        {
+            try
+            {
+                var taxDto = await TaxService.GetByIdAsync(product.TaxId.Value);
+                taxRate = taxDto.Rate;
+            }
+            catch (Exception ex)
+            {
+                // Log error but continue with default tax rate 0
+                Snackbar.Add($"Error getting tax rate: {ex.Message}", Severity.Warning);
+            }
+        }
+
+        var cartItem = new CartItem
+        {
+            Product = product,
+            UnitPrice = product.SalePrice,
+            TaxRate = taxRate
+        };
+
+        Cart.Add(cartItem);
+        StateHasChanged();
+    }
+
+    private async Task UpdateQuantity(CartItem item, decimal? newQuantity)
+    {
+        if (newQuantity.HasValue && newQuantity.Value > 0)
+        {
+            item.Quantity = newQuantity.Value;
+            StateHasChanged();
+        }
+        else
+        {
+            // Remove item if quantity is zero or negative
+            await RemoveFromCart(item);
+        }
+    }
+
+    private async Task UpdateDiscount(CartItem item, decimal? newDiscount)
+    {
+        if (newDiscount.HasValue && newDiscount >= 0)
+        {
+            item.Discount = newDiscount.Value;
+            StateHasChanged();
+        }
+    }
+
+    private async Task RemoveFromCart(CartItem item)
+    {
+        Cart.Remove(item);
+        StateHasChanged();
+    }
+
+    private void ClearCart()
+    {
+        Cart.Clear();
+        StateHasChanged();
+    }
+
+    private async Task HoldSale()
+    {
+        if (Cart == null || Cart.Count == 0)
+        {
+            Snackbar.Add("Cart is empty. Cannot hold an empty sale.", Severity.Warning);
+            return;
+        }
+
+        try
+        {
+            var storeId = StoreContext.GetCurrentStoreId();
+            if (!storeId.HasValue)
+            {
+                Snackbar.Add("No store selected. Please set a store first.", Severity.Error);
+                return;
+            }
+
+            var heldSaleRequest = new HoldSaleRequest(
+                storeId.Value,
+                null, // TODO: Get customer if selected
+                JsonSerializer.Serialize(Cart.Select(item => new
+                {
+                    ProductId = item.Product.Id,
+                    Quantity = item.Quantity,
+                    UnitPrice = item.UnitPrice,
+                    Discount = item.Discount,
+                    TaxRate = item.TaxRate
+                }))
+            );
+
+            var heldSale = await SaleService.HoldSaleAsync(heldSaleRequest);
+            Snackbar.Add($"Sale held successfully. Hold ID: {heldSale.Id}", Severity.Success);
+            ClearCart();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error holding sale: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task ResumeSale()
+    {
+        try
+        {
+            var storeId = StoreContext.GetCurrentStoreId();
+            if (!storeId.HasValue)
+            {
+                Snackbar.Add("No store selected. Please set a store first.", Severity.Error);
+                return;
+            }
+
+            var heldSales = await SaleService.GetHeldSalesAsync(storeId.Value);
+            if (heldSales == null || !heldSales.Any())
+            {
+                Snackbar.Add("No held sales found for this store.", Severity.Info);
+                return;
+            }
+
+            // Show dialog to select held sale
+            var parameters = new DialogParameters();
+            parameters.Add(nameof(SelectHeldSaleDialog.HeldSales), heldSales.ToList());
+
+            // --- FIX HERE: Add await to unwrap the Task<IDialogReference> ---
+            var dialog = await DialogService.ShowAsync<SelectHeldSaleDialog>("Resume Sale", parameters);
+            var result = await dialog.Result;
+
+            if (!result.Canceled && result.Data is HeldSaleDto selectedHeldSale)
+            {
+                // Deserialize the items and add to cart
+                try
+                {
+                    var heldItems = JsonSerializer.Deserialize<List<HeldSaleItemDto>>(selectedHeldSale.SerializedItems);
+                    if (heldItems != null)
+                    {
+                        Cart.Clear();
+                        foreach (var item in heldItems)
+                        {
+                            // Get product details
+                            var productDto = await ProductService.GetByIdAsync(item.ProductId);
+                            if (productDto != null)
+                            {
+                                var cartItem = new CartItem
+                                {
+                                    Product = productDto,
+                                    Quantity = item.Quantity,
+                                    UnitPrice = item.UnitPrice,
+                                    Discount = item.Discount,
+                                    TaxRate = item.TaxRate
+                                };
+                                Cart.Add(cartItem);
+                            }
+                        }
+                        StateHasChanged();
+                        Snackbar.Add($"Sale resumed successfully. Held at: {selectedHeldSale.HeldAt:g}", Severity.Success);
+                    }
+                    else
+                    {
+                        Snackbar.Add("Failed to parse held sale items.", Severity.Error);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Snackbar.Add($"Error resuming sale: {ex.Message}", Severity.Error);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error loading held sales: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task ProcessPayment()
+    {
+        if (Cart == null || Cart.Count == 0)
+        {
+            Snackbar.Add("Cart is empty. Cannot process payment.", Severity.Warning);
+            return;
+        }
+
+        if (AmountReceived < TotalAmount)
+        {
+            Snackbar.Add("Amount received is less than total amount due.", Severity.Warning);
+            return;
+        }
+
+        try
+        {
+            var storeId = StoreContext.GetCurrentStoreId();
+            if (!storeId.HasValue)
+            {
+                Snackbar.Add("No store selected. Please set a store first.", Severity.Error);
+                return;
+            }
+
+            var shiftId = await GetCurrentShiftAsync(storeId.Value);
+            if (!shiftId.HasValue)
+            {
+                Snackbar.Add("No active shift for the current store. Please open a shift first.", Severity.Error);
+                return;
+            }
+
+            var createSaleRequest = new CreateSaleRequest(
+                null, // CustomerId
+                storeId.Value, // StoreId
+                shiftId.Value, // ShiftId
+                Cart.Select(item => new CreateSaleItemRequest(
+                    item.Product.Id, // ProductId
+                    item.Quantity, // Quantity
+                    item.UnitPrice, // UnitPrice
+                    item.Discount, // Discount
+                    item.TaxRate // TaxRate
+                )),
+                new List<CreateSalePaymentRequest>
+                {
+                    new CreateSalePaymentRequest(
+                        SelectedPaymentMethod, // Method
+                        AmountReceived // Amount
+                    )
+                },
+                0 // LoyaltyPointsRedeemed
+            );
+
+            var sale = await SaleService.CreateSaleAsync(createSaleRequest);
+            Snackbar.Add($"Sale completed successfully. Sale ID: {sale.Id}", Severity.Success);
+
+            // Print receipt (optional)
+            // TODO: Implement receipt printing
+
+            ClearCart();
+            AmountReceivedString = "";
+            SelectedPaymentMethod = PaymentMethod.Cash;
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error processing payment: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private void CalculateChange()
+    {
+        // This method is called when the AmountReceivedString changes.
+        // We don't need to do anything here because AmountReceived is computed from AmountReceivedString.
+        // The UI will update automatically due to the @bind-Value on the text field.
+    }
+
+    private async Task<Guid?> GetCurrentShiftAsync(Guid storeId)
+    {
+        try
+        {
+            var shift = await ShiftService.GetCurrentShiftAsync(storeId);
+            return shift?.Id;
+        }
+        catch
+        {
+            return null;
+        }
+    }
 }

@@ -38,7 +38,7 @@ public class PromotionService : IPromotionService
         var promotions = await _promotionRepository.GetAllAsync(cancellationToken);
         var now = DateTime.UtcNow;
         return promotions
-            .Where(p => p.IsActive && p.StartDate <= now && p.EndDate >= now)
+            .Where(p => p.IsActive && p.StartDate <= now && p.EndDate >= now && !p.IsArchived)
             .Select(MapToDto);
     }
 
@@ -75,6 +75,7 @@ public class PromotionService : IPromotionService
             DiscountId = discountId,
             AppliesTo = PromotionAppliesTo.All,
             ReferenceId = null,
+            Status = ParseStatus(request.Status),
             IsActive = request.Status.Equals("Active", StringComparison.OrdinalIgnoreCase)
         };
 
@@ -107,7 +108,9 @@ public class PromotionService : IPromotionService
         promotion.StartDate = request.StartDate ?? promotion.StartDate;
         promotion.EndDate = request.EndDate ?? promotion.EndDate;
         promotion.DiscountId = discountId;
+        promotion.Status = ParseStatus(request.Status);
         promotion.IsActive = request.Status.Equals("Active", StringComparison.OrdinalIgnoreCase);
+        promotion.IsArchived = request.IsArchived;
 
         _promotionRepository.Update(promotion);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
@@ -126,6 +129,15 @@ public class PromotionService : IPromotionService
         return true;
     }
 
+    private static PromotionStatus ParseStatus(string status) => status switch
+    {
+        "Draft" => PromotionStatus.Draft,
+        "Scheduled" => PromotionStatus.Scheduled,
+        "Active" => PromotionStatus.Active,
+        "Completed" => PromotionStatus.Completed,
+        _ => PromotionStatus.Draft
+    };
+
     private PromotionDto MapToDto(Promotion promotion) =>
         new PromotionDto(
             promotion.Id,
@@ -133,7 +145,7 @@ public class PromotionService : IPromotionService
             promotion.Description,
             promotion.StartDate,
             promotion.EndDate,
-            promotion.IsActive ? "Active" : "Inactive",
+            promotion.Status.ToString(),
             promotion.DiscountId == Guid.Empty ? [] : [promotion.DiscountId],
-            !promotion.IsActive);
+            promotion.IsArchived);
 }

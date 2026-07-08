@@ -2,6 +2,14 @@ using ZEN.Domain.Enums;
 
 namespace ZEN.Domain.Entities;
 
+public enum PromotionStatus
+{
+    Draft,
+    Scheduled,
+    Active,
+    Completed
+}
+
 public class Promotion : BaseEntity
 {
     public string Name { get; set; } = string.Empty;
@@ -12,6 +20,8 @@ public class Promotion : BaseEntity
     public PromotionAppliesTo AppliesTo { get; set; } = PromotionAppliesTo.All;
     public Guid? ReferenceId { get; set; }
     public bool IsActive { get; set; } = true;
+    public PromotionStatus Status { get; set; } = PromotionStatus.Draft;
+    public bool IsArchived { get; set; } = false;
 
     public Discount Discount { get; set; } = null!;
 }
