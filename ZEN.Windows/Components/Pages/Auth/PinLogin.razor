@@ -25,7 +25,7 @@
     protected override void OnAfterRender(bool firstRender)
     {
         if (firstRender && PosAuthState.IsAuthenticated)
-            Navigation.NavigateTo("/home");
+            Navigation.NavigateTo("/sell");
     }
 
     private void SubmitPin()
@@ -35,14 +35,14 @@
         if (_pin == "1234")
         {
             PosAuthState.SignIn("admin@zen.pos", ZEN.Windows.Services.PosRoles.Administrator);
-            Navigation.NavigateTo("/home");
+            Navigation.NavigateTo("/sell");
             return;
         }
 
         if (_pin == "2222")
         {
             PosAuthState.SignIn("cashier@zen.pos", ZEN.Windows.Services.PosRoles.Cashier);
-            Navigation.NavigateTo("/home");
+            Navigation.NavigateTo("/sell");
             return;
         }
 
