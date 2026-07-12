@@ -1,0 +1,146 @@
+@page "/manager/equipments/printers"
+@using ZEN.Application.DTOs.Admin
+@using ZEN.Windows.Services
+@using MudBlazor
+@inject IPrinterService PrinterService
+@inject ISnackbar Snackbar
+@inject NavigationManager Navigation
+@inject PosAuthState PosAuthState
+
+<PageTitle>Printers - ZEN POS</PageTitle>
+
+@if (!PosAuthState.IsManager && !PosAuthState.IsAdmin)
+{
+    <MudPaper Class="pa-4" Elevation="3">
+        <MudText Typo="Typo.h5" GutterBottom="true">Manager access required.</MudText>
+        <MudText Typo="Typo.body2" Class="mb-3">Cashiers can elevate to Manager by entering a Manager or Admin PIN.</MudText>
+        
+        <MudTextField @bind-Value="_pin"
+                     Label="Enter Manager/Admin PIN"
+                     InputType="InputType.Password"
+                     MaxLength="6"
+                     Variant="Variant.Filled"
+                     Class="mb-2"
+                     @onkeypress="HandlePinKeyPress" />
+        
+        @if (!string.IsNullOrWhiteSpace(_error))
+        {
+            <MudAlert Severity="Severity.Error" Class="mt-2">@_error</MudAlert>
+        }
+        
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="ValidatePin" Disabled="_isProcessing" Class="mt-3">
+            @if (_isProcessing)
+            {
+                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                <span>Validating...</span>
+            }
+            else
+            {
+                <span>Confirm</span>
+            }
+        </MudButton>
+    </MudPaper>
+}
+else
+{
+    <MudPaper Class="pa-4" Elevation="3">
+        <MudText Typo="Typo.h5" GutterBottom=true>Printers</MudText>
+
+        @if (!_dataLoaded)
+        {
+            <MudProgressCircular Color="Color.Primary" Indeterminate="true" />
+        }
+        else if (_printers == null || !_printers.Any())
+        {
+            <MudAlert Severity="Severity.Info">No printers found.</MudAlert>
+        }
+        else
+        {
+            <MudTable T="PrinterDto" Items="_printers" Hover="true">
+                <HeaderContent>
+                    <MudTh>Name</MudTh>
+                    <MudTh>Printer Name</MudTh>
+                    <MudTh>Type</MudTh>
+                    <MudTh>Default</MudTh>
+                    <MudTh>Status</MudTh>
+                </HeaderContent>
+                <RowTemplate Context="printer">
+                    <MudTd DataLabel="Name">@printer.Name</MudTd>
+                    <MudTd DataLabel="Printer Name">@printer.PrinterName</MudTd>
+                    <MudTd DataLabel="Type">@printer.PrinterType</MudTd>
+                    <MudTd DataLabel="Default">@(printer.IsDefault ? "Yes" : "No")</MudTd>
+                    <MudTd DataLabel="Status">
+                        <MudChip T="string" Color="@(printer.IsActive ? Color.Success : Color.Error)">
+                            @(printer.IsActive ? "Active" : "Inactive")
+                        </MudChip>
+                    </MudTd>
+                </RowTemplate>
+            </MudTable>
+        }
+    </MudPaper>
+}
+
+@code {
+    private List<PrinterDto>? _printers;
+    private bool _dataLoaded = false;
+    private string _pin = string.Empty;
+    private string? _error;
+    private bool _isProcessing = false;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if ((PosAuthState.IsManager || PosAuthState.IsAdmin) && !_dataLoaded)
+        {
+            await LoadPrintersAsync();
+            _dataLoaded = true;
+        }
+    }
+    
+    private async Task LoadPrintersAsync()
+    {
+        try
+        {
+            var printers = await PrinterService.GetAllAsync();
+            _printers = printers.ToList();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error loading printers: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task HandlePinKeyPress(KeyboardEventArgs args)
+    {
+        if (args.Key == "Enter")
+            await ValidatePin();
+    }
+
+    private async Task ValidatePin()
+    {
+        if (_isProcessing) return;
+
+        _error = null;
+        _isProcessing = true;
+        await InvokeAsync(StateHasChanged);
+
+        try
+        {
+            if (_pin == "3333" || _pin == "1234")
+            {
+                var role = _pin == "3333" ? PosRoles.Manager : PosRoles.Administrator;
+                PosAuthState.SignIn(PosAuthState.UserName ?? "user@zen.pos", role);
+                await LoadPrintersAsync();
+                _dataLoaded = true;
+            }
+            else
+            {
+                _error = "Invalid PIN. Enter Manager PIN (3333) or Admin PIN (1234).";
+            }
+        }
+        finally
+        {
+            _isProcessing = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+}

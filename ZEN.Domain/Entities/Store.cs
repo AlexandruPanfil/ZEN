@@ -17,6 +17,5 @@ public class Store : BaseEntity
 
     public Currency? Currency { get; set; }
     public ICollection<Warehouse> Warehouses { get; set; } = [];
-    public ICollection<Printer> Printers { get; set; } = [];
-    public ICollection<PaymentTerminal> PaymentTerminals { get; set; } = [];
+    public ICollection<CashDesk> CashDesks { get; set; } = [];
 }

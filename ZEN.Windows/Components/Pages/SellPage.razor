@@ -1,4 +1,5 @@
 @page "/sell"
+@inject NavigationManager Navigation
 @inject ZEN.Windows.Services.PosAuthState PosAuthState
 @inject IProductService ProductService
 @inject ISaleService SaleService
@@ -16,8 +17,6 @@
 @using ZEN.Domain.Enums
 @using Microsoft.AspNetCore.Components.Authorization
 @using MudBlazor
-@* @using MudBlazor.Dialog *@
-@using MudBlazor
 @using ZEN.Windows.Components.Shared
 
 <PageTitle>Point of Sale - ZEN POS</PageTitle>
@@ -28,8 +27,11 @@
             <div class="d-flex align-items-center mb-4">
                 <MudText Typo="Typo.h5">Point of Sale</MudText>
                 <MudSpacer />
+                <MudFab Color="Color.Primary" Size="Size.Medium" Icon="@Icons.Material.Filled.Tune" OnClick="OpenQuickActions" />
                 <MudText Typo="Typo.body2">User: @authContext.User.Identity?.Name ?? "Unknown"</MudText>
             </div>
+
+            <QuickActionsPanel @bind-IsOpen="_quickActionsOpen" />
 
             <MudGrid>
                 <MudItem xs="12" sm="6" md="4">
@@ -40,17 +42,17 @@
                                       Adornment="Adornment.Start"
                                       AdornmentIcon="@Icons.Material.Filled.Search"
                                       IconSize="Size.Small"
-                                      Immediate=true
+                                      Immediate="true"
                                       @onkeypress="HandleSearchKeyPress"
                                       Variant="Variant.Filled" />
                         <MudList T="ProductDto">
                             @if (SearchResults == null)
                             {
-                                <myp>Type to search...</myp>
+                                <MudText>Type to search...</MudText>
                             }
                             else if (SearchResults.Count == 0)
                             {
-                                <myp>No products found.</myp>
+                                <MudText>No products found.</MudText>
                             }
                             else
                             {
@@ -115,9 +117,9 @@
                                     </MudTd>
                                     <MudTd>
                                         <MudIconButton Icon="@Icons.Material.Filled.Delete"
-                                                     Color="Color.Error"
-                                                     Size="Size.Small"
-                                                     OnClick="() => RemoveFromCart(cartItem)" />
+                                                         Color="Color.Error"
+                                                         Size="Size.Small"
+                                                         OnClick="() => RemoveFromCart(cartItem)" />
                                     </MudTd>
                                 </RowTemplate>
                             </MudTable>
@@ -128,15 +130,13 @@
                 <MudItem xs="12" sm="12" md="3">
                     <MudPaper Elevation="1" Class="pa-3">
                         <MudText Typo="Typo.h6">Order Summary</MudText>
-                        <MudTable Items="SummaryRows" HideHeaders="true">
+                        <MudTable Items="SummaryRows" Hover="true">
                             <RowTemplate>
                                 @{
                                     var row = (SummaryRow)context;
-                                    var labelClass = row.IsBold ? "font-weight-bold" : "";
-                                    var valueClass = "text-right " + (row.IsBold ? "font-weight-bold" : "");
                                 }
-                                <MudTd Class="@labelClass">@row.Label</MudTd>
-                                <MudTd Class="@valueClass">@row.Value</MudTd>
+                                <MudTd>@row.Label</MudTd>
+                                <MudTd>@row.Value</MudTd>
                             </RowTemplate>
                         </MudTable>
 
@@ -147,18 +147,14 @@
                                    @bind-Value="SelectedPaymentMethod">
                             @foreach (PaymentMethod method in Enum.GetValues(typeof(PaymentMethod)))
                             {
-                                <MudItem Value="method">@method.ToString()</MudItem>
+                                <MudSelectItem Value="method">@method.ToString()</MudSelectItem>
                             }
                         </MudSelect>
                         <MudTextField Label="Amount Received"
                                       @bind-Value="AmountReceivedString"
-                                      Type="Type.Number"
                                       InputType="InputType.Number"
-                                      @onchange="CalculateChange"
                                       Variant="Variant.Filled" />
-                        <MudText Label="Change Due:" Class="text-right">
-                            @ChangeDue.ToString("C")
-                        </MudText>
+                        <MudText Typo="Typo.body2">Change Due: @ChangeDue.ToString("C")</MudText>
 
                         <MudDivider Class="my-4" />
 
@@ -173,7 +169,7 @@
                             <MudItem xs="6">
                                 <MudButton Variant="Variant.Filled" Color="Color.Primary"
                                            StartIcon="@Icons.Material.Filled.Check"
-                                           Disable="@(Cart == null || Cart.Count == 0 || AmountReceived < TotalAmount)"
+                                           Disabled="Cart == null || Cart.Count == 0 || AmountReceived < TotalAmount"
                                            OnClick="ProcessPayment">
                                     Pay
                                 </MudButton>
@@ -204,17 +200,19 @@
         </MudPaper>
     </Authorized>
     <NotAuthorized>
-        <MudText Typo="Typo.h5">You are not authorized to access the POS.</MudText>
+        <MudText Typo="Typo.h5">You are not authorized to access the POS. <MudLink Href="/pin-login">Login</MudLink></MudText>
     </NotAuthorized>
 </AuthorizeView>
 
 @code {
+    private bool _quickActionsOpen = false;
     private string? SearchText = "";
     private List<ProductDto>? SearchResults;
     private List<CartItem> Cart = new();
     private ClaimsPrincipal? _user;
     private PaymentMethod SelectedPaymentMethod = PaymentMethod.Cash;
     private string AmountReceivedString = "";
+    private string? _error;
     private decimal AmountReceived => decimal.TryParse(AmountReceivedString, out var amount) ? amount : 0m;
 
     private decimal Subtotal => Cart.Sum(item => item.Quantity * item.UnitPrice);
@@ -225,8 +223,8 @@
 
     private class SummaryRow
     {
-        public string Label { get; set; }
-        public string Value { get; set; }
+        public string Label { get; set; } = "";
+        public string Value { get; set; } = "";
         public bool IsBold { get; set; }
     }
 
@@ -243,8 +241,8 @@
         public ProductDto Product { get; set; } = default!;
         public decimal Quantity { get; set; } = 1m;
         public decimal UnitPrice { get; set; }
-        public decimal Discount { get; set; } // discount per unit
-        public decimal TaxRate { get; set; } // tax rate as percentage (e.g., 21 for 21%)
+        public decimal Discount { get; set; }
+        public decimal TaxRate { get; set; }
 
         public decimal LineTotal => (Quantity * UnitPrice - Quantity * Discount) * (1 + TaxRate / 100m);
     }
@@ -260,8 +258,19 @@
 
     protected override async Task OnInitializedAsync()
     {
-        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
-        _user = authState.User;
+        try
+        {
+            var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+            _user = authState.User;
+            
+            System.Diagnostics.Debug.WriteLine($"Auth state loaded. IsAuthenticated: {_user.Identity?.IsAuthenticated}, Name: {_user.Identity?.Name}, Role: {PosAuthState.Role}");
+        }
+        catch (Exception ex)
+        {
+            _error = $"Error loading auth state: {ex.Message}";
+            Snackbar.Add(_error, Severity.Error);
+            _user = new ClaimsPrincipal(new ClaimsIdentity());
+        }
     }
 
     private async Task HandleSearchKeyPress(KeyboardEventArgs e)
@@ -298,11 +307,13 @@
             try
             {
                 var taxDto = await TaxService.GetByIdAsync(product.TaxId.Value);
-                taxRate = taxDto.Rate;
+                if (taxDto != null)
+                {
+                    taxRate = taxDto.Rate;
+                }
             }
             catch (Exception ex)
             {
-                // Log error but continue with default tax rate 0
                 Snackbar.Add($"Error getting tax rate: {ex.Message}", Severity.Warning);
             }
         }
@@ -327,7 +338,6 @@
         }
         else
         {
-            // Remove item if quantity is zero or negative
             await RemoveFromCart(item);
         }
     }
@@ -372,7 +382,7 @@
 
             var heldSaleRequest = new HoldSaleRequest(
                 storeId.Value,
-                null, // TODO: Get customer if selected
+                null,
                 JsonSerializer.Serialize(Cart.Select(item => new
                 {
                     ProductId = item.Product.Id,
@@ -411,26 +421,22 @@
                 return;
             }
 
-            // Show dialog to select held sale
             var parameters = new DialogParameters();
             parameters.Add(nameof(SelectHeldSaleDialog.HeldSales), heldSales.ToList());
 
-            // --- FIX HERE: Add await to unwrap the Task<IDialogReference> ---
             var dialog = await DialogService.ShowAsync<SelectHeldSaleDialog>("Resume Sale", parameters);
             var result = await dialog.Result;
 
-            if (!result.Canceled && result.Data is HeldSaleDto selectedHeldSale)
+if (!result.Canceled && result.Data is HeldSaleDto heldSale && !string.IsNullOrEmpty(heldSale.SerializedItems))
             {
-                // Deserialize the items and add to cart
                 try
                 {
-                    var heldItems = JsonSerializer.Deserialize<List<HeldSaleItemDto>>(selectedHeldSale.SerializedItems);
+                    var heldItems = JsonSerializer.Deserialize<List<HeldSaleItemDto>>(heldSale.SerializedItems);
                     if (heldItems != null)
                     {
                         Cart.Clear();
                         foreach (var item in heldItems)
                         {
-                            // Get product details
                             var productDto = await ProductService.GetByIdAsync(item.ProductId);
                             if (productDto != null)
                             {
@@ -446,7 +452,7 @@
                             }
                         }
                         StateHasChanged();
-                        Snackbar.Add($"Sale resumed successfully. Held at: {selectedHeldSale.HeldAt:g}", Severity.Success);
+                        Snackbar.Add($"Sale resumed successfully. Held at: {heldSale.HeldAt:g}", Severity.Success);
                     }
                     else
                     {
@@ -458,14 +464,14 @@
                     Snackbar.Add($"Error resuming sale: {ex.Message}", Severity.Error);
                 }
             }
-        }
-        catch (Exception ex)
-        {
-            Snackbar.Add($"Error loading held sales: {ex.Message}", Severity.Error);
-        }
-    }
+         }
+         catch (Exception ex)
+         {
+             Snackbar.Add($"Error loading held sales: {ex.Message}", Severity.Error);
+         }
+     }
 
-    private async Task ProcessPayment()
+     private async Task ProcessPayment()
     {
         if (Cart == null || Cart.Count == 0)
         {
@@ -496,31 +502,28 @@
             }
 
             var createSaleRequest = new CreateSaleRequest(
-                null, // CustomerId
-                storeId.Value, // StoreId
-                shiftId.Value, // ShiftId
+                null,
+                storeId.Value,
+                shiftId.Value,
                 Cart.Select(item => new CreateSaleItemRequest(
-                    item.Product.Id, // ProductId
-                    item.Quantity, // Quantity
-                    item.UnitPrice, // UnitPrice
-                    item.Discount, // Discount
-                    item.TaxRate // TaxRate
+                    item.Product.Id,
+                    item.Quantity,
+                    item.UnitPrice,
+                    item.Discount,
+                    item.TaxRate
                 )),
                 new List<CreateSalePaymentRequest>
                 {
                     new CreateSalePaymentRequest(
-                        SelectedPaymentMethod, // Method
-                        AmountReceived // Amount
+                        SelectedPaymentMethod,
+                        AmountReceived
                     )
                 },
-                0 // LoyaltyPointsRedeemed
+                0
             );
 
             var sale = await SaleService.CreateSaleAsync(createSaleRequest);
             Snackbar.Add($"Sale completed successfully. Sale ID: {sale.Id}", Severity.Success);
-
-            // Print receipt (optional)
-            // TODO: Implement receipt printing
 
             ClearCart();
             AmountReceivedString = "";
@@ -530,13 +533,6 @@
         {
             Snackbar.Add($"Error processing payment: {ex.Message}", Severity.Error);
         }
-    }
-
-    private void CalculateChange()
-    {
-        // This method is called when the AmountReceivedString changes.
-        // We don't need to do anything here because AmountReceived is computed from AmountReceivedString.
-        // The UI will update automatically due to the @bind-Value on the text field.
     }
 
     private async Task<Guid?> GetCurrentShiftAsync(Guid storeId)
@@ -550,5 +546,10 @@
         {
             return null;
         }
+    }
+
+    private void OpenQuickActions()
+    {
+        _quickActionsOpen = !_quickActionsOpen;
     }
 }

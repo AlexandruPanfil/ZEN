@@ -2,6 +2,8 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Http;
+using Microsoft.Extensions.Http.Resilience;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.ServiceDiscovery;
 using OpenTelemetry;
@@ -29,10 +31,27 @@ public static class Extensions
         builder.Services.ConfigureHttpClientDefaults(http =>
         {
             // Turn on resilience by default
+            // Configure timeouts to handle slow service startup
             http.AddStandardResilienceHandler();
+
+            // Configure default HttpClient timeout
+            // This is needed because Aspire's health check HTTP client uses short timeouts
+            http.ConfigureHttpClient(client =>
+            {
+                client.Timeout = TimeSpan.FromMinutes(2);
+            });
 
             // Turn on service discovery by default
             http.AddServiceDiscovery();
+        });
+
+        // Ensure timeout settings are applied to all resilience handlers
+        // See: https://github.com/dotnet/aspire/issues/9419
+        builder.Services.ConfigureAll<HttpStandardResilienceOptions>(options =>
+        {
+            options.AttemptTimeout.Timeout = TimeSpan.FromMinutes(1);
+            options.TotalRequestTimeout.Timeout = TimeSpan.FromMinutes(2);
+            options.CircuitBreaker.SamplingDuration = TimeSpan.FromMinutes(2);
         });
 
         // Uncomment the following to restrict the allowed schemes for service discovery.

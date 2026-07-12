@@ -88,6 +88,7 @@ app.MapGroup("/api/customers").MapCustomerEndpoints();
 app.MapGroup("/api/suppliers").MapSupplierEndpoints();
 app.MapGroup("/api/reports").MapReportEndpoints();
 app.MapGroup("/api/sync").MapSyncEndpoints();
+app.MapGroup("/api/equipments").MapEquipmentEndpoints();
 
 app.MapDefaultEndpoints();
 

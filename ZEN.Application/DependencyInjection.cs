@@ -5,7 +5,6 @@ using ZEN.Application.Services.Implementations;
 using ZEN.Application.Services.Interfaces;
 
 namespace ZEN.Application;
-
 public static class DependencyInjection
 {
     public static IServiceCollection AddApplication(this IServiceCollection services)

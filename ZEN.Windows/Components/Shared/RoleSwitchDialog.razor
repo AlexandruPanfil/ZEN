@@ -1,0 +1,112 @@
+@using MudBlazor
+@using ZEN.Windows.Services
+
+<MudDialog>
+    <TitleContent>
+        <div class="d-flex align-items-center">
+            <MudIcon Icon="@Icons.Material.Filled.Lock" Size="Size.Medium" />
+            <span class="ml-2">Confirm Identity - Enter PIN to switch interface</span>
+        </div>
+    </TitleContent>
+    <DialogContent>
+        <MudTextField @bind-Value="_pin"
+                     Label="PIN"
+                     InputType="InputType.Password"
+                     MaxLength="6"
+                     Variant="Variant.Filled"
+                     Class="mb-2"
+                     @onkeypress="HandleKeyPress" />
+        
+        @if (!string.IsNullOrWhiteSpace(_error))
+        {
+            <MudAlert Severity="Severity.Error" Class="mt-2">@_error</MudAlert>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" Color="Color.Error" OnClick="Cancel">
+            Cancel
+        </MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="ValidatePin" Disabled="_isProcessing">
+            @if (_isProcessing)
+            {
+                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                <span>Validating...</span>
+            }
+            else
+            {
+                <span>Confirm</span>
+            }
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [Parameter] public string TargetRole { get; set; } = string.Empty;
+    
+    [CascadingParameter]
+    private IMudDialogInstance MudDialog { get; set; } = default!;
+    
+    private string _pin = string.Empty;
+    private string? _error;
+    private bool _isProcessing = false;
+    
+    private async Task HandleKeyPress(KeyboardEventArgs args)
+    {
+        if (args.Key == "Enter")
+        {
+            await ValidatePin();
+        }
+    }
+    
+    private async Task ValidatePin()
+    {
+        if (_isProcessing) return;
+        
+        _error = null;
+        _isProcessing = true;
+        await InvokeAsync(StateHasChanged);
+        
+        try
+        {
+            // For POS access: accept Manager/Admin PIN for identity verification
+            // For Manager access: accept Manager/Admin PIN for elevation
+            var isValid = false;
+            string? roleToSet = null;
+            
+            if (_pin == "1234")
+            {
+                isValid = true;
+                roleToSet = PosRoles.Administrator;
+            }
+            else if (_pin == "3333")
+            {
+                isValid = true;
+                roleToSet = PosRoles.Manager;
+            }
+            else if (_pin == "2222" && TargetRole == PosRoles.Cashier)
+            {
+                isValid = true;
+                roleToSet = PosRoles.Cashier;
+            }
+            else
+            {
+                _error = "Invalid PIN.";
+            }
+            
+            if (isValid && !string.IsNullOrEmpty(roleToSet))
+            {
+                MudDialog.Close(DialogResult.Ok(roleToSet));
+            }
+        }
+        finally
+        {
+            _isProcessing = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+    
+    private void Cancel()
+    {
+        MudDialog.Close(DialogResult.Cancel());
+    }
+}

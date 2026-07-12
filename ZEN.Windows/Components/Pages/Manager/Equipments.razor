@@ -1,0 +1,113 @@
+@page "/manager/equipments"
+@using ZEN.Windows.Services
+@using MudBlazor
+@inject NavigationManager Navigation
+@inject PosAuthState PosAuthState
+
+<PageTitle>Equipment Management - ZEN POS</PageTitle>
+
+@if (!PosAuthState.IsManager && !PosAuthState.IsAdmin)
+{
+    <MudPaper Class="pa-4" Elevation="3">
+        <MudText Typo="Typo.h5" GutterBottom="true">Manager access required.</MudText>
+        <MudText Typo="Typo.body2" Class="mb-3">Cashiers can elevate to Manager by entering a Manager or Admin PIN.</MudText>
+
+        <MudTextField @bind-Value="_pin"
+                     Label="Enter Manager/Admin PIN"
+                     InputType="InputType.Password"
+                     MaxLength="6"
+                     Variant="Variant.Filled"
+                     Class="mb-2"
+                     @onkeypress="HandlePinKeyPress" />
+
+        @if (!string.IsNullOrWhiteSpace(_error))
+        {
+            <MudAlert Severity="Severity.Error" Class="mt-2">@_error</MudAlert>
+        }
+
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="ValidatePin" Disabled="_isProcessing" Class="mt-3">
+            @if (_isProcessing)
+            {
+                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                <span>Validating...</span>
+            }
+            else
+            {
+                <span>Confirm</span>
+            }
+        </MudButton>
+    </MudPaper>
+}
+else
+{
+    <MudPaper Class="pa-4" Elevation="3">
+        <MudText Typo="Typo.h5" GutterBottom=true>Equipment Management</MudText>
+
+        <MudGrid>
+            <MudItem xs="12" sm="6" md="4">
+                <MudPaper Elevation="2" Class="pa-4" Style="text-align: center; cursor: pointer;" @onclick="NavigateToPrinters">
+                    <MudIcon Icon="@Icons.Material.Filled.Print" Size="Size.Large" />
+                    <MudText Typo="Typo.h6">Printers</MudText>
+                    <MudText Typo="Typo.body2">Manage receipt printers</MudText>
+                </MudPaper>
+            </MudItem>
+
+            <MudItem xs="12" sm="6" md="4">
+                <MudPaper Elevation="2" Class="pa-4" Style="text-align: center; cursor: pointer;" @onclick="NavigateToTerminals">
+                    <MudIcon Icon="@Icons.Material.Filled.CreditCard" Size="Size.Large" />
+                    <MudText Typo="Typo.h6">Terminals</MudText>
+                    <MudText Typo="Typo.body2">Payment terminals</MudText>
+                </MudPaper>
+            </MudItem>
+        </MudGrid>
+    </MudPaper>
+}
+
+@code {
+    private string _pin = string.Empty;
+    private string? _error;
+    private bool _isProcessing = false;
+
+    private void NavigateToPrinters()
+    {
+        Navigation.NavigateTo("/manager/equipments/printers");
+    }
+
+    private void NavigateToTerminals()
+    {
+        Navigation.NavigateTo("/manager/equipments/terminals");
+    }
+
+    private async Task HandlePinKeyPress(KeyboardEventArgs args)
+    {
+        if (args.Key == "Enter")
+            await ValidatePin();
+    }
+
+    private async Task ValidatePin()
+    {
+        if (_isProcessing) return;
+
+        _error = null;
+        _isProcessing = true;
+        await InvokeAsync(StateHasChanged);
+
+        try
+        {
+            if (_pin == "3333" || _pin == "1234")
+            {
+                var role = _pin == "3333" ? PosRoles.Manager : PosRoles.Administrator;
+                PosAuthState.SignIn(PosAuthState.UserName ?? "user@zen.pos", role);
+            }
+            else
+            {
+                _error = "Invalid PIN. Enter Manager PIN (3333) or Admin PIN (1234).";
+            }
+        }
+        finally
+        {
+            _isProcessing = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+}

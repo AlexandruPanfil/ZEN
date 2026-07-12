@@ -133,5 +133,47 @@ public static class DbSeeder
                 await userManager.AddToRoleAsync(adminUser, "Administrator");
             }
         }
+
+        // Seed Manager User
+        var managerUser = await userManager.FindByEmailAsync("manager@zen.pos");
+        if (managerUser == null)
+        {
+            managerUser = new AppUser
+            {
+                UserName = "manager@zen.pos",
+                Email = "manager@zen.pos",
+                EmailConfirmed = true,
+                FirstName = "Store",
+                LastName = "Manager",
+                PIN = "3333",
+                IsActive = true
+            };
+            var result = await userManager.CreateAsync(managerUser, "Manager@1234");
+            if (result.Succeeded)
+            {
+                await userManager.AddToRoleAsync(managerUser, "Manager");
+            }
+        }
+
+        // Seed Cashier User
+        var cashierUser = await userManager.FindByEmailAsync("cashier@zen.pos");
+        if (cashierUser == null)
+        {
+            cashierUser = new AppUser
+            {
+                UserName = "cashier@zen.pos",
+                Email = "cashier@zen.pos",
+                EmailConfirmed = true,
+                FirstName = "Cashier",
+                LastName = "User",
+                PIN = "2222",
+                IsActive = true
+            };
+            var result = await userManager.CreateAsync(cashierUser, "Cashier@1234");
+            if (result.Succeeded)
+            {
+                await userManager.AddToRoleAsync(cashierUser, "Cashier");
+            }
+        }
     }
 }

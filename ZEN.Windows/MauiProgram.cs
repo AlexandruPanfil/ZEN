@@ -1,5 +1,7 @@
-﻿using Microsoft.Extensions.Logging;
+﻿using System.Net.Http;
+using Microsoft.Extensions.Logging;
 using MudBlazor.Services;
+using Microsoft.AspNetCore.Components.Authorization;
 using ZEN.Application;
 using ZEN.Infrastructure;
 using ZEN.Infrastructure.Persistence;
@@ -20,12 +22,21 @@ public static class MauiProgram
 				fonts.AddFont("OpenSans-Regular.ttf", "OpenSansRegular");
 			});
 
-		builder.Services.AddMauiBlazorWebView();
-		builder.Services.AddSingleton<PosAuthState>();
-		builder.Services.AddHttpClient<SyncApiClient>(client =>
+builder.Services.AddMauiBlazorWebView();
+  		builder.Services.AddSingleton<PosAuthState>();
+  		builder.Services.AddSingleton<AuthenticationStateProvider, PosAuthenticationStateProvider>();
+  		builder.Services.AddHttpContextAccessor(); // Required for CurrentUserService
+  		
+  		builder.Services.AddHttpClient<SyncApiClient>(client =>
 		{
 			var baseUrl = builder.Configuration["Sync:ApiBaseUrl"] ?? "https://localhost:7305/";
 			client.BaseAddress = new Uri(baseUrl);
+			client.Timeout = TimeSpan.FromSeconds(3); // Short timeout for quick fallback
+		}).ConfigurePrimaryHttpMessageHandler(() =>
+		{
+			var handler = new HttpClientHandler();
+			handler.ServerCertificateCustomValidationCallback = (message, cert, chain, errors) => true;
+			return handler;
 		});
 		builder.Services.AddScoped<IPosSyncService, PosSyncService>();
 		builder.Services.AddSingleton<PosSyncBackgroundWorker>();
@@ -48,7 +59,7 @@ public static class MauiProgram
 		builder.Logging.AddDebug();
 #endif
 
-		var app = builder.Build();
+var app = builder.Build();
 
 		_ = Task.Run(async () =>
 		{
@@ -76,7 +87,8 @@ public static class MauiProgram
 			}
 		});
 
-		app.Services.GetRequiredService<PosSyncBackgroundWorker>().Start();
+		// Note: Background sync worker disabled temporarily - requires running sync API
+		// app.Services.GetRequiredService<PosSyncBackgroundWorker>().Start();
 
 		return app;
 	}

@@ -1,0 +1,171 @@
+@page "/manager/reports"
+@using ZEN.Application.DTOs.Reports
+@using ZEN.Windows.Services
+@using MudBlazor
+@inject IReportService ReportService
+@inject ISnackbar Snackbar
+@inject NavigationManager Navigation
+@inject PosAuthState PosAuthState
+
+<PageTitle>Sales Reports - ZEN POS</PageTitle>
+
+@if (!PosAuthState.IsManager && !PosAuthState.IsAdmin)
+{
+    <MudPaper Class="pa-4" Elevation="3">
+        <MudText Typo="Typo.h5" GutterBottom="true">Manager access required.</MudText>
+        <MudText Typo="Typo.body2" Class="mb-3">Cashiers can elevate to Manager by entering a Manager or Admin PIN.</MudText>
+        
+        <MudTextField @bind-Value="_pin"
+                     Label="Enter Manager/Admin PIN"
+                     InputType="InputType.Password"
+                     MaxLength="6"
+                     Variant="Variant.Filled"
+                     Class="mb-2"
+                     @onkeypress="HandlePinKeyPress" />
+        
+        @if (!string.IsNullOrWhiteSpace(_error))
+        {
+            <MudAlert Severity="Severity.Error" Class="mt-2">@_error</MudAlert>
+        }
+        
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="ValidatePin" Disabled="_isProcessing" Class="mt-3">
+            @if (_isProcessing)
+            {
+                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                <span>Validating...</span>
+            }
+            else
+            {
+                <span>Confirm</span>
+            }
+        </MudButton>
+    </MudPaper>
+}
+else
+{
+    <MudPaper Class="pa-4" Elevation="3">
+        <MudText Typo="Typo.h5" GutterBottom=true>Sales Reports</MudText>
+
+        <MudGrid>
+            <MudItem xs="12" sm="6" md="4">
+                <MudDatePicker Label="Start Date" @bind-Date="_startDate" />
+            </MudItem>
+            <MudItem xs="12" sm="6" md="4">
+                <MudDatePicker Label="End Date" @bind-Date="_endDate" />
+            </MudItem>
+            <MudItem xs="12" md="4" Class="d-flex align-center">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="GenerateReport">
+                    Generate Report
+                </MudButton>
+            </MudItem>
+        </MudGrid>
+
+        @if (_isLoading)
+        {
+            <MudProgressCircular Color="Color.Primary" Indeterminate="true" Class="mt-4" />
+        }
+        else if (_report != null)
+        {
+            <MudGrid Class="mt-4">
+                <MudItem xs="12" sm="6" md="3">
+                    <MudCard Elevation="2">
+                        <MudCardContent>
+                            <MudText Typo="Typo.subtitle2">Total Sales</MudText>
+                            <MudText Typo="Typo.h4">@_report.TotalSales.ToString("C")</MudText>
+                        </MudCardContent>
+                    </MudCard>
+                </MudItem>
+                <MudItem xs="12" sm="6" md="3">
+                    <MudCard Elevation="2">
+                        <MudCardContent>
+                            <MudText Typo="Typo.subtitle2">Net Sales</MudText>
+                            <MudText Typo="Typo.h4">@_report.NetSales.ToString("C")</MudText>
+                        </MudCardContent>
+                    </MudCard>
+                </MudItem>
+                <MudItem xs="12" sm="6" md="3">
+                    <MudCard Elevation="2">
+                        <MudCardContent>
+                            <MudText Typo="Typo.subtitle2">Tax</MudText>
+                            <MudText Typo="Typo.h4">@_report.TotalTax.ToString("C")</MudText>
+                        </MudCardContent>
+                    </MudCard>
+                </MudItem>
+                <MudItem xs="12" sm="6" md="3">
+                    <MudCard Elevation="2">
+                        <MudCardContent>
+                            <MudText Typo="Typo.subtitle2">Transactions</MudText>
+                            <MudText Typo="Typo.h4">@_report.TransactionCount</MudText>
+                        </MudCardContent>
+                    </MudCard>
+                </MudItem>
+            </MudGrid>
+        }
+    </MudPaper>
+}
+
+@code {
+    private DateTime? _startDate = DateTime.Today.AddDays(-30);
+    private DateTime? _endDate = DateTime.Today;
+    private SalesReportDto? _report;
+    private bool _isLoading = false;
+    private string _pin = string.Empty;
+    private string? _error;
+    private bool _isProcessing = false;
+
+    private async Task GenerateReport()
+    {
+        if (!_startDate.HasValue || !_endDate.HasValue)
+        {
+            Snackbar.Add("Please select both dates.", Severity.Warning);
+            return;
+        }
+
+        try
+        {
+            _isLoading = true;
+            _report = await ReportService.GetSalesReportAsync(_startDate.Value, _endDate.Value);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task HandlePinKeyPress(KeyboardEventArgs args)
+    {
+        if (args.Key == "Enter")
+            await ValidatePin();
+    }
+
+    private async Task ValidatePin()
+    {
+        if (_isProcessing) return;
+
+        _error = null;
+        _isProcessing = true;
+        await InvokeAsync(StateHasChanged);
+
+        try
+        {
+            if (_pin == "3333" || _pin == "1234")
+            {
+                var role = _pin == "3333" ? PosRoles.Manager : PosRoles.Administrator;
+                PosAuthState.SignIn(PosAuthState.UserName ?? "user@zen.pos", role);
+            }
+            else
+            {
+                _error = "Invalid PIN. Enter Manager PIN (3333) or Admin PIN (1234).";
+            }
+        }
+        finally
+        {
+            _isProcessing = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+}

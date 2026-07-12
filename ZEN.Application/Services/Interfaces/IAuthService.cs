@@ -11,4 +11,5 @@ public interface IAuthService
     Task<IEnumerable<UserDto>> GetAllUsersAsync(CancellationToken cancellationToken = default);
     Task<bool> UpdateUserAsync(string userId, RegisterUserRequest request, CancellationToken cancellationToken = default);
     Task<bool> DeactivateUserAsync(string userId, CancellationToken cancellationToken = default);
+    Task<IEnumerable<RoleDto>> GetAllRolesAsync(CancellationToken cancellationToken = default);
 }

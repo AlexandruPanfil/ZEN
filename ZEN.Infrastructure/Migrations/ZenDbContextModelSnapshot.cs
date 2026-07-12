@@ -240,6 +240,49 @@ namespace ZEN.Infrastructure.Migrations
                     b.ToTable("CashCounts");
                 });
 
+            modelBuilder.Entity("ZEN.Domain.Entities.CashDesk", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("CustomerDisplayId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("FiscalPrinterId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<Guid?>("StoreId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CustomerDisplayId");
+
+                    b.HasIndex("FiscalPrinterId");
+
+                    b.HasIndex("StoreId");
+
+                    b.ToTable("CashDesks");
+                });
+
             modelBuilder.Entity("ZEN.Domain.Entities.CashMovement", b =>
                 {
                     b.Property<Guid>("Id")
@@ -469,6 +512,48 @@ namespace ZEN.Infrastructure.Migrations
                     b.HasIndex("CustomerGroupId");
 
                     b.ToTable("Customers");
+                });
+
+            modelBuilder.Entity("ZEN.Domain.Entities.CustomerDisplay", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("CashDeskId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ConnectionString")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ConnectionType")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("Size")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CashDeskId");
+
+                    b.ToTable("CustomerDisplays");
                 });
 
             modelBuilder.Entity("ZEN.Domain.Entities.CustomerGroup", b =>
@@ -822,8 +907,14 @@ namespace ZEN.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<Guid?>("CashDeskId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
+
+                    b.Property<string>("IpAddress")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
@@ -833,15 +924,17 @@ namespace ZEN.Infrastructure.Migrations
 
                     b.Property<string>("Name")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<int>("Port")
+                        .HasColumnType("int");
 
                     b.Property<string>("SerialNumber")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<Guid>("StoreId")
-                        .HasColumnType("uniqueidentifier");
-
                     b.Property<string>("TerminalType")
+                        .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<DateTime>("UpdatedAt")
@@ -849,7 +942,7 @@ namespace ZEN.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("StoreId");
+                    b.HasIndex("CashDeskId");
 
                     b.ToTable("PaymentTerminals");
                 });
@@ -914,8 +1007,9 @@ namespace ZEN.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<Guid>("StoreId")
-                        .HasColumnType("uniqueidentifier");
+                    b.Property<string>("PrinterName")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<int>("Type")
                         .HasColumnType("int");
@@ -924,8 +1018,6 @@ namespace ZEN.Infrastructure.Migrations
                         .HasColumnType("datetime2");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("StoreId");
 
                     b.ToTable("Printers");
                 });
@@ -1517,6 +1609,48 @@ namespace ZEN.Infrastructure.Migrations
                     b.HasIndex("SaleId");
 
                     b.ToTable("SalePayments");
+                });
+
+            modelBuilder.Entity("ZEN.Domain.Entities.Scanner", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("CashDeskId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ConnectionString")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ConnectionType")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<int>("ScannerType")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CashDeskId");
+
+                    b.ToTable("Scanners");
                 });
 
             modelBuilder.Entity("ZEN.Domain.Entities.Shift", b =>
@@ -2414,6 +2548,30 @@ namespace ZEN.Infrastructure.Migrations
                     b.Navigation("Shift");
                 });
 
+            modelBuilder.Entity("ZEN.Domain.Entities.CashDesk", b =>
+                {
+                    b.HasOne("ZEN.Domain.Entities.CustomerDisplay", "CustomerDisplay")
+                        .WithMany()
+                        .HasForeignKey("CustomerDisplayId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.HasOne("ZEN.Domain.Entities.Printer", "FiscalPrinter")
+                        .WithMany()
+                        .HasForeignKey("FiscalPrinterId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.HasOne("ZEN.Domain.Entities.Store", "Store")
+                        .WithMany("CashDesks")
+                        .HasForeignKey("StoreId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.Navigation("CustomerDisplay");
+
+                    b.Navigation("FiscalPrinter");
+
+                    b.Navigation("Store");
+                });
+
             modelBuilder.Entity("ZEN.Domain.Entities.CashMovement", b =>
                 {
                     b.HasOne("ZEN.Domain.Entities.Shift", "Shift")
@@ -2460,6 +2618,16 @@ namespace ZEN.Infrastructure.Migrations
                         .HasForeignKey("CustomerGroupId");
 
                     b.Navigation("CustomerGroup");
+                });
+
+            modelBuilder.Entity("ZEN.Domain.Entities.CustomerDisplay", b =>
+                {
+                    b.HasOne("ZEN.Domain.Entities.CashDesk", "CashDesk")
+                        .WithMany()
+                        .HasForeignKey("CashDeskId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("CashDesk");
                 });
 
             modelBuilder.Entity("ZEN.Domain.Entities.HeldSale", b =>
@@ -2571,24 +2739,12 @@ namespace ZEN.Infrastructure.Migrations
 
             modelBuilder.Entity("ZEN.Domain.Entities.PaymentTerminal", b =>
                 {
-                    b.HasOne("ZEN.Domain.Entities.Store", "Store")
+                    b.HasOne("ZEN.Domain.Entities.CashDesk", "CashDesk")
                         .WithMany("PaymentTerminals")
-                        .HasForeignKey("StoreId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .HasForeignKey("CashDeskId")
+                        .OnDelete(DeleteBehavior.SetNull);
 
-                    b.Navigation("Store");
-                });
-
-            modelBuilder.Entity("ZEN.Domain.Entities.Printer", b =>
-                {
-                    b.HasOne("ZEN.Domain.Entities.Store", "Store")
-                        .WithMany("Printers")
-                        .HasForeignKey("StoreId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Store");
+                    b.Navigation("CashDesk");
                 });
 
             modelBuilder.Entity("ZEN.Domain.Entities.Product", b =>
@@ -2769,6 +2925,16 @@ namespace ZEN.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("Sale");
+                });
+
+            modelBuilder.Entity("ZEN.Domain.Entities.Scanner", b =>
+                {
+                    b.HasOne("ZEN.Domain.Entities.CashDesk", "CashDesk")
+                        .WithMany("Scanners")
+                        .HasForeignKey("CashDeskId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("CashDesk");
                 });
 
             modelBuilder.Entity("ZEN.Domain.Entities.Shift", b =>
@@ -2960,6 +3126,13 @@ namespace ZEN.Infrastructure.Migrations
                     b.Navigation("Products");
                 });
 
+            modelBuilder.Entity("ZEN.Domain.Entities.CashDesk", b =>
+                {
+                    b.Navigation("PaymentTerminals");
+
+                    b.Navigation("Scanners");
+                });
+
             modelBuilder.Entity("ZEN.Domain.Entities.Category", b =>
                 {
                     b.Navigation("Products");
@@ -3051,9 +3224,7 @@ namespace ZEN.Infrastructure.Migrations
 
             modelBuilder.Entity("ZEN.Domain.Entities.Store", b =>
                 {
-                    b.Navigation("PaymentTerminals");
-
-                    b.Navigation("Printers");
+                    b.Navigation("CashDesks");
 
                     b.Navigation("Warehouses");
                 });

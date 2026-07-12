@@ -26,6 +26,9 @@ public class ZenDbContext : IdentityDbContext<AppUser, AppRole, string>
     public DbSet<Currency> Currencies => Set<Currency>();
     public DbSet<Printer> Printers => Set<Printer>();
     public DbSet<PaymentTerminal> PaymentTerminals => Set<PaymentTerminal>();
+    public DbSet<Scanner> Scanners => Set<Scanner>();
+    public DbSet<CustomerDisplay> CustomerDisplays => Set<CustomerDisplay>();
+    public DbSet<CashDesk> CashDesks => Set<CashDesk>();
 
     // Auth & Security
     public DbSet<Permission> Permissions => Set<Permission>();

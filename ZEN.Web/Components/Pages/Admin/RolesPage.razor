@@ -1,8 +1,11 @@
 @page "/admin/roles"
-@using ZEN.Infrastructure.Identity
 @using MudBlazor
+@using ZEN.Application.DTOs.Auth
+@using ZEN.Application.Services.Interfaces
+@using ZEN.Infrastructure.Identity
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
+@inject IAuthService AuthService
 
 <PageTitle>Roles & Permissions</PageTitle>
 
@@ -67,7 +70,9 @@
     {
         try
         {
-            roles = [];
+            roles = (await AuthService.GetAllRolesAsync())
+                .Select(r => new AppRole { Id = r.Id, Name = r.Name, Description = r.Description })
+                .ToList();
         }
         catch (Exception ex)
         {

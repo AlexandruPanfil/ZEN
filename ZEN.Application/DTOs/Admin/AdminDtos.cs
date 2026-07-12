@@ -1,3 +1,5 @@
+using ZEN.Domain.Enums;
+
 namespace ZEN.Application.DTOs.Admin;
 
 public record StoreDto(
@@ -22,7 +24,8 @@ public record TaxDto(
     Guid Id,
     string Name,
     decimal Rate,
-    bool IsDefault);
+    bool IsDefault,
+    bool IsActive);
 
 public record CurrencyDto(
     Guid Id,
@@ -44,7 +47,8 @@ public record PrinterDto(
     string Name,
     string PrinterName,
     string PrinterType,
-    Guid StoreId,
+    string? ConnectionType,
+    string? ConnectionString,
     bool IsDefault,
     bool IsActive);
 
@@ -52,7 +56,46 @@ public record PaymentTerminalDto(
     Guid Id,
     string Name,
     string TerminalType,
-    string IpAddress,
+    string? SerialNumber,
+    string? IpAddress,
     int Port,
-    Guid StoreId,
+    Guid? CashDeskId,
     bool IsActive);
+
+public record ScannerDto(
+    Guid Id,
+    string Name,
+    string ScannerType,
+    string? ConnectionType,
+    string? ConnectionString,
+    Guid? CashDeskId,
+    bool IsActive);
+
+public record CustomerDisplayDto(
+    Guid Id,
+    string Name,
+    string? ConnectionType,
+    string? ConnectionString,
+    string? Size,
+    Guid? CashDeskId,
+    bool IsActive);
+
+public record CashDeskDto(
+    Guid Id,
+    string Name,
+    Guid? StoreId,
+    bool IsActive,
+    Guid? FiscalPrinterId,
+    Guid? CustomerDisplayId);
+
+public record CashDeskDetailDto(
+    Guid Id,
+    string Name,
+    Guid? StoreId,
+    bool IsActive,
+    Guid? FiscalPrinterId,
+    string FiscalPrinterName,
+    Guid? CustomerDisplayId,
+    string CustomerDisplayName,
+    IEnumerable<PaymentTerminalDto> PaymentTerminals,
+    IEnumerable<ScannerDto> Scanners);

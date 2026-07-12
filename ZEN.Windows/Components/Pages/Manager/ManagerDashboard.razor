@@ -1,0 +1,183 @@
+@page "/manager"
+@page "/manager/dashboard"
+@using ZEN.Application.DTOs.Shifts
+@using ZEN.Windows.Services
+@using ZEN.Windows.Components.Shared
+@inject NavigationManager Navigation
+@inject PosAuthState PosAuthState
+@inject IDialogService DialogService
+
+<PageTitle>Manager Dashboard - ZEN POS</PageTitle>
+
+@if (!PosAuthState.IsManager && !PosAuthState.IsAdmin)
+{
+    <MudPaper Class="pa-4" Elevation="3">
+        <MudText Typo="Typo.h5" GutterBottom="true">Manager access required.</MudText>
+        <MudText Typo="Typo.body2" Class="mb-3">Cashiers can elevate to Manager by entering a Manager or Admin PIN.</MudText>
+        
+        <MudTextField @bind-Value="_pin"
+                     Label="Enter Manager/Admin PIN"
+                     InputType="InputType.Password"
+                     MaxLength="6"
+                     Variant="Variant.Filled"
+                     Class="mb-2"
+                     @onkeypress="HandlePinKeyPress" />
+        
+        @if (!string.IsNullOrWhiteSpace(_error))
+        {
+            <MudAlert Severity="Severity.Error" Class="mt-2">@_error</MudAlert>
+        }
+        
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="ValidatePin" Disabled="_isProcessing" Class="mt-3">
+            @if (_isProcessing)
+            {
+                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                <span>Validating...</span>
+            }
+            else
+            {
+                <span>Confirm</span>
+            }
+        </MudButton>
+    </MudPaper>
+}
+else
+{
+    <div class="d-flex align-items-center mb-4">
+        <MudText Typo="Typo.h5">Manager Dashboard</MudText>
+        <MudSpacer />
+        <MudFab Color="Color.Primary" Size="Size.Medium" Icon="@Icons.Material.Filled.Tune" OnClick="ToggleQuickActions" />
+    </div>
+
+    <QuickActionsPanel @bind-IsOpen="_quickActionsOpen" />
+
+    <MudPaper Class="pa-4" Elevation="3">
+        <MudGrid>
+            <MudItem xs="12" sm="6" md="3">
+                <MudCard Elevation="2">
+                    <MudCardContent>
+                        <MudText Typo="Typo.subtitle2" Color="Color.Secondary">Today's Sales</MudText>
+                        <MudText Typo="Typo.h4">$0.00</MudText>
+                    </MudCardContent>
+                </MudCard>
+            </MudItem>
+            <MudItem xs="12" sm="6" md="3">
+                <MudCard Elevation="2">
+                    <MudCardContent>
+                        <MudText Typo="Typo.subtitle2" Color="Color.Secondary">Active Shifts</MudText>
+                        <MudText Typo="Typo.h5">None</MudText>
+                    </MudCardContent>
+                </MudCard>
+            </MudItem>
+            <MudItem xs="12" sm="6" md="3">
+                <MudCard Elevation="2">
+                    <MudCardContent>
+                        <MudText Typo="Typo.subtitle2" Color="Color.Secondary">Last Sync</MudText>
+                        <MudText Typo="Typo.h5">Never</MudText>
+                    </MudCardContent>
+                </MudCard>
+            </MudItem>
+            <MudItem xs="12" sm="6" md="3">
+                <MudCard Elevation="2">
+                    <MudCardContent>
+                        <MudText Typo="Typo.subtitle2" Color="Color.Secondary">Quick Actions</MudText>
+                        <MudGrid>
+                            <MudItem xs="6">
+                                <MudButton Variant="Variant.Text" Color="Color.Primary" Size="Size.Small" OnClick="NavigateToShifts">
+                                    Shifts
+                                </MudButton>
+                            </MudItem>
+                        </MudGrid>
+                    </MudCardContent>
+                </MudCard>
+            </MudItem>
+        </MudGrid>
+
+        <MudDivider Class="my-4" />
+
+        <MudText Typo="Typo.h6" Class="mb-2">Quick Links</MudText>
+        <MudGrid>
+            <MudItem xs="12" sm="6" md="4">
+                <MudPaper Elevation="2" Class="pa-4" Style="text-align: center; cursor: pointer;" @onclick="NavigateToShifts">
+                    <MudIcon Icon="@Icons.Material.Filled.Schedule" Size="Size.Large" />
+                    <MudText Typo="Typo.h6">Shifts</MudText>
+                    <MudText Typo="Typo.body2">Manage cashier shifts</MudText>
+                </MudPaper>
+            </MudItem>
+            <MudItem xs="12" sm="6" md="4">
+                <MudPaper Elevation="2" Class="pa-4" Style="text-align: center; cursor: pointer;" @onclick="NavigateToEquipments">
+                    <MudIcon Icon="@Icons.Material.Filled.Devices" Size="Size.Large" />
+                    <MudText Typo="Typo.h6">Equipment</MudText>
+                    <MudText Typo="Typo.body2">Printers and terminals</MudText>
+                </MudPaper>
+            </MudItem>
+            <MudItem xs="12" sm="6" md="4">
+                <MudPaper Elevation="2" Class="pa-4" Style="text-align: center; cursor: pointer;" @onclick="NavigateToReports">
+                    <MudIcon Icon="@Icons.Material.Filled.Analytics" Size="Size.Large" />
+                    <MudText Typo="Typo.h6">Reports</MudText>
+                    <MudText Typo="Typo.body2">Sales reports</MudText>
+                </MudPaper>
+            </MudItem>
+        </MudGrid>
+    </MudPaper>
+}
+
+@code {
+    private bool _quickActionsOpen = false;
+    private string _pin = string.Empty;
+    private string? _error;
+    private bool _isProcessing = false;
+
+    private void ToggleQuickActions()
+    {
+        _quickActionsOpen = !_quickActionsOpen;
+    }
+
+    private void NavigateToShifts()
+    {
+        Navigation.NavigateTo("/manager/shifts");
+    }
+
+    private void NavigateToEquipments()
+    {
+        Navigation.NavigateTo("/manager/equipments");
+    }
+
+    private void NavigateToReports()
+    {
+        Navigation.NavigateTo("/manager/reports");
+    }
+
+    private async Task HandlePinKeyPress(KeyboardEventArgs args)
+    {
+        if (args.Key == "Enter")
+            await ValidatePin();
+    }
+
+    private async Task ValidatePin()
+    {
+        if (_isProcessing) return;
+
+        _error = null;
+        _isProcessing = true;
+        await InvokeAsync(StateHasChanged);
+
+        try
+        {
+            if (_pin == "3333" || _pin == "1234")
+            {
+                var role = _pin == "3333" ? PosRoles.Manager : PosRoles.Administrator;
+                PosAuthState.SignIn(PosAuthState.UserName ?? "user@zen.pos", role);
+            }
+            else
+            {
+                _error = "Invalid PIN. Enter Manager PIN (3333) or Admin PIN (1234).";
+            }
+        }
+        finally
+        {
+            _isProcessing = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+}

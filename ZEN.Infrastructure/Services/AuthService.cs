@@ -23,18 +23,21 @@ public class JwtSettings
 public class AuthService : IAuthService
 {
     private readonly UserManager<AppUser> _userManager;
+    private readonly RoleManager<AppRole> _roleManager;
     private readonly IMapper _mapper;
     private readonly IConfiguration _configuration;
     private readonly JwtSettings _jwtSettings;
 
     public AuthService(
         UserManager<AppUser> userManager,
+        RoleManager<AppRole> roleManager,
         IMapper mapper,
         IConfiguration configuration
         //IOptions<JwtSettings> jwtOptions
         )
     {
         _userManager = userManager;
+        _roleManager = roleManager;
         _mapper = mapper;
         _configuration = configuration;
         //_jwtSettings = jwtOptions.Value;
@@ -147,6 +150,12 @@ public class AuthService : IAuthService
         user.IsActive = false;
         var result = await _userManager.UpdateAsync(user);
         return result.Succeeded;
+    }
+
+    public async Task<IEnumerable<RoleDto>> GetAllRolesAsync(CancellationToken cancellationToken = default)
+    {
+        var roles = await _roleManager.Roles.ToListAsync(cancellationToken);
+        return roles.Select(r => new RoleDto(r.Id, r.Name ?? string.Empty, r.Description));
     }
 
     private string GenerateJwtToken(AppUser user, IList<string> roles)

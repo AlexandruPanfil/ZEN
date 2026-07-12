@@ -4,6 +4,7 @@ public static class PosRoles
 {
     public const string Administrator = "Administrator";
     public const string Cashier = "Cashier";
+    public const string Manager = "Manager"; // For future use
 }
 
 public sealed class PosAuthState
@@ -11,17 +12,22 @@ public sealed class PosAuthState
     public bool IsAuthenticated { get; private set; }
     public string? UserName { get; private set; }
     public string? Role { get; private set; }
+    public string? Token { get; private set; }
+    public Guid? StoreId { get; private set; }
 
     public bool IsAdmin => string.Equals(Role, PosRoles.Administrator, StringComparison.OrdinalIgnoreCase);
     public bool IsCashier => string.Equals(Role, PosRoles.Cashier, StringComparison.OrdinalIgnoreCase);
+    public bool IsManager => string.Equals(Role, PosRoles.Manager, StringComparison.OrdinalIgnoreCase);
 
     public event Action? Changed;
 
-    public void SignIn(string? userName, string role)
+    public void SignIn(string? userName, string role, string? token = null, Guid? storeId = null)
     {
         IsAuthenticated = true;
         UserName = userName;
         Role = role;
+        Token = token;
+        StoreId = storeId;
         Changed?.Invoke();
     }
 
@@ -30,6 +36,8 @@ public sealed class PosAuthState
         IsAuthenticated = false;
         UserName = null;
         Role = null;
+        Token = null;
+        StoreId = null;
         Changed?.Invoke();
     }
 }

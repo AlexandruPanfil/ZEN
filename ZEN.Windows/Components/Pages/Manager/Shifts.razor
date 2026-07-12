@@ -1,0 +1,170 @@
+@page "/manager/shifts"
+@using ZEN.Application.DTOs.Shifts
+@using ZEN.Domain.Enums
+@using ZEN.Windows.Services
+@using MudBlazor
+@inject IShiftService ShiftService
+@inject ISnackbar Snackbar
+@inject NavigationManager Navigation
+@inject IStoreContext StoreContext
+@inject PosAuthState PosAuthState
+
+<PageTitle>Shift Management - ZEN POS</PageTitle>
+
+@if (!PosAuthState.IsManager && !PosAuthState.IsAdmin)
+{
+    <MudPaper Class="pa-4" Elevation="3">
+        <MudText Typo="Typo.h5" GutterBottom="true">Manager access required.</MudText>
+        <MudText Typo="Typo.body2" Class="mb-3">Cashiers can elevate to Manager by entering a Manager or Admin PIN.</MudText>
+        
+        <MudTextField @bind-Value="_pin"
+                     Label="Enter Manager/Admin PIN"
+                     InputType="InputType.Password"
+                     MaxLength="6"
+                     Variant="Variant.Filled"
+                     Class="mb-2"
+                     @onkeypress="HandlePinKeyPress" />
+        
+        @if (!string.IsNullOrWhiteSpace(_error))
+        {
+            <MudAlert Severity="Severity.Error" Class="mt-2">@_error</MudAlert>
+        }
+        
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="ValidatePin" Disabled="_isProcessing" Class="mt-3">
+            @if (_isProcessing)
+            {
+                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                <span>Validating...</span>
+            }
+            else
+            {
+                <span>Confirm</span>
+            }
+        </MudButton>
+    </MudPaper>
+}
+else
+{
+    <MudPaper Class="pa-4" Elevation="3">
+        <MudText Typo="Typo.h5" GutterBottom=true>Shift Management</MudText>
+
+        <MudButton Variant="Variant.Filled" Color="Color.Success" StartIcon="@Icons.Material.Filled.Add" OnClick="OpenShift" Class="mb-4">
+            Open New Shift
+        </MudButton>
+
+        @if (_isLoading)
+        {
+            <MudProgressCircular Color="Color.Primary" Indeterminate="true" />
+        }
+        else if (_shifts == null || !_shifts.Any())
+        {
+            <MudAlert Severity="Severity.Info">No shifts found.</MudAlert>
+        }
+        else
+        {
+            <MudTable T="ShiftDto" Items="_shifts" Hover="true">
+                <HeaderContent>
+                    <MudTh>Shift #</MudTh>
+                    <MudTh>Opened</MudTh>
+                    <MudTh>Cashier</MudTh>
+                    <MudTh>Sales</MudTh>
+                    <MudTh>Status</MudTh>
+                    <MudTh>Actions</MudTh>
+                </HeaderContent>
+                <RowTemplate Context="shift">
+                    <MudTd DataLabel="Shift #">@shift.Number</MudTd>
+                    <MudTd DataLabel="Opened">@shift.OpenedAt.ToString("MMM dd HH:mm")</MudTd>
+                    <MudTd DataLabel="Cashier">@shift.UserName</MudTd>
+                    <MudTd DataLabel="Sales">@shift.TotalSales.ToString("C")</MudTd>
+                    <MudTd DataLabel="Status">
+                        <MudChip T="string" Size="Size.Small" Color="@(shift.Status == ShiftStatus.Open ? Color.Success : Color.Info)">
+                            @shift.Status
+                        </MudChip>
+                    </MudTd>
+                    <MudTd DataLabel="Actions">
+                        <MudIconButton Icon="@Icons.Material.Filled.Visibility" Size="Size.Small" OnClick="() => ViewDetails(shift.Id)" />
+                    </MudTd>
+                </RowTemplate>
+            </MudTable>
+        }
+    </MudPaper>
+}
+
+@code {
+    private List<ShiftDto>? _shifts;
+    private bool _isLoading = true;
+    private string _pin = string.Empty;
+    private string? _error;
+    private bool _isProcessing = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadShifts();
+    }
+
+    private async Task LoadShifts()
+    {
+        try
+        {
+            _isLoading = true;
+            var storeId = StoreContext.GetCurrentStoreId();
+            if (storeId.HasValue)
+            {
+                var startDate = DateTime.Today.AddDays(-30);
+                var endDate = DateTime.Today;
+                _shifts = (await ShiftService.GetShiftsByStoreAsync(storeId.Value, startDate, endDate)).ToList();
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error loading shifts: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private void OpenShift()
+    {
+        Navigation.NavigateTo("/manager/shifts/open");
+    }
+
+    private void ViewDetails(Guid shiftId)
+    {
+        Navigation.NavigateTo($"/manager/shifts/{shiftId}");
+    }
+
+    private async Task HandlePinKeyPress(KeyboardEventArgs args)
+    {
+        if (args.Key == "Enter")
+            await ValidatePin();
+    }
+
+    private async Task ValidatePin()
+    {
+        if (_isProcessing) return;
+
+        _error = null;
+        _isProcessing = true;
+        await InvokeAsync(StateHasChanged);
+
+        try
+        {
+            if (_pin == "3333" || _pin == "1234")
+            {
+                var role = _pin == "3333" ? PosRoles.Manager : PosRoles.Administrator;
+                PosAuthState.SignIn(PosAuthState.UserName ?? "user@zen.pos", role);
+            }
+            else
+            {
+                _error = "Invalid PIN. Enter Manager PIN (3333) or Admin PIN (1234).";
+            }
+        }
+        finally
+        {
+            _isProcessing = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+}

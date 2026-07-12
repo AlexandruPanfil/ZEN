@@ -10,7 +10,6 @@ public record RegisterUserRequest(string Email, string FullName, string Password
 
 public record UserDto(string Id, string Email, string FullName, string? PIN, bool IsActive, IEnumerable<string> Roles)
 {
-    // Add this parameterless constructor
     public UserDto() : this(
         string.Empty,
         string.Empty,
@@ -20,4 +19,9 @@ public record UserDto(string Id, string Email, string FullName, string? PIN, boo
         Enumerable.Empty<string>())
     {
     }
+}
+
+public record RoleDto(string Id, string Name, string? Description)
+{
+    public RoleDto() : this(string.Empty, string.Empty, null) { }
 }

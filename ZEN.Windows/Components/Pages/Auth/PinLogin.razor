@@ -2,50 +2,146 @@
 @page "/pin-login"
 @inject NavigationManager Navigation
 @inject ZEN.Windows.Services.PosAuthState PosAuthState
+@inject ISnackbar Snackbar
+@inject ZEN.Windows.Services.Sync.SyncApiClient ApiClient
+@using ZEN.Windows.Services
+@using MudBlazor
 
 <PageTitle>PIN Login - ZEN POS</PageTitle>
 
-<div style="max-width:360px;margin:60px auto;padding:16px;border:1px solid #ddd;border-radius:8px;">
-    <h3>PIN Login</h3>
-    <p style="font-size:.85rem;color:#666;">Demo: admin PIN `1234`, cashier PIN `2222`</p>
+<MudPaper Class="pa-4" Elevation="4" MaxWidth="400px" Style="margin: 2rem auto;">
+    <MudText Typo="Typo.h4" Align="Align.Center" GutterBottom="true">PIN Login</MudText>
+    <MudText Typo="Typo.body2" Align="Align.Center" Style="color: var(--mud-palette-text-secondary);">
+        Demo: admin PIN <code>1234</code>, manager PIN <code>3333</code>, cashier PIN <code>2222</code>
+    </MudText>
 
-    <input type="password" @bind="_pin" maxlength="6" style="width:100%;padding:8px;margin-top:12px;" placeholder="Enter PIN" />
-    <button @onclick="SubmitPin" style="margin-top:12px;padding:8px 12px;">Login</button>
+    <MudTextField @bind-Value="_pin"
+                 Label="PIN"
+                 InputType="InputType.Password"
+                 MaxLength="6"
+                 Variant="Variant.Filled"
+                 Class="mb-4"
+                 @onkeypress="HandleKeyPress" />
+
+    <MudButton ButtonType="ButtonType.Button"
+               Variant="Variant.Filled"
+               Color="Color.Primary"
+               Size="Size.Large"
+               FullWidth="true"
+               Disabled="_isProcessing"
+               OnClick="SubmitPin">
+        @if (_isProcessing)
+        {
+            <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+            <span>Logging in...</span>
+        }
+        else
+        {
+            <span>Login</span>
+        }
+    </MudButton>
 
     @if (!string.IsNullOrWhiteSpace(_error))
     {
-        <p style="color:#b00020;margin-top:10px;">@_error</p>
+        <MudAlert Severity="Severity.Error" Class="mt-3">@_error</MudAlert>
     }
-</div>
+</MudPaper>
 
 @code {
     private string _pin = string.Empty;
     private string? _error;
+    private bool _isProcessing = false;
+    
+    [Parameter]
+    [SupplyParameterFromQuery]
+    public string? ReturnUrl { get; set; }
 
-    protected override void OnAfterRender(bool firstRender)
+    private async Task HandleKeyPress(KeyboardEventArgs args)
     {
-        if (firstRender && PosAuthState.IsAuthenticated)
-            Navigation.NavigateTo("/sell");
+        if (args.Key == "Enter")
+            await SubmitPin();
     }
 
-    private void SubmitPin()
+    private async Task SubmitPin()
     {
+        if (_isProcessing) return;
+
         _error = null;
+        _isProcessing = true;
+        StateHasChanged();
 
-        if (_pin == "1234")
+        try
         {
-            PosAuthState.SignIn("admin@zen.pos", ZEN.Windows.Services.PosRoles.Administrator);
-            Navigation.NavigateTo("/sell");
-            return;
-        }
+            // Try API authentication first
+            var loginResponse = await ApiClient.LoginWithPinAsync(_pin);
+            if (loginResponse != null)
+            {
+                System.Diagnostics.Debug.WriteLine($"API login success: UserName={loginResponse.UserName}, Roles={string.Join(',', loginResponse.Roles)}");
+                
+                var primaryRole = loginResponse.Roles.FirstOrDefault() ?? "Guest";
+                ApiClient.SetBearerToken(loginResponse.Token);
+                PosAuthState.SignIn(loginResponse.UserName, primaryRole, loginResponse.Token);
+                
+                // Wait for auth state to propagate before navigating
+                await Task.Delay(200);
+                
+                NavigateAfterLogin(primaryRole);
+                return;
+            }
+            
+            System.Diagnostics.Debug.WriteLine($"API login failed or unreachable, trying fallback PINs");
+            Snackbar.Add("Using offline mode (API unreachable)", Severity.Info);
 
-        if (_pin == "2222")
+            // Fallback to hardcoded demo PINs for development
+            if (_pin == "1234")
+            {
+                PosAuthState.SignIn("admin@zen.pos", PosRoles.Administrator);
+                await Task.Delay(200);
+                NavigateAfterLogin(PosRoles.Administrator);
+            }
+            else if (_pin == "3333")
+            {
+                PosAuthState.SignIn("manager@zen.pos", PosRoles.Manager);
+                await Task.Delay(200);
+                NavigateAfterLogin(PosRoles.Manager);
+            }
+            else if (_pin == "2222")
+            {
+                PosAuthState.SignIn("cashier@zen.pos", PosRoles.Cashier);
+                await Task.Delay(200);
+                NavigateAfterLogin(PosRoles.Cashier);
+            }
+            else
+            {
+                _error = "Invalid PIN.";
+                Snackbar.Add("Invalid PIN.", Severity.Error);
+            }
+        }
+        catch (Exception ex)
         {
-            PosAuthState.SignIn("cashier@zen.pos", ZEN.Windows.Services.PosRoles.Cashier);
-            Navigation.NavigateTo("/sell");
-            return;
+            _error = $"Login error: {ex.Message}";
+            Snackbar.Add(_error, Severity.Error);
         }
+        finally
+        {
+            _isProcessing = false;
+            StateHasChanged();
+        }
+    }
 
-        _error = "Invalid PIN.";
+    private void NavigateAfterLogin(string role)
+    {
+        if (!string.IsNullOrEmpty(ReturnUrl))
+        {
+            Navigation.NavigateTo(ReturnUrl, replace: true);
+        }
+        else if (string.Equals(role, PosRoles.Cashier, StringComparison.OrdinalIgnoreCase))
+        {
+            Navigation.NavigateTo("/sell", replace: true);
+        }
+        else
+        {
+            Navigation.NavigateTo("/manager", replace: true);
+        }
     }
 }

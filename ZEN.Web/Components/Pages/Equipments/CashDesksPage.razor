@@ -1,0 +1,356 @@
+@page "/equipments/cash-desks"
+@using Microsoft.AspNetCore.Authorization
+@using ZEN.Application.Services.Interfaces
+@using ZEN.Application.DTOs.Admin
+@using ZEN.Domain.Entities
+@using ZEN.Domain.Interfaces
+@inject ICashDeskService CashDeskService
+@inject IPrinterService PrinterService
+@inject ICustomerDisplayService CustomerDisplayService
+@inject IPaymentTerminalService PaymentTerminalService
+@inject IRepository<Store> StoreRepository
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+@attribute [Authorize(Roles = "Administrator,Manager,Technician")]
+
+<Microsoft.AspNetCore.Components.Web.PageTitle>Cash Desks - ZEN POS</Microsoft.AspNetCore.Components.Web.PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="mt-4">
+    <div class="d-flex justify-space-between align-center mb-4">
+        <MudText Typo="Typo.h5" Class="font-weight-bold" Color="Color.Primary">Cash Desks</MudText>
+        <MudButton Variant="Variant.Filled"
+                   Color="Color.Primary"
+                   StartIcon="@Icons.Material.Filled.Add"
+                   OnClick="OpenCreateDialog">
+            Add Cash Desk
+        </MudButton>
+    </div>
+
+    <MudPaper Class="pa-2 mb-2" Outlined="true">
+        <MudTextField T="string"
+                      @bind-Value="_searchTerm"
+                      Placeholder="Search cash desks..."
+                      Variant="Variant.Outlined"
+                      Adornment="Adornment.Start"
+                      AdornmentIcon="@Icons.Material.Filled.Search"
+                      OnKeyDown="@HandleKeyDown"
+                      Clearable="true"
+                      OnClearButtonClick="LoadCashDesks"
+                      Margin="Margin.Dense" />
+    </MudPaper>
+
+    <MudTable T="CashDeskDto" Items="@_cashDesks" Hover="true" Striped="true" Outlined="true" Dense="true" Loading="@_isLoading" LoadingProgressColor="Color.Info">
+        <HeaderContent>
+            <MudTh>Name</MudTh>
+            <MudTh>Store</MudTh>
+            <MudTh>Terminals</MudTh>
+            <MudTh>Fiscal Printer</MudTh>
+            <MudTh>Customer Display</MudTh>
+            <MudTh>Status</MudTh>
+            <MudTh Style="text-align: right;">Actions</MudTh>
+        </HeaderContent>
+        <RowTemplate Context="cashDesk">
+            <MudTd DataLabel="Name">@cashDesk.Name</MudTd>
+            <MudTd DataLabel="Store">@_storeNames.GetValueOrDefault(cashDesk.StoreId ?? Guid.Empty, "—")</MudTd>
+            <MudTd DataLabel="Terminals">
+                @if (_cashDeskTerminalCounts.TryGetValue(cashDesk.Id, out var count))
+                {
+                    <MudChip T="string" Size="Size.Small" Color="Color.Primary">@($"{count} terminal{(count != 1 ? "s" : "")}")</MudChip>
+                }
+                else
+                {
+                    <span>—</span>
+                }
+            </MudTd>
+            <MudTd DataLabel="Fiscal Printer">@_fiscalPrinterNames.GetValueOrDefault(cashDesk.FiscalPrinterId ?? Guid.Empty, "—")</MudTd>
+            <MudTd DataLabel="Customer Display">@_customerDisplayNames.GetValueOrDefault(cashDesk.CustomerDisplayId ?? Guid.Empty, "—")</MudTd>
+            <MudTd DataLabel="Status">
+                <MudChip T="string" Color="@(cashDesk.IsActive ? Color.Success : Color.Error)" Size="Size.Small">
+                    @(cashDesk.IsActive ? "Active" : "Inactive")
+                </MudChip>
+            </MudTd>
+            <MudTd DataLabel="Actions" Style="text-align: right;">
+                <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Info" Size="Size.Small" OnClick="@(() => OpenEditDialog(cashDesk))" />
+                <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small" OnClick="@(() => DeleteCashDesk(cashDesk))" />
+            </MudTd>
+        </RowTemplate>
+        <NoRecordsContent>
+            <MudText Align="Align.Center" Class="pa-3">No cash desks found.</MudText>
+        </NoRecordsContent>
+        <PagerContent>
+            <MudTablePager />
+        </PagerContent>
+    </MudTable>
+</MudContainer>
+
+<!-- Edit/Create Dialog -->
+<MudDialog @bind-Visible="_isDialogOpen" Options="new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true }">
+    <TitleContent>
+        <MudText Typo="Typo.subtitle1" Class="font-weight-bold">
+            <MudIcon Icon="@(_isEditMode ? Icons.Material.Filled.Edit : Icons.Material.Filled.Add)" Class="mr-2" />
+            @(_isEditMode ? "Edit Cash Desk" : "Add Cash Desk")
+        </MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudForm @ref="_form" @bind-IsValid="@_formIsValid">
+            <MudGrid Spacing="2" Class="py-1">
+                <MudItem xs="12">
+                    <MudTextField Label="Name" Variant="Variant.Outlined" @bind-Value="_editingCashDesk.Name" Required="true" For="@(() => _editingCashDesk.Name)" Margin="Margin.Dense" Style="font-size: 0.8rem;" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudSelect T="Guid?" Label="Store" Variant="Variant.Outlined" @bind-Value="_editingCashDesk.StoreId" AnchorOrigin="Origin.BottomLeft" Margin="Margin.Dense" Style="font-size: 0.8rem;">
+                        <MudSelectItem T="Guid?" Value="@((Guid?)null)">— None —</MudSelectItem>
+                        @foreach (var store in _stores)
+                        {
+                            <MudSelectItem T="Guid?" Value="@((Guid?)store.Id)">@store.Name</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudSelect T="Guid?" Label="Fiscal Printer" Variant="Variant.Outlined" @bind-Value="_editingCashDesk.FiscalPrinterId" AnchorOrigin="Origin.BottomLeft" Margin="Margin.Dense" Style="font-size: 0.8rem;">
+                        <MudSelectItem T="Guid?" Value="@((Guid?)null)">— None —</MudSelectItem>
+                        @foreach (var printer in _fiscalPrinters)
+                        {
+                            <MudSelectItem T="Guid?" Value="@((Guid?)printer.Id)">@printer.Name</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudSelect T="Guid?" Label="Customer Display" Variant="Variant.Outlined" @bind-Value="_editingCashDesk.CustomerDisplayId" AnchorOrigin="Origin.BottomLeft" Margin="Margin.Dense" Style="font-size: 0.8rem;">
+                        <MudSelectItem T="Guid?" Value="@((Guid?)null)">— None —</MudSelectItem>
+                        @foreach (var display in _customerDisplays)
+                        {
+                            <MudSelectItem T="Guid?" Value="@((Guid?)display.Id)">@display.Name</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudSelect T="Guid" Label="Terminals" MultiSelection="true" MultiSelectionTextFunc="TerminalMultiSelectionTextFunc" AnchorOrigin="Origin.BottomLeft" Margin="Margin.Dense" Style="font-size: 0.8rem;" SelectedValues="_selectedTerminalValues.ToList()" SelectedValuesChanged="OnTerminalSelectionChanged">
+                        @foreach (var terminal in _terminals)
+                        {
+                            <MudSelectItem T="Guid" Value="@terminal.Id">@terminal.Name</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="6" Class="d-flex align-center ps-1">
+                    <MudSwitch @bind-Value="_editingCashDesk.IsActive" Color="Color.Primary" Label="Active" Dense="true" Style="font-size: 0.75rem;" />
+                </MudItem>
+            </MudGrid>
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="CloseDialog" Size="Size.Small">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveCashDesk" Disabled="@(!_formIsValid)" Size="Size.Small">Save</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private IEnumerable<CashDeskDto> _cashDesks = new List<CashDeskDto>();
+    private IEnumerable<Store> _stores = new List<Store>();
+    private IEnumerable<PrinterDto> _fiscalPrinters = new List<PrinterDto>();
+    private IEnumerable<CustomerDisplayDto> _customerDisplays = new List<CustomerDisplayDto>();
+    private IEnumerable<PaymentTerminalDto> _terminals = new List<PaymentTerminalDto>();
+    private Dictionary<Guid, string> _storeNames = new();
+    private Dictionary<Guid, string> _fiscalPrinterNames = new();
+    private Dictionary<Guid, string> _customerDisplayNames = new();
+    private Dictionary<Guid, int> _cashDeskTerminalCounts = new();
+    private Dictionary<Guid, string> _terminalNames = new();
+    private string _searchTerm = string.Empty;
+    private bool _isLoading = true;
+    private bool _isDialogOpen = false;
+    private bool _isEditMode = false;
+    private bool _formIsValid = false;
+    private MudForm? _form;
+
+    private CashDeskFormModel _editingCashDesk = new();
+    private List<Guid> _selectedTerminalValues = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadLookups();
+        await LoadCashDesks();
+    }
+
+    private async Task LoadLookups()
+    {
+        try
+        {
+            _stores = (await StoreRepository.GetAllAsync()).Where(s => s.IsActive).ToList();
+            _fiscalPrinters = PrinterService.GetAll().Where(p => p.PrinterType == "Fiscal");
+            _customerDisplays = CustomerDisplayService.GetAll();
+            _terminals = PaymentTerminalService.GetAll();
+            _storeNames = _stores.ToDictionary(s => s.Id, s => s.Name);
+            _fiscalPrinterNames = _fiscalPrinters.ToDictionary(p => p.Id, p => p.Name);
+            _customerDisplayNames = _customerDisplays.ToDictionary(d => d.Id, d => d.Name);
+            _terminalNames = _terminals.ToDictionary(t => t.Id, t => t.Name);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error loading lookups: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task LoadTerminals()
+    {
+        _terminals = PaymentTerminalService.GetAll();
+        _terminalNames = _terminals.ToDictionary(t => t.Id, t => t.Name);
+    }
+
+    private string TerminalMultiSelectionTextFunc(IReadOnlyList<string> selectedValues)
+    {
+        if (selectedValues == null || !selectedValues.Any())
+            return "No terminals selected";
+        return string.Join(", ", selectedValues.Select(s => _terminalNames.GetValueOrDefault(Guid.Parse(s), s)));
+    }
+
+    private async Task OnTerminalSelectionChanged(IReadOnlyCollection<Guid> selectedValues)
+    {
+        _selectedTerminalValues.Clear();
+        _selectedTerminalValues.AddRange(selectedValues);
+    }
+
+    private async Task LoadCashDesks()
+    {
+        _isLoading = true;
+        try
+        {
+            // Load cash desks
+            var cashDesks = await CashDeskService.GetAllAsync(cancellationToken: default);
+            
+            // Reload terminals to get fresh CashDeskId assignments
+            await LoadTerminals();
+            
+            // Get terminal counts per cashdesk
+            var terminalCounts = _terminals
+                .Where(t => t.CashDeskId.HasValue)
+                .GroupBy(t => t.CashDeskId!.Value)
+                .ToDictionary(g => g.Key, g => g.Count());
+            
+            _cashDeskTerminalCounts = terminalCounts;
+            
+            _cashDesks = string.IsNullOrWhiteSpace(_searchTerm)
+                ? cashDesks
+                : cashDesks.Where(cd => cd.Name.Contains(_searchTerm, StringComparison.OrdinalIgnoreCase));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error loading cash desks: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+            await LoadCashDesks();
+    }
+
+    private void OpenCreateDialog()
+    {
+        _isEditMode = false;
+        _editingCashDesk = new CashDeskFormModel();
+        _selectedTerminalValues.Clear();
+        _isDialogOpen = true;
+    }
+
+    private async Task OpenEditDialog(CashDeskDto cashDesk)
+    {
+        _isEditMode = true;
+        
+        // Load detail to get assigned terminals
+        var detail = await CashDeskService.GetDetailByIdAsync(cashDesk.Id);
+        var assignedTerminalIds = detail?.PaymentTerminals.Select(t => t.Id).ToArray() ?? Array.Empty<Guid>();
+        
+        _editingCashDesk = new CashDeskFormModel
+        {
+            Id = cashDesk.Id,
+            Name = cashDesk.Name,
+            StoreId = cashDesk.StoreId,
+            IsActive = cashDesk.IsActive,
+            FiscalPrinterId = cashDesk.FiscalPrinterId,
+            CustomerDisplayId = cashDesk.CustomerDisplayId
+        };
+        _selectedTerminalValues.Clear();
+        _selectedTerminalValues.AddRange(assignedTerminalIds);
+        StateHasChanged();
+        _isDialogOpen = true;
+    }
+
+    private async Task SaveCashDesk()
+    {
+        try
+        {
+            var terminalIds = _selectedTerminalValues.AsEnumerable();
+            
+            if (_isEditMode)
+            {
+                var request = new UpdateCashDeskRequest(
+                    _editingCashDesk.Id,
+                    _editingCashDesk.Name,
+                    _editingCashDesk.StoreId,
+                    _editingCashDesk.IsActive,
+                    _editingCashDesk.FiscalPrinterId,
+                    _editingCashDesk.CustomerDisplayId,
+                    terminalIds);
+                await CashDeskService.UpdateAsync(request);
+                Snackbar.Add("Cash desk updated successfully.", Severity.Success);
+            }
+            else
+            {
+                var request = new CreateCashDeskRequest(
+                    _editingCashDesk.Name,
+                    _editingCashDesk.StoreId,
+                    _editingCashDesk.IsActive,
+                    _editingCashDesk.FiscalPrinterId,
+                    _editingCashDesk.CustomerDisplayId,
+                    terminalIds);
+                await CashDeskService.CreateAsync(request);
+                Snackbar.Add("Cash desk created successfully.", Severity.Success);
+            }
+            await LoadCashDesks();
+            CloseDialog();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error saving cash desk: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task DeleteCashDesk(CashDeskDto cashDesk)
+    {
+        var parameters = new DialogParameters { ["ContentText"] = $"Delete cash desk '{cashDesk.Name}'?" };
+        var dialog = await DialogService.ShowAsync<MudDialog>("Delete Cash Desk", parameters, new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small });
+        var result = await dialog.Result;
+
+        if (!result.Canceled)
+        {
+            try
+            {
+                if (await CashDeskService.DeleteAsync(cashDesk.Id))
+                {
+                    Snackbar.Add("Cash desk deleted successfully.", Severity.Success);
+                    await LoadCashDesks();
+                }
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Error deleting cash desk: {ex.Message}", Severity.Error);
+            }
+        }
+    }
+
+    private void CloseDialog() => _isDialogOpen = false;
+
+    private class CashDeskFormModel
+    {
+        public Guid Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public Guid? StoreId { get; set; }
+        public bool IsActive { get; set; } = true;
+        public Guid? FiscalPrinterId { get; set; }
+        public Guid? CustomerDisplayId { get; set; }
+    }
+}

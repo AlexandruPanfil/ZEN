@@ -52,6 +52,11 @@ public static class DependencyInjection
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<ICurrentUserService, CurrentUserService>();
         services.AddScoped<IAuditService, AuditService>();
+        services.AddScoped<IPrinterService, PrinterService>();
+        services.AddScoped<IPaymentTerminalService, PaymentTerminalService>();
+        services.AddScoped<IScannerService, ScannerService>();
+        services.AddScoped<ICustomerDisplayService, CustomerDisplayService>();
+        services.AddScoped<ICashDeskService, CashDeskService>();
 
         return services;
     }
@@ -84,6 +89,11 @@ public static class DependencyInjection
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<ICurrentUserService, CurrentUserService>();
         services.AddScoped<IAuditService, AuditService>();
+        services.AddScoped<IPrinterService, PrinterService>();
+        services.AddScoped<IPaymentTerminalService, PaymentTerminalService>();
+        services.AddScoped<IScannerService, ScannerService>();
+        services.AddScoped<ICustomerDisplayService, CustomerDisplayService>();
+        services.AddScoped<ICashDeskService, CashDeskService>();
 
         return services;
     }

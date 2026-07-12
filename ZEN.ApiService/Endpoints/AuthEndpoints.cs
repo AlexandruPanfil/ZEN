@@ -79,6 +79,15 @@ public static class AuthEndpoints
         .WithOpenApi()
         .RequireAuthorization();
 
+        group.MapGet("/roles", async (IAuthService authService, CancellationToken ct) =>
+        {
+            var roles = await authService.GetAllRolesAsync(ct);
+            return Results.Ok(roles);
+        })
+        .WithName("GetAllRoles")
+        .WithOpenApi()
+        .RequireAuthorization();
+
         return group;
     }
 }

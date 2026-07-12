@@ -4,5 +4,6 @@ public enum PrinterType
 {
     Receipt,
     Kitchen,
-    Label
+    Label,
+    Fiscal
 }

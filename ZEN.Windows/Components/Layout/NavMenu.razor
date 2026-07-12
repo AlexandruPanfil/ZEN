@@ -1,4 +1,10 @@
-﻿<div class="top-row ps-3 navbar navbar-dark">
+﻿@using MudBlazor
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+@inject ZEN.Windows.Services.PosAuthState PosAuthState
+@inject ZEN.Windows.Services.Sync.SyncApiClient ApiClient
+
+<div class="top-row ps-3 navbar navbar-dark">
     <div class="container-fluid">
         <a class="navbar-brand" href="">ZEN POS</a>
     </div>
@@ -29,6 +35,26 @@
                     <NavLink class="nav-link" href="admin/settings">Settings</NavLink>
                 </div>
             }
+
+            <AuthorizeView Roles="Administrator">
+                <Authorized>
+                    <div class="nav-item px-3">
+                        <NavLink class="nav-link" href="manager">Dashboard</NavLink>
+                    </div>
+                    <div class="nav-item px-3">
+                        <NavLink class="nav-link" href="manager/reports">Reports</NavLink>
+                    </div>
+                    <div class="nav-item px-3">
+                        <NavLink class="nav-link" href="manager/sync">Sync</NavLink>
+                    </div>
+                    <div class="nav-item px-3">
+                        <NavLink class="nav-link" href="manager/equipments">Equipment</NavLink>
+                    </div>
+                    <div class="nav-item px-3">
+                        <NavLink class="nav-link" href="manager/shifts">Shifts</NavLink>
+                    </div>
+                </Authorized>
+            </AuthorizeView>
         }
 
         <div class="nav-item px-3 mt-auto">
@@ -50,14 +76,11 @@
 </div>
 
 @code {
-    @inject NavigationManager Navigation
-    @inject ISnackbar Snackbar
-    @inject ZEN.Windows.Services.PosAuthState PosAuthState
-
     private void GoToLogin() => Navigation.NavigateTo("/pin-login");
 
     private void Logout()
     {
+        ApiClient.SetBearerToken(null);
         PosAuthState.SignOut();
         Snackbar.Add("Logged out successfully", Severity.Info);
         Navigation.NavigateTo("/pin-login");

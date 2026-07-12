@@ -63,4 +63,14 @@
             <MudNavLink Href="/admin/audit-logs" Icon="@Icons.Material.Filled.History">Audit Logs</MudNavLink>
         </MudNavGroup>
     </AuthorizeView>
+
+    <AuthorizeView Roles="Administrator,Manager,Technician">
+        <MudNavGroup Title="Equipment" Icon="@Icons.Material.Filled.SettingsInputComponent" Expanded="false">
+            <MudNavLink Href="/equipments/printers" Icon="@Icons.Material.Filled.Print">Printers</MudNavLink>
+            <MudNavLink Href="/equipments/bank-terminals" Icon="@Icons.Material.Filled.Payment">Bank Terminals</MudNavLink>
+            <MudNavLink Href="/equipments/scanners" Icon="@Icons.Material.Filled.QrCodeScanner">Scanners</MudNavLink>
+            <MudNavLink Href="/equipments/customer-displays" Icon="@Icons.Material.Filled.DisplaySettings">Customer Displays</MudNavLink>
+            <MudNavLink Href="/equipments/cash-desks" Icon="@Icons.Material.Filled.Desk">Cash Desks</MudNavLink>
+        </MudNavGroup>
+    </AuthorizeView>
 </MudNavMenu>

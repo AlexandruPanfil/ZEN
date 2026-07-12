@@ -1,0 +1,120 @@
+@page "/manager/shifts/open"
+@using ZEN.Application.DTOs.Shifts
+@using ZEN.Windows.Services
+@using MudBlazor
+@inject IShiftService ShiftService
+@inject ISnackbar Snackbar
+@inject NavigationManager Navigation
+@inject PosAuthState PosAuthState
+
+<PageTitle>Open Shift - ZEN POS</PageTitle>
+
+@if (!PosAuthState.IsManager && !PosAuthState.IsAdmin)
+{
+    <MudPaper Class="pa-4" Elevation="3">
+        <MudText Typo="Typo.h5" GutterBottom="true">Manager access required.</MudText>
+        <MudText Typo="Typo.body2" Class="mb-3">Cashiers can elevate to Manager by entering a Manager or Admin PIN.</MudText>
+        
+        <MudTextField @bind-Value="_pin"
+                     Label="Enter Manager/Admin PIN"
+                     InputType="InputType.Password"
+                     MaxLength="6"
+                     Variant="Variant.Filled"
+                     Class="mb-2"
+                     @onkeypress="HandlePinKeyPress" />
+        
+        @if (!string.IsNullOrWhiteSpace(_error))
+        {
+            <MudAlert Severity="Severity.Error" Class="mt-2">@_error</MudAlert>
+        }
+        
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="ValidatePin" Disabled="_isProcessing" Class="mt-3">
+            @if (_isProcessing)
+            {
+                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                <span>Validating...</span>
+            }
+            else
+            {
+                <span>Confirm</span>
+            }
+        </MudButton>
+    </MudPaper>
+}
+else
+{
+    <MudPaper Class="pa-4" Elevation="3">
+        <MudText Typo="Typo.h5" GutterBottom=true>Open New Shift</MudText>
+
+        <MudNumericField Label="Opening Cash Amount" @bind-Value="_openingCash" Min="0" />
+
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="OpenShiftHandler">
+            Open Shift
+        </MudButton>
+        <MudButton Variant="Variant.Text" Color="Color.Error" OnClick="Cancel">
+            Cancel
+        </MudButton>
+    </MudPaper>
+}
+
+@code {
+    private decimal _openingCash = 100m;
+    private string _pin = string.Empty;
+    private string? _error;
+    private bool _isProcessing = false;
+
+    private async Task OpenShiftHandler()
+    {
+        try
+        {
+            var request = new OpenShiftRequest(Guid.Empty, _openingCash);
+            var shift = await ShiftService.OpenShiftAsync(request);
+            Snackbar.Add($"Shift opened successfully. Shift ID: {shift.Id}", Severity.Success);
+            Navigation.NavigateTo("/manager/shifts");
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error opening shift: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private void Cancel()
+    {
+        Navigation.NavigateTo("/manager/shifts");
+    }
+
+    private async Task HandlePinKeyPress(KeyboardEventArgs args)
+    {
+        if (args.Key == "Enter")
+            await ValidatePin();
+    }
+
+    private async Task ValidatePin()
+    {
+        if (_isProcessing) return;
+
+        _error = null;
+        _isProcessing = true;
+        await InvokeAsync(StateHasChanged);
+
+        try
+        {
+            if (_pin == "3333" || _pin == "1234")
+            {
+                var role = _pin == "3333" ? PosRoles.Manager : PosRoles.Administrator;
+                PosAuthState.SignIn(PosAuthState.UserName ?? "user@zen.pos", role);
+                // Force re-render to show the shift opening UI
+                await InvokeAsync(StateHasChanged);
+            }
+            else
+            {
+                _error = "Invalid PIN. Enter Manager PIN (3333) or Admin PIN (1234).";
+            }
+        }
+        finally
+        {
+            _isProcessing = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+}

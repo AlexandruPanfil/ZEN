@@ -14,6 +14,9 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Add service defaults & Aspire client integrations.
 builder.AddServiceDefaults();
+
+// For standalone development without Docker, use in-memory cache
+// To run with Docker (AppHost), use Redis cache
 builder.AddRedisOutputCache("cache");
 
 // Add services to the container.
@@ -98,10 +101,7 @@ app.UseAuthorization();
 
 app.UseAntiforgery();
 
-
 app.MapRazorPages();
-
-app.UseOutputCache();
 
 app.MapStaticAssets();
 
@@ -111,4 +111,3 @@ app.MapRazorComponents<App>()
 app.MapDefaultEndpoints();
 
 app.Run();
-
