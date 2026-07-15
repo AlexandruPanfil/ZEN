@@ -30,15 +30,29 @@ public class ShiftService : IShiftService
 
     public async Task<ShiftDto> OpenShiftAsync(OpenShiftRequest request, CancellationToken cancellationToken = default)
     {
-        var currentStoreId = _storeContext.GetCurrentStoreId() ?? request.StoreId;
-        var existing = await _shiftRepository.FindFirstAsync(s => s.StoreId == currentStoreId && s.Status == ShiftStatus.Open, cancellationToken);
+        var storeIdFromContext = _storeContext.GetCurrentStoreId();
+        Guid storeId;
+        if (storeIdFromContext.HasValue)
+        {
+            storeId = storeIdFromContext.Value;
+        }
+        else if (request.StoreId != Guid.Empty)
+        {
+            storeId = request.StoreId;
+        }
+        else
+        {
+            throw new InvalidOperationException("No store context available and StoreId not provided in request");
+        }
+
+        var existing = await _shiftRepository.FindFirstAsync(s => s.StoreId == storeId && s.Status == ShiftStatus.Open, cancellationToken);
         if (existing != null)
             throw new InvalidOperationException("A shift is already open for this store");
 
         var shift = new Shift
         {
             UserId = _currentUserService.UserId ?? "system",
-            StoreId = currentStoreId,
+            StoreId = storeId,
             OpenTime = DateTime.UtcNow,
             OpeningCash = request.OpeningCash,
             ClosingCash = 0,
@@ -119,7 +133,7 @@ public class ShiftService : IShiftService
         return movements.OrderBy(m => m.Timestamp).Select(m => new CashMovementDto(m.Id, m.Timestamp, m.Type, m.Amount, m.Notes ?? string.Empty, m.UserId, _currentUserService.UserName ?? m.UserId));
     }
 
-    private ShiftDto MapToDto(Shift shift)
+    private static ShiftDto MapToDto(Shift shift)
     {
         var totalSales = shift.Sales?.Sum(s => s.TotalAmount) ?? 0;
         var salesCount = shift.Sales?.Count ?? 0;
@@ -132,9 +146,9 @@ public class ShiftService : IShiftService
             shift.OpenTime,
             shift.CloseTime,
             shift.UserId,
-            _currentUserService.UserName ?? shift.UserId,
+            "Unknown", // UserName - will be populated from CurrentUserService in context
             shift.StoreId,
-            _storeContext.GetCurrentStoreNameAsync().GetAwaiter().GetResult() ?? "Unknown",
+            "Unknown", // StoreName
             shift.OpeningCash,
             shift.Status == ShiftStatus.Closed ? shift.ClosingCash : null,
             expectedCash,

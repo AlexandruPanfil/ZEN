@@ -2,10 +2,12 @@
 @using System.Linq
 @using Microsoft.AspNetCore.Authorization
 @using MudBlazor
+@using ZEN.Application.DTOs.Admin
 @using ZEN.Application.DTOs.Auth
 @using ZEN.Application.Services.Interfaces
 @* @attribute [Authorize(Roles = "Administrator")] *@
 @inject IAuthService AuthService
+@inject ICashDeskService CashDeskService
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
 
@@ -50,6 +52,7 @@
         <HeaderContent>
             <MudTh>User</MudTh>
             <MudTh>Role</MudTh>
+            <MudTh>Cash Desk</MudTh>
             <MudTh>PIN</MudTh>
             <MudTh>Status</MudTh>
             <MudTh Style="width: 100px;"></MudTh>
@@ -70,6 +73,16 @@
                 @foreach (var role in context.Roles)
                 {
                     <MudChip T="string" Size="Size.Small" Color="@GetRoleColor(role)" Variant="Variant.Filled">@role</MudChip>
+                }
+            </MudTd>
+            <MudTd>
+                @if (context.CashDeskName != null)
+                {
+                    <MudText Typo="Typo.caption">@context.CashDeskName</MudText>
+                }
+                else
+                {
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">—</MudText>
                 }
             </MudTd>
             <MudTd>
@@ -130,6 +143,13 @@
 
             <MudTextField @bind-Value="_form.PIN" Label="PIN (optional)" Variant="Variant.Outlined" InputType="InputType.Password" MaxLength="6" HelperText="4–6 digit PIN for quick login." />
 
+            <MudSelect T="Guid?" @bind-Value="_form.CashDeskId" Label="Cash Desk" Variant="Variant.Outlined" Clearable="true">
+                @foreach (var cashDesk in _cashDesks)
+                {
+                    <MudSelectItem Value="@((Guid?)cashDesk.Id)">@cashDesk.Name</MudSelectItem>
+                }
+            </MudSelect>
+
             @* Clean, native MudBlazor binding using @bind-SelectedValues *@
             <MudSelect T="string"
                        Label="Roles"
@@ -164,6 +184,7 @@
     private string _filter = "All";
     private UserDto? _editingUser;
     private List<UserDto> _users = [];
+    private List<CashDeskDto> _cashDesks = [];
 
     private readonly string[] _availableRoles =
         ["Administrator", "Manager", "Cashier", "Accountant", "InventoryManager", "Technician"];
@@ -179,7 +200,21 @@
 
     protected override async Task OnInitializedAsync()
     {
+        await LoadCashDesks();
         await LoadUsers();
+    }
+
+    private async Task LoadCashDesks()
+    {
+        try
+        {
+            var result = await CashDeskService.GetAllAsync();
+            _cashDesks = result.ToList();
+        }
+        catch
+        {
+            Snackbar.Add("Could not load cash desks.", Severity.Error);
+        }
     }
 
     private async Task LoadUsers()
@@ -241,6 +276,7 @@
             FullName = user.FullName,
             Email = user.Email,
             PIN = user.PIN ?? string.Empty,
+            CashDeskId = user.CashDeskId,
             // Convert to list to satisfy IReadOnlyCollection
             SelectedRoles = user.Roles?.ToList() ?? new List<string>()
         };
@@ -272,7 +308,8 @@
                 _form.FullName,
                 _editingUser == null ? _form.Password : "Placeholder1",
                 string.IsNullOrEmpty(_form.PIN) ? null : _form.PIN,
-                _form.SelectedRoles
+                _form.SelectedRoles,
+                _form.CashDeskId
             );
 
             if (_editingUser == null)
@@ -328,7 +365,8 @@
                     user.FullName,
                     "Placeholder1!",
                     user.PIN,
-                    rolesCollection
+                    rolesCollection,
+                    user.CashDeskId
                 );
                 await AuthService.UpdateUserAsync(user.Id, updateRequest);
             }
@@ -366,6 +404,7 @@
         public string Email { get; set; } = string.Empty;
         public string Password { get; set; } = string.Empty;
         public string PIN { get; set; } = string.Empty;
+        public Guid? CashDeskId { get; set; }
 
         // Use IReadOnlyCollection so the API call is a direct assignment
         public IReadOnlyCollection<string> SelectedRoles { get; set; } = new List<string>();

@@ -45,7 +45,9 @@ public class AuthService : IAuthService
 
     public async Task<LoginResponse> LoginAsync(LoginRequest request, CancellationToken cancellationToken = default)
     {
-        var user = await _userManager.FindByEmailAsync(request.Email);
+        var user = await _userManager.Users
+            .Include(u => u.CashDesk)
+            .FirstOrDefaultAsync(u => u.Email == request.Email, cancellationToken);
         if (user == null || !user.IsActive)
             throw new UnauthorizedAccessException("Invalid credentials");
 
@@ -61,7 +63,9 @@ public class AuthService : IAuthService
 
     public async Task<LoginResponse> PinLoginAsync(PinLoginRequest request, CancellationToken cancellationToken = default)
     {
-        var user = await _userManager.Users.FirstOrDefaultAsync(u => u.PIN == request.PIN && u.IsActive, cancellationToken);
+        var user = await _userManager.Users
+            .Include(u => u.CashDesk)
+            .FirstOrDefaultAsync(u => u.PIN == request.PIN && u.IsActive, cancellationToken);
         if (user == null)
             throw new UnauthorizedAccessException("Invalid PIN");
 
@@ -91,25 +95,29 @@ public class AuthService : IAuthService
 
     public async Task<UserDto> GetUserByIdAsync(string userId, CancellationToken cancellationToken = default)
     {
-        var user = await _userManager.FindByIdAsync(userId);
+        var user = await _userManager.Users
+            .Include(u => u.CashDesk)
+            .FirstOrDefaultAsync(u => u.Id == userId, cancellationToken);
         if (user == null)
             throw new KeyNotFoundException("User not found");
 
         var roles = await _userManager.GetRolesAsync(user);
         var userDto = _mapper.Map<UserDto>(user);
-        return userDto with { Roles = roles };
+        return userDto with { Roles = roles, CashDeskName = user.CashDesk?.Name };
     }
 
     public async Task<IEnumerable<UserDto>> GetAllUsersAsync(CancellationToken cancellationToken = default)
     {
-        var users = await _userManager.Users.ToListAsync(cancellationToken);
+        var users = await _userManager.Users
+            .Include(u => u.CashDesk)
+            .ToListAsync(cancellationToken);
         var userDtos = new List<UserDto>();
 
         foreach (var user in users)
         {
             var roles = await _userManager.GetRolesAsync(user);
             var userDto = _mapper.Map<UserDto>(user);
-            userDtos.Add(userDto with { Roles = roles });
+            userDtos.Add(userDto with { Roles = roles, CashDeskName = user.CashDesk?.Name });
         }
 
         return userDtos;
@@ -128,6 +136,7 @@ public class AuthService : IAuthService
         user.Email = request.Email;
         user.UserName = request.Email;
         user.PIN = request.PIN;
+        user.CashDeskId = request.CashDeskId;
 
         var result = await _userManager.UpdateAsync(user);
         if (!result.Succeeded)

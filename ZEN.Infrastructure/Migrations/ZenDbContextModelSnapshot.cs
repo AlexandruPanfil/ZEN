@@ -2406,6 +2406,9 @@ namespace ZEN.Infrastructure.Migrations
                     b.Property<int>("AccessFailedCount")
                         .HasColumnType("int");
 
+                    b.Property<Guid?>("CashDeskId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<string>("ConcurrencyStamp")
                         .IsConcurrencyToken()
                         .HasColumnType("nvarchar(max)");
@@ -2474,6 +2477,8 @@ namespace ZEN.Infrastructure.Migrations
                         .HasColumnType("nvarchar(256)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("CashDeskId");
 
                     b.HasIndex("NormalizedEmail")
                         .HasDatabaseName("EmailIndex");
@@ -3119,6 +3124,16 @@ namespace ZEN.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("Store");
+                });
+
+            modelBuilder.Entity("ZEN.Infrastructure.Identity.AppUser", b =>
+                {
+                    b.HasOne("ZEN.Domain.Entities.CashDesk", "CashDesk")
+                        .WithMany()
+                        .HasForeignKey("CashDeskId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("CashDesk");
                 });
 
             modelBuilder.Entity("ZEN.Domain.Entities.Brand", b =>
