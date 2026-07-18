@@ -1,14 +1,17 @@
 ﻿@page "/"
 @using ZEN.Application.Services.Interfaces
 @using ZEN.Application.DTOs.Reports
+@using Microsoft.Extensions.Localization
+@using ZEN.Shared
 @inject IAuthService AuthService
 @inject IReportService ReportService
 @inject ISnackbar Snackbar
+@inject IStringLocalizer<SharedResource> L
 
-<PageTitle>Dashboard - ZEN POS</PageTitle>
+<PageTitle>@L["Dashboard"] - @L["AppName"]</PageTitle>
 
-<MudText Typo="Typo.h3" GutterBottom="true">Welcome to ZEN POS</MudText>
-<MudText Typo="Typo.body1" Class="mb-6">System overview and key performance indicators.</MudText>
+<MudText Typo="Typo.h3" GutterBottom="true">@L["Welcome"]</MudText>
+<MudText Typo="Typo.body1" Class="mb-6">@L["WelcomeSubtitle"]</MudText>
 
 @if (_isLoading)
 {
@@ -24,7 +27,7 @@ else
                     <div class="d-flex align-center">
                         <MudIcon Icon="@Icons.Material.Filled.People" Color="Color.Primary" Size="Size.Large" Class="mr-4" />
                         <div>
-                            <MudText Typo="Typo.subtitle2" Color="Color.Secondary">Active Users</MudText>
+                            <MudText Typo="Typo.subtitle2" Color="Color.Secondary">@L["ActiveUsers"]</MudText>
                             <MudText Typo="Typo.h4">@_activeUsersCount</MudText>
                         </div>
                     </div>
@@ -39,7 +42,7 @@ else
                     <div class="d-flex align-center">
                         <MudIcon Icon="@Icons.Material.Filled.TrendingUp" Color="Color.Success" Size="Size.Large" Class="mr-4" />
                         <div>
-                            <MudText Typo="Typo.subtitle2" Color="Color.Secondary">Today's Sales</MudText>
+                            <MudText Typo="Typo.subtitle2" Color="Color.Secondary">@L["TodaysSales"]</MudText>
                             <MudText Typo="Typo.h4">@_todaySales.ToString("C")</MudText>
                         </div>
                     </div>
@@ -54,7 +57,7 @@ else
                     <div class="d-flex align-center">
                         <MudIcon Icon="@Icons.Material.Filled.CalendarMonth" Color="Color.Info" Size="Size.Large" Class="mr-4" />
                         <div>
-                            <MudText Typo="Typo.subtitle2" Color="Color.Secondary">Monthly Sales</MudText>
+                            <MudText Typo="Typo.subtitle2" Color="Color.Secondary">@L["MonthlySales"]</MudText>
                             <MudText Typo="Typo.h4">@_monthlySales.ToString("C")</MudText>
                         </div>
                     </div>

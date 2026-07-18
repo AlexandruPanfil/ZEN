@@ -1,24 +1,22 @@
 @using MudBlazor
+@using Microsoft.Extensions.Localization
+@using ZEN.Shared
 @inject ISnackbar Snackbar
+@inject IStringLocalizer<SharedResource> L
 
 <MudStack Spacing="4">
-    <MudText Typo="Typo.subtitle1">Localization Settings</MudText>
+    <MudText Typo="Typo.subtitle1">@L["LocalizationSettings"]</MudText>
 
     <MudForm @ref="form" @bind-IsValid="isFormValid">
         <MudStack Spacing="3">
-            <MudSelect T="string" Label="Default Language" @bind-Value="language"
+            <MudSelect T="string" Label="@L["DefaultLanguage"]" @bind-Value="language"
                       Variant="Variant.Outlined">
-                <MudSelectItem Value="@("en-US")">English (US)</MudSelectItem>
-                <MudSelectItem Value="@("en-GB")">English (UK)</MudSelectItem>
-                <MudSelectItem Value="@("es-ES")">Spanish</MudSelectItem>
-                <MudSelectItem Value="@("fr-FR")">French</MudSelectItem>
-                <MudSelectItem Value="@("de-DE")">German</MudSelectItem>
-                <MudSelectItem Value="@("pt-BR")">Portuguese (Brazil)</MudSelectItem>
-                <MudSelectItem Value="@("zh-CN")">Chinese (Simplified)</MudSelectItem>
-                <MudSelectItem Value="@("ja-JP")">Japanese</MudSelectItem>
+                <MudSelectItem Value="@("en")">@L["English"]</MudSelectItem>
+                <MudSelectItem Value="@("ro")">@L["Romanian"]</MudSelectItem>
+                <MudSelectItem Value="@("ru")">@L["Russian"]</MudSelectItem>
             </MudSelect>
 
-            <MudSelect T="string" Label="Default Currency" @bind-Value="currency"
+            <MudSelect T="string" Label="@L["DefaultCurrency"]" @bind-Value="currency"
                       Variant="Variant.Outlined">
                 <MudSelectItem Value="@("USD")">USD - US Dollar</MudSelectItem>
                 <MudSelectItem Value="@("EUR")">EUR - Euro</MudSelectItem>
@@ -29,17 +27,17 @@
                 <MudSelectItem Value="@("CNY")">CNY - Chinese Yuan</MudSelectItem>
             </MudSelect>
 
-            <MudTextField T="string" Label="Currency Symbol" @bind-Value="currencySymbol"
+            <MudTextField T="string" Label="@L["CurrencySymbol"]" @bind-Value="currencySymbol"
                          Variant="Variant.Outlined"
                          HelperText="Symbol to display (e.g., $, €, £)" />
 
-            <MudSelect T="string" Label="Decimal Separator" @bind-Value="decimalSeparator"
+            <MudSelect T="string" Label="@L["DecimalSeparator"]" @bind-Value="decimalSeparator"
                       Variant="Variant.Outlined">
                 <MudSelectItem Value="@(".")">Dot (.)</MudSelectItem>
                 <MudSelectItem Value="@(",")">Comma (,)</MudSelectItem>
             </MudSelect>
 
-            <MudSelect T="string" Label="Thousands Separator" @bind-Value="thousandsSeparator"
+            <MudSelect T="string" Label="@L["ThousandsSeparator"]" @bind-Value="thousandsSeparator"
                       Variant="Variant.Outlined">
                 <MudSelectItem Value="@(",")">Comma (,)</MudSelectItem>
                 <MudSelectItem Value="@(" ")">Space</MudSelectItem>
@@ -47,7 +45,7 @@
             </MudSelect>
 
             <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveLocalizationSettings">
-                Save Localization Settings
+                @L["Save"]
             </MudButton>
         </MudStack>
     </MudForm>
@@ -57,7 +55,7 @@
     private MudForm form = null!;
     private bool isFormValid = true;
 
-    private string language = "en-US";
+    private string language = "en";
     private string currency = "USD";
     private string currencySymbol = "$";
     private string decimalSeparator = ".";
@@ -69,12 +67,11 @@
     {
         try
         {
-            // In a real scenario, would call a settings service to save these values
-            SnackbarLocal.Add("Localization settings saved successfully", Severity.Success);
+            SnackbarLocal.Add(L["LocalizationSettingsSaved"], Severity.Success);
         }
         catch (Exception ex)
         {
-            SnackbarLocal.Add($"Error saving settings: {ex.Message}", Severity.Error);
+            SnackbarLocal.Add($"{L["ErrorSavingSettings"]}: {ex.Message}", Severity.Error);
         }
     }
 }

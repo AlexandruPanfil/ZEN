@@ -1,6 +1,9 @@
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Localization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Localization;
 using MudBlazor.Services;
 using ZEN.Application;
 using ZEN.Infrastructure;
@@ -9,6 +12,7 @@ using ZEN.Infrastructure.Persistence;
 using ZEN.Infrastructure.Persistence.Seeders;
 using ZEN.Shared;
 using ZEN.Web.Components;
+using System.Globalization;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -32,6 +36,28 @@ builder.Services.AddSharedComponents();
 
 // MudBlazor
 builder.Services.AddMudServices();
+
+// Localization
+builder.Services.AddLocalization();
+builder.Services.Configure<RequestLocalizationOptions>(options =>
+{
+    var supportedCultures = new[]
+    {
+        new CultureInfo("en"),
+        new CultureInfo("ro"),
+        new CultureInfo("ru")
+    };
+    options.DefaultRequestCulture = new RequestCulture("en");
+    options.SupportedCultures = supportedCultures;
+    options.SupportedUICultures = supportedCultures;
+    options.SetDefaultCulture("en");
+    var cookieProvider = options.RequestCultureProviders.FirstOrDefault(i => i is CookieRequestCultureProvider);
+    if (cookieProvider != null)
+    {
+        options.RequestCultureProviders.Remove(cookieProvider);
+        options.RequestCultureProviders.Insert(0, cookieProvider);
+    }
+});
 
 // HttpContextAccessor for CurrentUserService
 builder.Services.AddHttpContextAccessor();
@@ -94,7 +120,7 @@ if (!app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
-
+app.UseRequestLocalization();
 app.UseSession();
 app.UseAuthentication();
 app.UseAuthorization();

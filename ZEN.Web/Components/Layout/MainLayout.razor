@@ -1,7 +1,16 @@
 ﻿@inherits LayoutComponentBase
 @using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.AspNetCore.Components.Routing
+@using Microsoft.AspNetCore.Components.Web
+@using Microsoft.AspNetCore.Components.Web.Virtualization
+@using Microsoft.Extensions.Localization
+@using Microsoft.JSInterop
+@using MudBlazor
+@using ZEN.Shared
 @inject NavigationManager NavigationManager
 @inject AuthenticationStateProvider AuthenticationStateProvider
+@inject IStringLocalizer<SharedResource> L
 
 <MudThemeProvider />
 <MudPopoverProvider />
@@ -11,7 +20,7 @@
 <MudLayout>
     <MudAppBar Elevation="1">
         <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start" OnClick="@ToggleDrawer" />
-        <MudText Typo="Typo.h5" Class="ml-3">ZEN POS</MudText>
+        <MudText Typo="Typo.h5" Class="ml-3">@L["AppName"]</MudText>
         <MudSpacer />
         <AuthorizeView>
             <Authorized>
@@ -19,13 +28,13 @@
                 <MudIconButton Icon="@Icons.Material.Filled.Logout" Color="Color.Inherit" OnClick="@Logout" />
             </Authorized>
             <NotAuthorized>
-                <MudButton Href="/login" Variant="Variant.Text" Color="Color.Inherit">Login</MudButton>
+                <MudButton Href="/login" Variant="Variant.Text" Color="Color.Inherit">@L["Login"]</MudButton>
             </NotAuthorized>
         </AuthorizeView>
     </MudAppBar>
     <MudDrawer Open="@_drawerOpen" Elevation="1" ClipMode="DrawerClipMode.Always">
         <MudDrawerHeader>
-            <MudText Typo="Typo.h6">ZEN POS</MudText>
+            <MudText Typo="Typo.h6">@L["AppName"]</MudText>
         </MudDrawerHeader>
         <NavMenu />
     </MudDrawer>

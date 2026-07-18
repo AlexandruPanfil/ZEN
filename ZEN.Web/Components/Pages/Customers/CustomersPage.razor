@@ -1,25 +1,28 @@
 @page "/customers"
 @using Microsoft.AspNetCore.Authorization
+@using Microsoft.Extensions.Localization
 @using ZEN.Application.Services.Interfaces
 @using ZEN.Application.DTOs.Customers
 @using ZEN.Web.Components.Dialogs
+@using ZEN.Shared
 @inject ICustomerService CustomerService
 @inject ISnackbar Snackbar
+@inject IStringLocalizer<SharedResource> L
 @inject IDialogService DialogService
 
 @attribute [Authorize(Roles = "Administrator,Manager,Cashier")]
 
-<PageTitle>Customers - ZEN POS</PageTitle>
+<PageTitle>@L["Customers"] - @L["AppName"]</PageTitle>
 
 <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="py-2">
     <div class="d-flex justify-space-between align-center mb-2">
-        <MudText Typo="Typo.h5" Class="font-weight-bold">Customers</MudText>
+        <MudText Typo="Typo.h5" Class="font-weight-bold">@L["Customers"]</MudText>
         <MudButton Variant="Variant.Filled"
                    Color="Color.Primary"
                    StartIcon="@Icons.Material.Filled.Add"
                    Size="Size.Small"
                    OnClick="OpenCreateDialog">
-            Add Customer
+            @L["AddCustomer"]
         </MudButton>
     </div>
 
@@ -34,7 +37,7 @@
               Filter="new Func<CustomerDto,bool>(FilterSearchLogic)">
 
         <ToolBarContent>
-            <MudText Typo="Typo.subtitle1" Class="font-weight-bold">Customer Directory</MudText>
+            <MudText Typo="Typo.subtitle1" Class="font-weight-bold">@L["CustomerDirectory"]</MudText>
             <MudSpacer />
             <MudTextField @bind-Value="_searchTerm"
                           Placeholder="Search name, phone, email..."
@@ -75,7 +78,7 @@
         </RowTemplate>
 
         <NoRecordsContent>
-            <MudText Align="Align.Center" Typo="Typo.body2" Class="pa-2">No matching customers found.</MudText>
+            <MudText Align="Align.Center" Typo="Typo.body2" Class="pa-2">@L["NoMatchingCustomers"]</MudText>
         </NoRecordsContent>
 
         <PagerContent>
@@ -87,7 +90,7 @@
 <MudDialog @bind-Visible="_isDialogOpen" Options="new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseButton = true }">
     <TitleContent>
         <MudText Typo="Typo.subtitle1" Class="font-weight-bold">
-            @( _isEditMode ? "Modify Account Context" : "Register Profile Data" )
+            @( _isEditMode ? L["ModifyAccount"] : L["RegisterProfile"] )
         </MudText>
     </TitleContent>
     <DialogContent>
@@ -109,8 +112,8 @@
         </MudForm>
     </DialogContent>
     <DialogActions>
-        <MudButton OnClick="CloseDialog" Variant="Variant.Text" Size="Size.Small">Cancel</MudButton>
-        <MudButton Color="Color.Primary" Variant="Variant.Filled" Size="Size.Small" OnClick="SaveCustomer" Disabled="@(!_formIsValid)">Save Profile</MudButton>
+        <MudButton OnClick="CloseDialog" Variant="Variant.Text" Size="Size.Small">@L["Cancel"]</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" Size="Size.Small" OnClick="SaveCustomer" Disabled="@(!_formIsValid)">@L["SaveProfile"]</MudButton>
     </DialogActions>
 </MudDialog>
 
@@ -190,7 +193,7 @@
             if (_isEditMode)
             {
                 await CustomerService.UpdateAsync(_editingCustomer);
-                Snackbar.Add("Customer profile updated successfully", Severity.Success);
+                Snackbar.Add(L["ProfileUpdated"], Severity.Success);
             }
             else
             {
@@ -202,7 +205,7 @@
                     _editingCustomer.CustomerGroupId
                 );
                 await CustomerService.CreateAsync(createRequest);
-                Snackbar.Add("Customer profile registered successfully", Severity.Success);
+                Snackbar.Add(L["ProfileRegistered"], Severity.Success);
             }
             await LoadCustomers();
             CloseDialog();
@@ -215,10 +218,10 @@
 
     private async Task DeleteCustomer(CustomerDto customer)
     {
-        var parameters = new DialogParameters { ["Text"] = $"Are you sure you want to delete account records for {customer.Name}?" };
+        var parameters = new DialogParameters { ["Text"] = string.Format(L["DeleteCustomerConfirmation"], customer.Name) };
         var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small, FullScreen = false };
 
-        var dialog = await DialogService.ShowAsync<ConfirmationDialog>("Purge Customer Data", parameters, options);
+        var dialog = await DialogService.ShowAsync<ConfirmationDialog>(L["DeleteCustomerTitle"], parameters, options);
         var result = await dialog.Result;
 
         if (result?.Data is bool confirmed && confirmed)
@@ -228,12 +231,12 @@
                 var success = await CustomerService.DeleteAsync(customer.Id);
                 if (success)
                 {
-                    Snackbar.Add("Customer removed successfully", Severity.Success);
+                    Snackbar.Add(L["CustomerRemoved"], Severity.Success);
                     await LoadCustomers();
                 }
                 else
                 {
-                    Snackbar.Add("Failed to clean client registry entity", Severity.Error);
+                    Snackbar.Add(L["FailedToRemoveCustomer"], Severity.Error);
                 }
             }
             catch (Exception ex)
