@@ -9,15 +9,12 @@ namespace ZEN.Infrastructure.Persistence;
 public class ZenDbContext : IdentityDbContext<AppUser, AppRole, string>
 {
     private readonly ICurrentUserService? _currentUserService;
-    private readonly IAuditService? _auditService;
 
     public ZenDbContext(
         DbContextOptions<ZenDbContext> options,
-        ICurrentUserService currentUserService = null,
-        IAuditService auditService = null) : base(options)
+        ICurrentUserService currentUserService = null) : base(options)
     {
         _currentUserService = currentUserService;
-        _auditService = auditService;
     }
 
     // Configuration
@@ -134,8 +131,6 @@ public class ZenDbContext : IdentityDbContext<AppUser, AppRole, string>
             }
         }
 
-        // TODO: Implement audit logging via _auditService when needed
-
         return await base.SaveChangesAsync(cancellationToken);
     }
 
@@ -155,3 +150,4 @@ public class ZenDbContext : IdentityDbContext<AppUser, AppRole, string>
         }
     }
 }
+

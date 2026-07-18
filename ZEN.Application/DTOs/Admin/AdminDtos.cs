@@ -2,6 +2,26 @@ using ZEN.Domain.Enums;
 
 namespace ZEN.Application.DTOs.Admin;
 
+public record AuditLogDto(
+    Guid Id,
+    DateTime Timestamp,
+    string UserName,
+    string Action,
+    string EntityName,
+    string EntityId,
+    string? OldValues,
+    string? NewValues,
+    string? IpAddress);
+
+public record AuditLogFilter(
+    string? SearchTerm = null,
+    string? Action = null,
+    DateTime? StartDate = null,
+    DateTime? EndDate = null,
+    string? IpAddress = null,
+    int PageNumber = 1,
+    int PageSize = 50);
+
 public record StoreDto(
     Guid Id,
     string Name,
