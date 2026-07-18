@@ -3,13 +3,21 @@
 
 <MudDialog>
     <TitleContent>
-        <MudText Typo="Typo.h6">@L["Confirmation"]</MudText>
+        <MudText Typo="Typo.h6">Confirmation</MudText>
     </TitleContent>
     <DialogContent>
-        <MudText>@Text</MudText>
+        <MudText>@ContentText</MudText>
     </DialogContent>
     <DialogActions>
-        <MudButton OnClick="No">@L["No"]</MudButton>
-        <MudButton Color="Color.Primary" OnClick="Yes">@L["Yes"]</MudButton>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Primary" OnClick="Confirm">Confirm</MudButton>
     </DialogActions>
 </MudDialog>
+
+@code {
+    [Parameter] public string? ContentText { get; set; }
+    [CascadingParameter] private IMudDialogInstance Dialog { get; set; } = default!;
+
+    private void Confirm() => Dialog.Close(DialogResult.Ok(true));
+    private void Cancel() => Dialog.Close(DialogResult.Cancel());
+}

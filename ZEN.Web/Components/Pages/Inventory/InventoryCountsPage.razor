@@ -1,131 +1,490 @@
 @page "/inventory-counts"
 @using Microsoft.AspNetCore.Authorization
+@using ZEN.Application.DTOs.Inventory
+@using ZEN.Application.DTOs.Products
+@using ZEN.Application.Services.Interfaces
 @using ZEN.Domain.Enums
-@using ZEN.Shared.Components.Common
-@using Microsoft.AspNetCore.Components.Web
+@using ZEN.Domain.Entities
+@using ZEN.Domain.Interfaces
+@using ZEN.Web.Components.Dialogs
+@inject IInventoryCountService InventoryCountService
+@inject IWarehouseService WarehouseService
+@inject IProductService ProductService
+@inject IStoreContext StoreContext
+@inject global::ZEN.Domain.Interfaces.IRepository<Store> StoreRepository
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
 
 @attribute [Authorize(Roles = "Administrator,Manager,InventoryManager")]
 
-@* <ZEN.Shared.Components.Common.PageTitle>Inventory Counts - ZEN POS</ZEN.Shared.Components.Common.PageTitle> *@
-@* Keep fully-qualified shared PageTitle component usage *@
+<Microsoft.AspNetCore.Components.Web.PageTitle>Inventory Counts - ZEN POS</Microsoft.AspNetCore.Components.Web.PageTitle>
 
-<MudText Typo="Typo.h3" GutterBottom="true">Physical Inventory Counts</MudText>
-
-<MudPaper Class="pa-4 mb-4">
-    <div class="d-flex align-center justify-space-between mb-4">
-        <MudSelect T="string" 
-                   Label="Filter by Status" 
-                   Style="min-width: 200px;"
-                   Variant="Variant.Outlined"
-                   Margin="Margin.Dense">
-            <MudSelectItem T="string" Value="@("All")">All Status</MudSelectItem>
-            <MudSelectItem T="string" Value="@("Draft")">Draft</MudSelectItem>
-            <MudSelectItem T="string" Value="@("InProgress")">In Progress</MudSelectItem>
-            <MudSelectItem T="string" Value="@("Completed")">Completed</MudSelectItem>
-        </MudSelect>
-
-        <MudSpacer />
-
-        <MudButton Variant="Variant.Filled" 
-                   Color="Color.Primary" 
-                   StartIcon="@Icons.Material.Filled.Add" 
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-4">
+    <div class="d-flex justify-space-between align-center mb-6">
+        <div>
+            <MudText Typo="Typo.h4" Class="font-weight-bold" Color="Color.Primary">Physical Inventory Counts</MudText>
+            <MudText Typo="Typo.subtitle2" Color="Color.Secondary">Perform physical counts and reconcile variances with system records.</MudText>
+        </div>
+        <MudButton Variant="Variant.Filled"
+                   Color="Color.Primary"
+                   StartIcon="@Icons.Material.Filled.Add"
+                   Size="Size.Large"
                    OnClick="OpenCreateDialog">
             New Inventory Count
         </MudButton>
     </div>
 
-    <MudAlert Severity="Severity.Info" Class="mb-4">
-        <strong>Inventory Counts Module:</strong> Perform physical inventory counts, record actual quantities, and identify variances. Reconcile with system records to maintain accurate stock levels.
-    </MudAlert>
+    <MudPaper Class="pa-4 mb-4" Elevation="1">
+        <MudGrid Class="align-center mb-2">
+            <MudItem xs="12" md="6" lg="4">
+                <MudSelect T="Guid?"
+                           Label="Warehouse"
+                           Variant="Variant.Outlined"
+                           Value="_selectedWarehouseId"
+                           ValueChanged="OnWarehouseChanged"
+                           Margin="Margin.Dense">
+                    <MudSelectItem T="Guid?" Value="@(null)">All Warehouses</MudSelectItem>
+                    @foreach (var warehouse in _warehouses)
+                    {
+                        <MudSelectItem T="Guid?" Value="@warehouse.Id">@warehouse.Name (@warehouse.StoreName)</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" md="6" lg="4">
+                <MudSelect T="InventoryCountStatus?"
+                           Label="Status Filter"
+                           Variant="Variant.Outlined"
+                           Value="_selectedStatus"
+                           ValueChanged="OnStatusChanged"
+                           Margin="Margin.Dense">
+                    <MudSelectItem T="InventoryCountStatus?" Value="@(null)">All Status</MudSelectItem>
+                    @foreach (var status in Enum.GetValues<InventoryCountStatus>())
+                    {
+                        <MudSelectItem T="InventoryCountStatus?" Value="@status">@status</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+        </MudGrid>
+    </MudPaper>
 
-    <MudTable Items="@_inventoryCounts" Hover="true" Breakpoint="Breakpoint.Sm" Loading="@_isLoading">
+    <MudTable T="InventoryCountDto" Items="@FilteredCounts" Hover="true" Striped="true" Elevation="1" Breakpoint="Breakpoint.Md" Loading="@_isLoading">
         <ToolBarContent>
-            <MudText Typo="Typo.h6">Inventory Counts List</MudText>
+            <MudText Typo="Typo.h6" Class="font-weight-bold">Inventory Count Sessions</MudText>
         </ToolBarContent>
         <HeaderContent>
             <MudTh>Count #</MudTh>
             <MudTh>Warehouse</MudTh>
-            <MudTh>Items Counted</MudTh>
+            <MudTh>Start Date</MudTh>
             <MudTh>Status</MudTh>
-            <MudTh>Count Date</MudTh>
-            <MudTh>Discrepancies</MudTh>
+            <MudTh>Items Counted</MudTh>
+            <MudTh>Variances</MudTh>
             <MudTh>Actions</MudTh>
         </HeaderContent>
-        <RowTemplate>
-            <MudTd DataLabel="Count #">@("—")</MudTd>
-            <MudTd DataLabel="Warehouse">@("—")</MudTd>
-            <MudTd DataLabel="Items Counted">@("0")</MudTd>
+        <RowTemplate Context="count">
+            <MudTd DataLabel="Count #">@count.Id.ToString().Substring(0, 8).ToUpper()</MudTd>
+            <MudTd DataLabel="Warehouse">@count.WarehouseName</MudTd>
+            <MudTd DataLabel="Date">@count.CountDate.ToString("yyyy-MM-dd")</MudTd>
             <MudTd DataLabel="Status">
-                <MudChip T="string" Color="Color.Info" Size="Size.Small">Draft</MudChip>
+                <MudChip T="string" Color="@GetStatusColor(count.Status)" Variant="Variant.Text" Size="Size.Small" Class="font-weight-bold">
+                    @count.Status
+                </MudChip>
             </MudTd>
-            <MudTd DataLabel="Count Date">@("—")</MudTd>
-            <MudTd DataLabel="Discrepancies">
-                <MudChip T="string" Color="Color.Default" Size="Size.Small">0 items</MudChip>
+            <MudTd DataLabel="Items">@count.TotalItemsCounted</MudTd>
+            <MudTd DataLabel="Variances">
+                @if (count.ItemsWithVariance > 0)
+                {
+                    <MudChip T="string" Color="Color.Warning" Size="Size.Small">@count.ItemsWithVariance items</MudChip>
+                }
+                else
+                {
+                    <MudText Typo="Typo.body2">None</MudText>
+                }
             </MudTd>
             <MudTd DataLabel="Actions">
-                <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small" />
-                <MudIconButton Icon="@Icons.Material.Filled.Check" Color="Color.Success" Size="Size.Small" Title="Complete" />
-                <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small" />
+                <MudTooltip Text="View/Edit Details">
+                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small" Class="mr-1" OnClick="@(() => OpenEditDialog(count))" />
+                </MudTooltip>
+                <MudTooltip Text="Complete Count">
+                    <MudIconButton Icon="@Icons.Material.Filled.Check" Variant="Variant.Outlined" Color="Color.Success" Size="Size.Small" Class="mr-1" Disabled="@(count.Status != InventoryCountStatus.Draft)" OnClick="@(() => CompleteCount(count))" />
+                </MudTooltip>
+                <MudTooltip Text="Delete">
+                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Variant="Variant.Outlined" Color="Color.Error" Size="Size.Small" Disabled="@(count.Status != InventoryCountStatus.Draft)" OnClick="@(() => DeleteCount(count))" />
+                </MudTooltip>
             </MudTd>
         </RowTemplate>
+        <NoRecordsContent>
+            <MudText Align="Align.Center" Class="pa-4 color-secondary">No inventory counts found.</MudText>
+        </NoRecordsContent>
         <PagerContent>
             <MudTablePager />
         </PagerContent>
     </MudTable>
-</MudPaper>
+</MudContainer>
 
-<!-- Create/Edit Dialog (visibility bound to _isDialogOpen) -->
-<MudDialog @bind-Visible="_isDialogOpen">
+<MudDialog @bind-Visible="_isCreateDialogOpen" Options="new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true, CloseButton = true }">
     <TitleContent>
-        <MudText Typo="Typo.h6">@(_isEditMode ? "Edit Inventory Count" : "Create Inventory Count")</MudText>
+        <MudText Typo="Typo.h6" Class="font-weight-bold">Create Inventory Count Session</MudText>
     </TitleContent>
     <DialogContent>
-        <MudAlert Severity="Severity.Info">
-            Complete Inventory Count form will include:
-            <ul>
-                <li>Warehouse selection</li>
-                <li>Products list with system quantities</li>
-                <li>Actual quantity entry fields for each product</li>
-                <li>Automatic variance calculation (system vs. actual)</li>
-                <li>Notes for discrepancies</li>
-                <li>Count date and counter name</li>
-                <li>Item-by-item detail entry with barcode scanning support</li>
-            </ul>
-        </MudAlert>
+        <MudStack Spacing="3" Class="py-2">
+            <MudSelect T="Guid?" Label="Warehouse" Variant="Variant.Outlined" @bind-Value="_createWarehouseId" Required="true" Margin="Margin.Dense">
+                @foreach (var warehouse in _warehouses)
+                {
+                    <MudSelectItem T="Guid?" Value="@warehouse.Id">@warehouse.Name (@warehouse.StoreName)</MudSelectItem>
+                }
+            </MudSelect>
+            <MudDatePicker Label="Count Date" Variant="Variant.Outlined" @bind-Date="_createCountDate" Margin="Margin.Dense" />
+            <MudTextField T="string" Label="Notes (Optional)" Variant="Variant.Outlined" @bind-Value="_createNotes" Lines="2" Multiline="true" />
+        </MudStack>
     </DialogContent>
     <DialogActions>
-        <MudButton OnClick="CloseDialog">Cancel</MudButton>
-        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="CloseDialog">
-            @(_isEditMode ? "Update" : "Create")
-        </MudButton>
+        <MudButton OnClick="CloseCreateDialog" Variant="Variant.Text">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="CreateCountSession">Create Session</MudButton>
+    </DialogActions>
+</MudDialog>
+
+<MudDialog @bind-Visible="_isEditDialogOpen" Options="new DialogOptions { MaxWidth = MaxWidth.Large, FullWidth = true, CloseButton = true }">
+    <TitleContent>
+        <MudText Typo="Typo.h6" Class="font-weight-bold">
+            Edit Inventory Count - @_editingCount?.Id.ToString().Substring(0, 8).ToUpper()
+        </MudText>
+    </TitleContent>
+    <DialogContent>
+        @if (_editingCount != null)
+        {
+            <MudStack Spacing="3" Class="py-2">
+                <MudText Typo="Typo.body2"><strong>Warehouse:</strong> @_editingCount.WarehouseName</MudText>
+
+                <MudDivider Class="my-2" />
+
+                @if (_editingCount.Status == InventoryCountStatus.Draft)
+                {
+                    <div class="d-flex align-center justify-space-between mb-2">
+                        <MudText Typo="Typo.h6" Class="font-weight-bold color-primary">Products to Count</MudText>
+                        <MudSelect T="Guid?" Label="Add Product" Variant="Variant.Outlined" @bind-Value="_selectedProductIdToAdd" Margin="Margin.Dense" Dense="true" Class="ms-2" Style="min-width: 200px;">
+                            <MudSelectItem T="Guid?" Value="@(null)">Select Product...</MudSelectItem>
+                            @foreach (var product in _products.Where(p => !_editingCount.Items.Any(i => i.ProductId == p.Id)))
+                            {
+                                <MudSelectItem T="Guid?" Value="@product.Id">@product.Name</MudSelectItem>
+                            }
+                        </MudSelect>
+                        <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" Size="Size.Small" OnClick="AddProductToCount" Disabled="@(!_selectedProductIdToAdd.HasValue)">Add</MudButton>
+                    </div>
+
+                    <div style="max-height: 380px; overflow-y: auto;" class="pe-2">
+                        @foreach (var item in _editingCount.Items)
+                        {
+                            <MudGrid Class="align-center mb-2" Spacing="2">
+                                <MudItem xs="12" sm="5">
+                                    <MudTextField T="string" Label="Product" Value="@item.ProductName" ReadOnly="true" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                                </MudItem>
+                                <MudItem xs="6" sm="3">
+                                    <MudNumericField T="decimal" Label="System Qty" Value="item.SystemQuantity" ReadOnly="true" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                                </MudItem>
+                                <MudItem xs="6" sm="3">
+                                    <MudNumericField T="decimal" Label="Actual Qty" Variant="Variant.Outlined" @bind-Value="_actualQuantities[item.ProductId]" Min="0" Margin="Margin.Dense" />
+                                </MudItem>
+                                <MudItem xs="6" sm="1">
+                                    @if (GetVariance(item.ProductId) != 0)
+                                    {
+                                        <MudChip T="string" Color="Color.Warning" Size="Size.Small" Style="height: 40px;">@GetVariance(item.ProductId)</MudChip>
+                                    }
+                                </MudItem>
+                            </MudGrid>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <MudTable T="InventoryCountItemDetailDto" Items="@_editingCount.Items" Dense="true" Hover="true" Elevation="0" Outlined="true">
+                        <HeaderContent>
+                            <MudTh>Product</MudTh>
+                            <MudTh Style="text-align: right;">System Qty</MudTh>
+                            <MudTh Style="text-align: right;">Actual Qty</MudTh>
+                            <MudTh Style="text-align: right;">Variance</MudTh>
+                        </HeaderContent>
+                        <RowTemplate Context="item">
+                            <MudTd DataLabel="Product">@item.ProductName</MudTd>
+                            <MudTd DataLabel="System" Style="text-align: right;">@item.SystemQuantity</MudTd>
+                            <MudTd DataLabel="Actual" Style="text-align: right;">@item.ActualQuantity</MudTd>
+                            <MudTd DataLabel="Variance" Style="text-align: right;">
+                                @if (item.Variance != 0)
+                                {
+                                    <MudChip T="string" Color="Color.Warning" Size="Size.Small">@item.Variance</MudChip>
+                                }
+                            </MudTd>
+                        </RowTemplate>
+                    </MudTable>
+                }
+            </MudStack>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="CloseEditDialog" Variant="Variant.Text">Cancel</MudButton>
+        @if (_editingCount?.Status == InventoryCountStatus.Draft)
+        {
+            <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveCountItems">Save Quantities</MudButton>
+        }
     </DialogActions>
 </MudDialog>
 
 @code {
-    private List<object> _inventoryCounts = new();
+    private List<InventoryCountDto> _counts = new();
+    private List<WarehouseDto> _warehouses = new();
+    private List<ProductDto> _products = new();
     private bool _isLoading = false;
-    private bool _isDialogOpen = false;
-    private bool _isEditMode = false;
+    private bool _isCreateDialogOpen = false;
+    private bool _isEditDialogOpen = false;
+    private Guid? _selectedWarehouseId;
+    private InventoryCountStatus? _selectedStatus;
+    private Guid? _createWarehouseId;
+    private DateTime? _createCountDate = DateTime.Today;
+    private string? _createNotes;
+    private InventoryCountDto? _editingCount;
+    private Dictionary<Guid, decimal> _actualQuantities = new();
+    private Guid? _selectedProductIdToAdd;
 
     protected override async Task OnInitializedAsync()
     {
-        // Load inventory counts - to be implemented with IInventoryCountService
+        await LoadWarehousesAsync();
+        _products = (await ProductService.GetAllAsync(StoreContext.GetCurrentStoreId())).ToList();
+        await LoadCountsAsync();
+    }
+
+    private IEnumerable<InventoryCountDto> FilteredCounts => _counts.Where(c =>
+        (!_selectedWarehouseId.HasValue || c.WarehouseId == _selectedWarehouseId) &&
+        (!_selectedStatus.HasValue || c.Status == _selectedStatus));
+
+    private async Task LoadWarehousesAsync()
+    {
+        try
+        {
+            var warehouses = new List<WarehouseDto>();
+            var currentStoreId = StoreContext.GetCurrentStoreId();
+
+            if (currentStoreId.HasValue)
+            {
+                warehouses.AddRange(await WarehouseService.GetActiveByStoreAsync(currentStoreId.Value));
+            }
+            else
+            {
+                var stores = await StoreRepository.FindAsync(s => s.IsActive);
+                foreach (var store in stores)
+                {
+                    warehouses.AddRange(await WarehouseService.GetActiveByStoreAsync(store.Id));
+                }
+            }
+
+            _warehouses = warehouses;
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error loading warehouses: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task LoadCountsAsync()
+    {
         _isLoading = true;
-        await Task.Delay(500); // Simulated load
-        _isLoading = false;
+        try
+        {
+            var allCounts = new List<InventoryCountDto>();
+
+            if (_selectedWarehouseId.HasValue)
+            {
+                allCounts = (await InventoryCountService.GetByWarehouseAsync(_selectedWarehouseId.Value)).ToList();
+            }
+            else if (_selectedStatus.HasValue)
+            {
+                allCounts = (await InventoryCountService.GetByStatusAsync(_selectedStatus.Value)).ToList();
+            }
+            else
+            {
+                allCounts.AddRange(await InventoryCountService.GetByStatusAsync(InventoryCountStatus.Draft));
+                allCounts.AddRange(await InventoryCountService.GetByStatusAsync(InventoryCountStatus.InProgress));
+                allCounts.AddRange(await InventoryCountService.GetByStatusAsync(InventoryCountStatus.Completed));
+            }
+
+            _counts = allCounts;
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error loading counts: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task OnWarehouseChanged(Guid? warehouseId)
+    {
+        _selectedWarehouseId = warehouseId;
+        await LoadCountsAsync();
+    }
+
+    private async Task OnStatusChanged(InventoryCountStatus? status)
+    {
+        _selectedStatus = status;
+        await LoadCountsAsync();
     }
 
     private void OpenCreateDialog()
     {
-        _isEditMode = false;
-        _isDialogOpen = true;
+        _createWarehouseId = _selectedWarehouseId;
+        _createCountDate = DateTime.Today;
+        _createNotes = null;
+        _isCreateDialogOpen = true;
     }
 
-    private void CloseDialog()
+    private void CloseCreateDialog() => _isCreateDialogOpen = false;
+
+    private async Task CreateCountSession()
     {
-        _isDialogOpen = false;
-        Snackbar.Add("Inventory count feature coming soon", Severity.Info);
+        try
+        {
+            if (!_createWarehouseId.HasValue)
+            {
+                Snackbar.Add("Warehouse is required.", Severity.Warning);
+                return;
+            }
+
+            var request = new CreateInventoryCountRequest(_createWarehouseId.Value, _createCountDate ?? DateTime.Today, _createNotes);
+            await InventoryCountService.CreateAsync(request);
+            Snackbar.Add("Inventory count session created.", Severity.Success);
+
+            CloseCreateDialog();
+            await LoadCountsAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
     }
+
+    private async Task OpenEditDialog(InventoryCountDto count)
+    {
+        _editingCount = count;
+        _actualQuantities.Clear();
+        _selectedProductIdToAdd = null;
+
+        foreach (var item in count.Items.Where(i => i.ActualQuantity.HasValue))
+        {
+            _actualQuantities[item.ProductId] = item.ActualQuantity!.Value;
+        }
+
+        _isEditDialogOpen = true;
+    }
+
+    private void CloseEditDialog()
+    {
+        _isEditDialogOpen = false;
+        _editingCount = null;
+        _actualQuantities.Clear();
+        _selectedProductIdToAdd = null;
+    }
+
+    private async Task SaveCountItems()
+    {
+        try
+        {
+            if (_editingCount == null) return;
+
+            foreach (var item in _editingCount.Items)
+            {
+                var actualQty = _actualQuantities.GetValueOrDefault(item.ProductId, item.SystemQuantity);
+                await InventoryCountService.AddItemAsync(_editingCount.Id, new AddInventoryCountItemRequest(item.ProductId, actualQty));
+            }
+
+            Snackbar.Add("Quantities saved.", Severity.Success);
+            CloseEditDialog();
+            await LoadCountsAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private async Task AddProductToCount()
+    {
+        if (!_selectedProductIdToAdd.HasValue || _editingCount == null) return;
+
+        try
+        {
+            var result = await InventoryCountService.AddItemAsync(_editingCount.Id, new AddInventoryCountItemRequest(_selectedProductIdToAdd.Value, 0));
+            _editingCount = result;
+            _actualQuantities[_selectedProductIdToAdd.Value] = 0;
+            _selectedProductIdToAdd = null;
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private async Task CompleteCount(InventoryCountDto count)
+    {
+        var parameters = new DialogParameters { ["ContentText"] = $"Complete inventory count? This will update system stock levels to match counted quantities." };
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small };
+        var dialog = await DialogService.ShowAsync<ConfirmationDialog>("Complete Count", parameters, options);
+        var result = await dialog.Result;
+
+        if (result != null && !result.Canceled)
+        {
+            try
+            {
+                if (await InventoryCountService.CompleteAsync(count.Id))
+                {
+                    Snackbar.Add("Inventory count completed. Stock levels updated.", Severity.Success);
+                    await LoadCountsAsync();
+                }
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add(ex.Message, Severity.Error);
+            }
+        }
+    }
+
+    private async Task DeleteCount(InventoryCountDto count)
+    {
+        var parameters = new DialogParameters { ["ContentText"] = $"Delete count session {count.Id}?" };
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small };
+        var dialog = await DialogService.ShowAsync<ConfirmationDialog>("Delete Count", parameters, options);
+        var result = await dialog.Result;
+
+        if (result != null && !result.Canceled)
+        {
+            try
+            {
+                if (await InventoryCountService.DeleteAsync(count.Id))
+                {
+                    Snackbar.Add("Count session deleted.", Severity.Success);
+                    await LoadCountsAsync();
+                }
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add(ex.Message, Severity.Error);
+            }
+        }
+    }
+
+    private decimal GetVariance(Guid productId)
+    {
+        var actual = _actualQuantities.GetValueOrDefault(productId, 0);
+        var system = _editingCount?.Items.FirstOrDefault(i => i.ProductId == productId)?.SystemQuantity ?? 0;
+        return actual - system;
+    }
+
+    private static Color GetStatusColor(InventoryCountStatus status) => status switch
+    {
+        InventoryCountStatus.Draft => Color.Default,
+        InventoryCountStatus.InProgress => Color.Warning,
+        InventoryCountStatus.Completed => Color.Success,
+        _ => Color.Default
+    };
 }
+
+

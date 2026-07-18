@@ -1,127 +1,268 @@
 @page "/stock-transfers"
 @using Microsoft.AspNetCore.Authorization
-@using ZEN.Domain.Enums
 @using ZEN.Application.DTOs.Inventory
+@using ZEN.Application.DTOs.Products
 @using ZEN.Application.Services.Interfaces
+@using ZEN.Domain.Enums
 @using ZEN.Domain.Entities
 @using ZEN.Domain.Interfaces
+@using ZEN.Web.Components.Dialogs
+@inject IStockTransferService StockTransferService
+@inject IWarehouseService WarehouseService
+@inject IProductService ProductService
+@inject IStoreContext StoreContext
+@inject global::ZEN.Domain.Interfaces.IRepository<Store> StoreRepository
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
-@inject IWarehouseService WarehouseService
-@inject global::ZEN.Domain.Interfaces.IRepository<Store> StoreRepository
 
 @attribute [Authorize(Roles = "Administrator,Manager,InventoryManager")]
 
-@* <ZEN.Shared.Components.Common.PageTitle>Stock Transfers - ZEN POS</ZEN.Shared.Components.Common.PageTitle> *@
-
 <Microsoft.AspNetCore.Components.Web.PageTitle>Stock Transfers - ZEN POS</Microsoft.AspNetCore.Components.Web.PageTitle>
 
-<MudText Typo="Typo.h3" GutterBottom="true">Inter-Warehouse Stock Transfers</MudText>
-
-<MudPaper Class="pa-4 mb-4">
-    <div class="d-flex align-center justify-space-between mb-4">
-        <MudSelect T="Guid?" Label="Warehouse" Variant="Variant.Outlined" Value="_selectedWarehouseId" ValueChanged="OnWarehouseChanged" Style="min-width: 250px;">
-            <MudSelectItem T="Guid?" Value="@(null)">Select warehouse</MudSelectItem>
-            @foreach (var warehouse in _warehouses)
-            {
-                <MudSelectItem T="Guid?" Value="@warehouse.Id">@warehouse.Name</MudSelectItem>
-            }
-        </MudSelect>
-
-        <MudSpacer />
-
-        <MudButton Variant="Variant.Filled" 
-                   Color="Color.Primary" 
-                   StartIcon="@Icons.Material.Filled.Add" 
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-4">
+    <div class="d-flex justify-space-between align-center mb-6">
+        <div>
+            <MudText Typo="Typo.h4" Class="font-weight-bold" Color="Color.Primary">Inter-Warehouse Stock Transfers</MudText>
+            <MudText Typo="Typo.subtitle2" Color="Color.Secondary">Move inventory between warehouses within the same store.</MudText>
+        </div>
+        <MudButton Variant="Variant.Filled"
+                   Color="Color.Primary"
+                   StartIcon="@Icons.Material.Filled.Add"
+                   Size="Size.Large"
                    OnClick="OpenCreateDialog">
             Create Transfer
         </MudButton>
     </div>
 
-    <MudAlert Severity="Severity.Info" Class="mb-4">
-        <strong>Stock Transfers Module:</strong> Move inventory between warehouses within the same store. Track transfer status from pending to approved to completed.
-    </MudAlert>
+    <MudPaper Class="pa-4 mb-4" Elevation="1">
+        <MudGrid Class="align-center mb-2">
+            <MudItem xs="12" md="6" lg="4">
+                <MudSelect T="Guid?"
+                           Label="Source Warehouse"
+                           Variant="Variant.Outlined"
+                           Value="_selectedWarehouseId"
+                           ValueChanged="OnWarehouseChanged"
+                           Margin="Margin.Dense">
+                    <MudSelectItem T="Guid?" Value="@(null)">All Warehouses</MudSelectItem>
+                    @foreach (var warehouse in _warehouses)
+                    {
+                        <MudSelectItem T="Guid?" Value="@warehouse.Id">@warehouse.Name (@warehouse.StoreName)</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" md="6" lg="4">
+                <MudTextField T="string"
+                              Placeholder="Search transfers..."
+                              Variant="Variant.Outlined"
+                              Adornment="Adornment.Start"
+                              AdornmentIcon="@Icons.Material.Filled.Search"
+                              @bind-Value="_searchTerm"
+                              Immediate="true"
+                              Clearable="true"
+                              Margin="Margin.Dense" />
+            </MudItem>
+        </MudGrid>
+    </MudPaper>
 
-        <MudTable T="WarehouseDto" Items="@_warehouses" Hover="true" Breakpoint="Breakpoint.Sm" Loading="@_isLoading">
+    <MudTable T="StockTransferDto" Items="@FilteredTransfers" Hover="true" Striped="true" Elevation="1" Breakpoint="Breakpoint.Md" Loading="@_isLoading">
         <ToolBarContent>
-            <MudText Typo="Typo.h6">Stock Transfers List</MudText>
+            <MudText Typo="Typo.h6" Class="font-weight-bold">Stock Transfer Register</MudText>
         </ToolBarContent>
         <HeaderContent>
-                <MudTh>Code</MudTh>
-                <MudTh>Name</MudTh>
-                <MudTh>Store</MudTh>
-                <MudTh>Main</MudTh>
-                <MudTh>Status</MudTh>
+            <MudTh>Transfer #</MudTh>
+            <MudTh>From Warehouse</MudTh>
+            <MudTh>To Warehouse</MudTh>
+            <MudTh>Transfer Date</MudTh>
+            <MudTh>Items</MudTh>
+            <MudTh>Status</MudTh>
             <MudTh>Actions</MudTh>
         </HeaderContent>
-        <RowTemplate Context="warehouse">
-            <MudTd DataLabel="Code">@warehouse.Code</MudTd>
-            <MudTd DataLabel="Name">@warehouse.Name</MudTd>
-            <MudTd DataLabel="Store">@warehouse.StoreName</MudTd>
-            <MudTd DataLabel="Main">@(warehouse.IsMain ? "Yes" : "No")</MudTd>
+        <RowTemplate Context="transfer">
+            <MudTd DataLabel="Transfer #">@transfer.Number</MudTd>
+            <MudTd DataLabel="From">@transfer.SourceWarehouseName</MudTd>
+            <MudTd DataLabel="To">@transfer.DestinationWarehouseName</MudTd>
+            <MudTd DataLabel="Date">@transfer.TransferDate.ToString("yyyy-MM-dd")</MudTd>
+            <MudTd DataLabel="Items">@transfer.Items.Count()</MudTd>
             <MudTd DataLabel="Status">
-                <MudChip T="string" Color="@(warehouse.IsActive ? Color.Success : Color.Error)" Size="Size.Small">
-                    @(warehouse.IsActive ? "Active" : "Inactive")
+                <MudChip T="string" Color="@GetStatusColor(transfer.Status)" Variant="Variant.Text" Size="Size.Small" Class="font-weight-bold">
+                    @transfer.Status
                 </MudChip>
             </MudTd>
             <MudTd DataLabel="Actions">
-                <MudText Typo="Typo.body2">Available</MudText>
+                <MudTooltip Text="View Details">
+                    <MudIconButton Icon="@Icons.Material.Filled.Visibility" Variant="Variant.Outlined" Color="Color.Info" Size="Size.Small" Class="mr-1" OnClick="@(() => ViewDetails(transfer))" />
+                </MudTooltip>
+                <MudTooltip Text="Approve">
+                    <MudIconButton Icon="@Icons.Material.Filled.Done" Variant="Variant.Outlined" Color="Color.Success" Size="Size.Small" Class="mr-1" Disabled="@(transfer.Status != StockTransferStatus.Draft)" OnClick="@(() => ApproveTransfer(transfer))" />
+                </MudTooltip>
+                <MudTooltip Text="Receive">
+                    <MudIconButton Icon="@Icons.Material.Filled.Inventory" Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small" Class="mr-1" Disabled="@(transfer.Status != StockTransferStatus.InTransit)" OnClick="@(() => ReceiveTransfer(transfer))" />
+                </MudTooltip>
+                <MudTooltip Text="Cancel">
+                    <MudIconButton Icon="@Icons.Material.Filled.Cancel" Variant="Variant.Outlined" Color="Color.Warning" Size="Size.Small" Class="mr-1" Disabled="@(transfer.Status is StockTransferStatus.Received or StockTransferStatus.Cancelled)" OnClick="@(() => CancelTransfer(transfer))" />
+                </MudTooltip>
             </MudTd>
         </RowTemplate>
+        <NoRecordsContent>
+            <MudText Align="Align.Center" Class="pa-4 color-secondary">No stock transfers found.</MudText>
+        </NoRecordsContent>
         <PagerContent>
             <MudTablePager />
         </PagerContent>
     </MudTable>
-</MudPaper>
+</MudContainer>
 
-<!-- Create/Edit Dialog -->
-<MudDialog @bind-Visible="_isDialogOpen">
+<MudDialog @bind-Visible="_isDialogOpen" Options="new DialogOptions { MaxWidth = MaxWidth.Large, FullWidth = true, CloseButton = true }">
     <TitleContent>
-        <MudText Typo="Typo.h6">@(_isEditMode ? "Edit Transfer" : "Create Stock Transfer")</MudText>
+        <MudText Typo="Typo.h6" Class="font-weight-bold">
+            <MudIcon Icon="@Icons.Material.Filled.Sync" Class="mr-2" />
+            Create Stock Transfer
+        </MudText>
     </TitleContent>
     <DialogContent>
-        <MudAlert Severity="Severity.Info">
-            Complete Stock Transfer form will include:
-            <ul>
-                <li>Source warehouse selection (filtered by store)</li>
-                <li>Destination warehouse selection (same store only)</li>
-                <li>Product line items with available quantities</li>
-                <li>Quantity per item entry</li>
-                <li>Transfer date and notes</li>
-                <li>Approval workflow status</li>
-            </ul>
-        </MudAlert>
+        <MudStack Spacing="3" Class="py-2">
+            <MudGrid>
+                <MudItem xs="12" sm="6">
+                    <MudSelect T="Guid?" Label="Source Warehouse" Variant="Variant.Outlined" @bind-Value="_editingModel.SourceWarehouseId" Required="true" Margin="Margin.Dense">
+                        @foreach (var warehouse in _warehouses)
+                        {
+                            <MudSelectItem T="Guid?" Value="@warehouse.Id">@warehouse.Name (@warehouse.StoreName)</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudSelect T="Guid?" Label="Destination Warehouse" Variant="Variant.Outlined" @bind-Value="_editingModel.DestinationWarehouseId" Required="true" Margin="Margin.Dense">
+                        @foreach (var warehouse in _warehouses.Where(w => w.Id != _editingModel.SourceWarehouseId))
+                        {
+                            <MudSelectItem T="Guid?" Value="@warehouse.Id">@warehouse.Name (@warehouse.StoreName)</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudDatePicker Label="Transfer Date" Variant="Variant.Outlined" @bind-Date="_editingModel.TransferDate" Margin="Margin.Dense" />
+                </MudItem>
+                <MudItem xs="12">
+                    <MudTextField T="string" Label="Notes" Variant="Variant.Outlined" @bind-Value="_editingModel.Notes" Lines="2" Multiline="true" />
+                </MudItem>
+
+                <MudItem xs="12">
+                    <MudDivider Class="my-4" />
+                    <div class="d-flex align-center justify-space-between mb-3">
+                        <MudText Typo="Typo.h6" Class="font-weight-bold color-primary">Transfer Items</MudText>
+                        <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" Size="Size.Small" OnClick="AddLineItem">Add Item</MudButton>
+                    </div>
+
+                    <div style="max-height: 280px; overflow-y: auto;" class="pe-2">
+                        @foreach (var item in _editingModel.Items)
+                        {
+                            <MudGrid Class="align-center mb-1" Spacing="2">
+                                <MudItem xs="12" sm="5">
+                                    <MudSelect T="Guid?" Label="Product" Variant="Variant.Outlined" @bind-Value="item.ProductId" Required="true" Margin="Margin.Dense">
+                                        @foreach (var product in _products)
+                                        {
+                                            <MudSelectItem T="Guid?" Value="@product.Id">@product.Name</MudSelectItem>
+                                        }
+                                    </MudSelect>
+                                </MudItem>
+                                <MudItem xs="6" sm="3">
+                                    <MudNumericField T="decimal" Label="Quantity" Variant="Variant.Outlined" @bind-Value="item.Quantity" Min="0.01m" Margin="Margin.Dense" />
+                                </MudItem>
+                                <MudItem xs="12" sm="1" Class="d-flex align-center justify-end">
+                                    <MudIconButton Icon="@Icons.Material.Filled.RemoveCircleOutline" Color="Color.Error" Size="Size.Medium" Disabled="@(_editingModel.Items.Count <= 1)" OnClick="@(() => RemoveLineItem(item))" />
+                                </MudItem>
+                            </MudGrid>
+                        }
+                    </div>
+                </MudItem>
+            </MudGrid>
+        </MudStack>
     </DialogContent>
     <DialogActions>
-        <MudButton OnClick="CloseDialog">Cancel</MudButton>
-        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="CloseDialog">
-            @(_isEditMode ? "Update Transfer" : "Create Transfer")
-        </MudButton>
+        <MudButton OnClick="CloseDialog" Variant="Variant.Text">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveTransfer">Create Transfer</MudButton>
     </DialogActions>
 </MudDialog>
 
+@if (_selectedTransfer is not null)
+{
+    <MudDialog @bind-Visible="_isDetailsOpen" Options="new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseButton = true }">
+        <TitleContent>
+            <MudText Typo="Typo.h6" Class="font-weight-bold color-primary">
+                <MudIcon Icon="@Icons.Material.Filled.FindInPage" Class="mr-2" />
+                Transfer: @_selectedTransfer.Number
+            </MudText>
+        </TitleContent>
+        <DialogContent>
+            <MudStack Spacing="3" Class="py-1">
+                <div class="d-flex justify-space-between align-center">
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">From: <strong>@_selectedTransfer.SourceWarehouseName</strong></MudText>
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">To: <strong>@_selectedTransfer.DestinationWarehouseName</strong></MudText>
+                </div>
+                <MudText Typo="Typo.body2" Color="Color.Secondary">Store: @_selectedTransfer.StoreName</MudText>
+
+                <MudDivider Class="my-2" />
+
+                <MudTable T="StockTransferItemDto" Items="@_selectedTransfer.Items" Dense="true" Hover="true" Elevation="0" Outlined="true">
+                    <HeaderContent>
+                        <MudTh>Product</MudTh>
+                        <MudTh Style="text-align: right;">Quantity</MudTh>
+                    </HeaderContent>
+                    <RowTemplate Context="item">
+                        <MudTd DataLabel="Product">@item.ProductName</MudTd>
+                        <MudTd DataLabel="Quantity" Style="text-align: right;">@item.Quantity</MudTd>
+                    </RowTemplate>
+                </MudTable>
+            </MudStack>
+        </DialogContent>
+        <DialogActions>
+            <MudButton Color="Color.Primary" OnClick="CloseDetailsDialog" Variant="Variant.Text">Close</MudButton>
+        </DialogActions>
+    </MudDialog>
+}
+
 @code {
+    private List<StockTransferDto> _transfers = new();
     private List<WarehouseDto> _warehouses = new();
-    private Guid? _selectedWarehouseId;
+    private List<ProductDto> _products = new();
+    private string _searchTerm = string.Empty;
     private bool _isLoading = false;
     private bool _isDialogOpen = false;
-    private bool _isEditMode = false;
+    private bool _isDetailsOpen = false;
+    private Guid? _selectedWarehouseId;
+    private StockTransferDto? _selectedTransfer;
+    private StockTransferFormModel _editingModel = new();
 
     protected override async Task OnInitializedAsync()
     {
         await LoadWarehousesAsync();
+        await LoadProductsAsync();
+        await LoadTransfersAsync();
     }
+
+    private IEnumerable<StockTransferDto> FilteredTransfers => _transfers.Where(t =>
+        string.IsNullOrWhiteSpace(_searchTerm) ||
+        t.Number.Contains(_searchTerm, StringComparison.OrdinalIgnoreCase) ||
+        t.SourceWarehouseName.Contains(_searchTerm, StringComparison.OrdinalIgnoreCase) ||
+        t.DestinationWarehouseName.Contains(_searchTerm, StringComparison.OrdinalIgnoreCase));
 
     private async Task LoadWarehousesAsync()
     {
         try
         {
-            var stores = await StoreRepository.FindAsync(s => s.IsActive);
             var warehouses = new List<WarehouseDto>();
+            var currentStoreId = StoreContext.GetCurrentStoreId();
 
-            foreach (var store in stores)
+            if (currentStoreId.HasValue)
             {
-                warehouses.AddRange(await WarehouseService.GetActiveByStoreAsync(store.Id));
+                warehouses.AddRange(await WarehouseService.GetActiveByStoreAsync(currentStoreId.Value));
+            }
+            else
+            {
+                var stores = await StoreRepository.FindAsync(s => s.IsActive);
+                foreach (var store in stores)
+                {
+                    warehouses.AddRange(await WarehouseService.GetActiveByStoreAsync(store.Id));
+                }
             }
 
             _warehouses = warehouses;
@@ -133,21 +274,210 @@
         }
     }
 
-    private Task OnWarehouseChanged(Guid? warehouseId)
+    private async Task LoadProductsAsync()
+    {
+        try
+        {
+            _products = (await ProductService.GetAllAsync(StoreContext.GetCurrentStoreId())).ToList();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error loading products: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task LoadTransfersAsync()
+    {
+        _isLoading = true;
+        try
+        {
+            if (_selectedWarehouseId.HasValue)
+            {
+                var sourceTransfers = await StockTransferService.GetBySourceWarehouseAsync(_selectedWarehouseId.Value);
+                var destTransfers = await StockTransferService.GetByDestinationWarehouseAsync(_selectedWarehouseId.Value);
+                _transfers = sourceTransfers.Concat(destTransfers).DistinctBy(t => t.Id).ToList();
+            }
+            else
+            {
+                _transfers = (await StockTransferService.GetByStatusAsync(StockTransferStatus.Draft)).ToList();
+                _transfers.AddRange(await StockTransferService.GetByStatusAsync(StockTransferStatus.InTransit));
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error loading transfers: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task OnWarehouseChanged(Guid? warehouseId)
     {
         _selectedWarehouseId = warehouseId;
-        return Task.CompletedTask;
+        await LoadTransfersAsync();
     }
 
     private void OpenCreateDialog()
     {
-        _isEditMode = false;
+        _editingModel = new StockTransferFormModel
+        {
+            TransferDate = DateTime.Today,
+            Items = [new StockTransferLineModel()]
+        };
         _isDialogOpen = true;
     }
 
-    private void CloseDialog()
+    private void ViewDetails(StockTransferDto transfer)
     {
-        _isDialogOpen = false;
-        Snackbar.Add("Stock transfer feature coming soon", Severity.Info);
+        _selectedTransfer = transfer;
+        _isDetailsOpen = true;
+    }
+
+    private void CloseDetailsDialog()
+    {
+        _isDetailsOpen = false;
+        _selectedTransfer = null;
+    }
+
+    private void AddLineItem() => _editingModel.Items.Add(new StockTransferLineModel());
+
+    private void RemoveLineItem(StockTransferLineModel item)
+    {
+        if (_editingModel.Items.Count > 1)
+        {
+            _editingModel.Items.Remove(item);
+        }
+    }
+
+    private async Task SaveTransfer()
+    {
+        try
+        {
+            if (!_editingModel.SourceWarehouseId.HasValue || !_editingModel.DestinationWarehouseId.HasValue)
+            {
+                Snackbar.Add("Source and destination warehouses are required.", Severity.Warning);
+                return;
+            }
+
+            if (_editingModel.SourceWarehouseId == _editingModel.DestinationWarehouseId)
+            {
+                Snackbar.Add("Source and destination cannot be the same.", Severity.Warning);
+                return;
+            }
+
+            var items = _editingModel.Items
+                .Where(i => i.ProductId.HasValue && i.Quantity > 0)
+                .Select(i => new CreateStockTransferItemRequest(i.ProductId!.Value, i.Quantity))
+                .ToList();
+
+            if (items.Count == 0)
+            {
+                Snackbar.Add("Specify at least one product item.", Severity.Warning);
+                return;
+            }
+
+            var request = new CreateStockTransferRequest(
+                _editingModel.SourceWarehouseId.Value,
+                _editingModel.DestinationWarehouseId.Value,
+                _editingModel.TransferDate ?? DateTime.Today,
+                items,
+                _editingModel.Notes);
+
+            await StockTransferService.CreateAsync(request);
+            Snackbar.Add("Stock transfer created successfully.", Severity.Success);
+
+            CloseDialog();
+            await LoadTransfersAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private async Task ApproveTransfer(StockTransferDto transfer)
+    {
+        try
+        {
+            if (await StockTransferService.ApproveAsync(transfer.Id))
+            {
+                Snackbar.Add("Transfer approved and marked as In Transit.", Severity.Success);
+                await LoadTransfersAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private async Task ReceiveTransfer(StockTransferDto transfer)
+    {
+        try
+        {
+            if (await StockTransferService.ReceiveAsync(transfer.Id))
+            {
+                Snackbar.Add("Transfer received and inventory updated.", Severity.Success);
+                await LoadTransfersAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private async Task CancelTransfer(StockTransferDto transfer)
+    {
+        var parameters = new DialogParameters { ["ContentText"] = $"Cancel transfer {transfer.Number}?" };
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small };
+        var dialog = await DialogService.ShowAsync<ConfirmationDialog>("Cancel Transfer", parameters, options);
+        var result = await dialog.Result;
+
+        if (result != null && !result.Canceled)
+        {
+            try
+            {
+                if (await StockTransferService.CancelAsync(transfer.Id))
+                {
+                    Snackbar.Add("Transfer cancelled.", Severity.Warning);
+                    await LoadTransfersAsync();
+                }
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add(ex.Message, Severity.Error);
+            }
+        }
+    }
+
+    private void CloseDialog() => _isDialogOpen = false;
+
+    private static Color GetStatusColor(StockTransferStatus status) => status switch
+    {
+        StockTransferStatus.Draft => Color.Default,
+        StockTransferStatus.InTransit => Color.Warning,
+        StockTransferStatus.Received => Color.Success,
+        StockTransferStatus.Cancelled => Color.Error,
+        _ => Color.Default
+    };
+
+    private sealed class StockTransferFormModel
+    {
+        public Guid? SourceWarehouseId { get; set; }
+        public Guid? DestinationWarehouseId { get; set; }
+        public DateTime? TransferDate { get; set; } = DateTime.Today;
+        public string? Notes { get; set; }
+        public List<StockTransferLineModel> Items { get; set; } = [];
+    }
+
+    private sealed class StockTransferLineModel
+    {
+        public Guid? ProductId { get; set; }
+        public decimal Quantity { get; set; } = 1;
     }
 }
+
+

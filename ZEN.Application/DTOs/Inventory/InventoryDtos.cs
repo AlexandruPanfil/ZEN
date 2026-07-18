@@ -6,6 +6,8 @@ public record InventoryItemDto(
     Guid Id,
     Guid ProductId,
     string ProductName,
+    string? SKU,
+    string? Barcode,
     Guid WarehouseId,
     string WarehouseName,
     decimal Quantity,
@@ -99,6 +101,8 @@ public record StockTransferDto(
     string SourceWarehouseName,
     Guid DestinationWarehouseId,
     string DestinationWarehouseName,
+    Guid StoreId,
+    string StoreName,
     StockTransferStatus Status,
     IEnumerable<StockTransferItemDto> Items);
 
@@ -106,3 +110,19 @@ public record StockTransferItemDto(
     Guid ProductId,
     string ProductName,
     decimal Quantity);
+
+public record CreateStockTransferItemRequest(
+    Guid ProductId,
+    decimal Quantity);
+
+public record CreateStockTransferRequest(
+    Guid SourceWarehouseId,
+    Guid DestinationWarehouseId,
+    DateTime TransferDate,
+    IEnumerable<CreateStockTransferItemRequest> Items,
+    string? Notes = null);
+
+public record UpdateStockTransferRequest(
+    Guid Id,
+    DateTime TransferDate,
+    string? Notes);

@@ -31,9 +31,10 @@
     <AuthorizeView Roles="Administrator,Manager,InventoryManager">
         <MudNavGroup Title="@L["Inventory"]" Icon="@Icons.Material.Filled.Warehouse" Expanded="false">
             <MudNavLink Href="/inventory" Icon="@Icons.Material.Filled.Inventory2">@L["Stock"]</MudNavLink>
+            <MudNavLink Href="/stock-purchases" Icon="@Icons.Material.Filled.ReceiptLong">@L["Stock Purchase"]</MudNavLink>
             <MudNavLink Href="/warehouses" Icon="@Icons.Material.Filled.Store">@L["Warehouses"]</MudNavLink>
             <MudNavLink Href="/purchase-orders" Icon="@Icons.Material.Filled.ShoppingBag">@L["PurchaseOrders"]</MudNavLink>
-            <MudNavLink Href="/stock-transfers" Icon="@Icons.Material.Filled.LocalShipping">@L["Transfers"]</MudNavLink>
+            <MudNavLink Href="/stock-transfers" Icon="@Icons.Material.Filled.LocalShipping">@L["Stock Transfer"]</MudNavLink>
             <MudNavLink Href="/inventory-counts" Icon="@Icons.Material.Filled.Checklist">@L["Counts"]</MudNavLink>
         </MudNavGroup>
     </AuthorizeView>

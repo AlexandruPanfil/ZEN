@@ -21,7 +21,22 @@ builder.AddServiceDefaults();
 
 // For standalone development without Docker, use in-memory cache
 // To run with Docker (AppHost), use Redis cache
-builder.AddRedisOutputCache("cache");
+// Redis output cache with resilience settings
+builder.Services.AddOutputCache(options =>
+{
+    options.AddPolicy("WarehouseInventory", builder => builder.Expire(TimeSpan.FromMinutes(2)));
+});
+
+if (builder.Environment.IsDevelopment())
+{
+    // In-memory cache for standalone development
+    builder.Services.AddOutputCache();
+}
+else
+{
+    // Redis cache for production (via Aspire)
+    builder.AddRedisOutputCache("cache");
+}
 
 // Add services to the container.
 builder.Services.AddRazorComponents()

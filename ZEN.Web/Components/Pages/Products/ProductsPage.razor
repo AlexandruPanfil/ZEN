@@ -457,11 +457,11 @@
 
     private async Task DeleteCategoryInline(CategoryDto item)
     {
-        var parameters = new DialogParameters { ["Text"] = $"Drop active structural category link: {item.Name}?" };
+        var parameters = new DialogParameters { ["ContentText"] = $"Drop active structural category link: {item.Name}?" };
         var dialog = await DialogService.ShowAsync<ConfirmationDialog>("Purge Category Link", parameters);
         var result = await dialog.Result;
 
-        if (result?.Data is bool ok && ok)
+        if (result != null && !result.Canceled)
         {
             try
             {
@@ -526,11 +526,11 @@
 
     private async Task DeleteBrandInline(BrandDto item)
     {
-        var parameters = new DialogParameters { ["Text"] = $"Drop brand context registration label {item.Name}?" };
+        var parameters = new DialogParameters { ["ContentText"] = $"Drop brand context registration label {item.Name}?" };
         var dialog = await DialogService.ShowAsync<ConfirmationDialog>("Purge Brand Unit", parameters);
         var result = await dialog.Result;
 
-        if (result?.Data is bool ok && ok)
+        if (result != null && !result.Canceled)
         {
             try
             {
@@ -572,11 +572,11 @@
 
     private async Task DeleteProduct(ProductDto product)
     {
-        var parameters = new DialogParameters { ["Text"] = $"Drop target catalog product mapping {product.Name}?" };
+        var parameters = new DialogParameters { ["ContentText"] = $"Drop target catalog product mapping {product.Name}?" };
         var dialog = await DialogService.ShowAsync<ConfirmationDialog>("Purge Ledger Product", parameters);
         var result = await dialog.Result;
 
-        if (result?.Data is bool ok && ok)
+        if (result != null && !result.Canceled)
         {
             try
             {
@@ -627,3 +627,5 @@
         public bool IsActive { get; set; } = true;
     }
 }
+
+

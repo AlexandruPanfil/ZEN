@@ -100,7 +100,7 @@ else
                 </HeaderContent>
                 <RowTemplate>
                     <MudTd DataLabel="Product Name">@context.ProductName</MudTd>
-                    <MudTd DataLabel="SKU/Barcode">@context.ProductId</MudTd>
+                    <MudTd DataLabel="SKU/Barcode">@(context.SKU ?? context.Barcode ?? "—")</MudTd>
                     <MudTd DataLabel="Quantity">@context.Quantity</MudTd>
                     <MudTd DataLabel="Reorder Level">@context.ReorderLevel</MudTd>
                     <MudTd DataLabel="Max Stock">@(context.MaxStock?.ToString() ?? "N/A")</MudTd>
@@ -178,13 +178,8 @@ else
         _isLoading = true;
         try
         {
-            var inventoryTask = InventoryService.GetInventoryByWarehouseAsync(_selectedWarehouseId.Value);
-            var lowStockTask = InventoryService.GetLowStockItemsAsync(_selectedWarehouseId.Value);
-
-            await Task.WhenAll(inventoryTask, lowStockTask);
-
-            _inventoryItems = inventoryTask.Result;
-            _lowStockItems = lowStockTask.Result;
+            _inventoryItems = await InventoryService.GetInventoryByWarehouseAsync(_selectedWarehouseId.Value);
+            _lowStockItems = await InventoryService.GetLowStockItemsAsync(_selectedWarehouseId.Value);
         }
         catch (Exception ex)
         {

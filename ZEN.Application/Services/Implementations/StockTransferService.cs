@@ -1,3 +1,4 @@
+using ZEN.Application.DTOs.Inventory;
 using ZEN.Application.Services.Interfaces;
 using ZEN.Domain.Entities;
 using ZEN.Domain.Enums;
@@ -143,10 +144,7 @@ public class StockTransferService : IStockTransferService
         if (transfer.Status != StockTransferStatus.InTransit)
             throw new InvalidOperationException("Only in-transit transfers can be received");
 
-        var items = await _transferRepository.FindAsync(t => t.Id == id, cancellationToken);
-        var transferItems = transfer.Items;
-
-        foreach (var item in transferItems)
+        foreach (var item in transfer.Items)
         {
             var sourceInventory = await _inventoryRepository.FindFirstAsync(i => i.ProductId == item.ProductId && i.WarehouseId == transfer.SourceWarehouseId, cancellationToken);
             if (sourceInventory != null)
@@ -222,13 +220,13 @@ public class StockTransferService : IStockTransferService
         return new StockTransferDto(
             transfer.Id,
             transfer.Number,
+            transfer.TransferDate,
             transfer.SourceWarehouseId,
             source?.Name ?? "Unknown",
             transfer.DestinationWarehouseId,
             destination?.Name ?? "Unknown",
             source?.StoreId ?? Guid.Empty,
             source?.Store?.Name ?? "Unknown",
-            transfer.TransferDate,
             transfer.Status,
             items);
     }

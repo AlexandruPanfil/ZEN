@@ -180,6 +180,19 @@ public class PurchaseOrderService : IPurchaseOrderService
         return true;
     }
 
+    public async Task<IEnumerable<PurchaseOrderDto>> GetAllAsync(CancellationToken cancellationToken = default)
+    {
+        var pos = await _purchaseOrderRepository.GetAllAsync(cancellationToken);
+
+        var result = new List<PurchaseOrderDto>();
+        foreach (var po in pos)
+        {
+            result.Add(await MapToDtoAsync(po, cancellationToken));
+        }
+
+        return result;
+    }
+
     private async Task<PurchaseOrderDto> MapToDtoAsync(PurchaseOrder po, CancellationToken cancellationToken)
     {
         var supplier = await _supplierRepository.GetByIdAsync(po.SupplierId, cancellationToken);

@@ -10,7 +10,10 @@ public class InventoryMappingProfile : Profile
     {
         CreateMap<InventoryItem, InventoryItemDto>()
             .ForMember(d => d.ProductName, opt => opt.MapFrom(s => s.Product.Name))
-            .ForMember(d => d.WarehouseName, opt => opt.MapFrom(s => s.Warehouse.Name));
+            .ForMember(d => d.SKU, opt => opt.MapFrom(s => s.Product.SKU))
+            .ForMember(d => d.Barcode, opt => opt.MapFrom(s => s.Product.Barcode))
+            .ForMember(d => d.WarehouseName, opt => opt.MapFrom(s => s.Warehouse.Name))
+            .ForMember(d => d.ReorderLevel, opt => opt.MapFrom(s => s.MinQuantity));
 
         CreateMap<StockPurchase, StockPurchaseDto>()
             .ForMember(d => d.SupplierName, opt => opt.MapFrom(s => s.Supplier.Name))
@@ -39,6 +42,7 @@ public class InventoryMappingProfile : Profile
         CreateMap<StockTransfer, StockTransferDto>()
             .ForMember(d => d.SourceWarehouseName, opt => opt.MapFrom(s => s.SourceWarehouse.Name))
             .ForMember(d => d.DestinationWarehouseName, opt => opt.MapFrom(s => s.DestinationWarehouse.Name))
+            .ForMember(d => d.StoreName, opt => opt.MapFrom(s => s.SourceWarehouse.Store.Name))
             .ForMember(d => d.Items, opt => opt.MapFrom(s => s.Items));
 
         CreateMap<StockTransferItem, StockTransferItemDto>()

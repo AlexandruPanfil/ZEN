@@ -8,7 +8,5 @@ public interface IInventoryService
     Task<InventoryItemDto?> GetInventoryByProductAsync(Guid productId, Guid warehouseId, CancellationToken cancellationToken = default);
     Task<StockPurchaseDto> CreateStockPurchaseAsync(CreateStockPurchaseRequest request, CancellationToken cancellationToken = default);
     Task<IEnumerable<StockPurchaseDto>> GetStockPurchasesAsync(Guid? supplierId = null, CancellationToken cancellationToken = default);
-    Task<StockTransferDto> CreateStockTransferAsync(Guid sourceWarehouseId, Guid destinationWarehouseId, IEnumerable<(Guid ProductId, decimal Quantity)> items, CancellationToken cancellationToken = default);
-    Task<bool> ApproveStockTransferAsync(Guid transferId, CancellationToken cancellationToken = default);
     Task<IEnumerable<InventoryItemDto>> GetLowStockItemsAsync(Guid warehouseId, CancellationToken cancellationToken = default);
 }

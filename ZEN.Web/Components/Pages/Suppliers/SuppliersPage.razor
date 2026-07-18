@@ -286,13 +286,13 @@
 
     private async Task DeleteSupplier(SupplierDto supplier)
     {
-        var parameters = new DialogParameters { ["Text"] = $"Are you sure you want to delete supplier {supplier.Name}?" };
+        var parameters = new DialogParameters { ["ContentText"] = $"Are you sure you want to delete supplier {supplier.Name}?" };
         var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small, FullScreen = false };
 
         var dialog = await DialogService.ShowAsync<ConfirmationDialog>("Delete Supplier", parameters, options);
         var result = await dialog.Result;
 
-        if (result?.Data is bool confirmed && confirmed)
+        if (result != null && !result.Canceled)
         {
             try
             {
@@ -353,3 +353,5 @@
         public bool IsActive { get; set; } = true;
     }
 }
+
+

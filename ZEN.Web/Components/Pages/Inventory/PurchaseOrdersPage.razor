@@ -536,11 +536,11 @@
 
     private async Task DeleteOrder(PurchaseOrderDto order)
     {
-        var parameters = new DialogParameters { ["Text"] = $"Are you sure you want to drop purchase document draft {order.Number}?" };
-        var dialog = await DialogService.ShowAsync<global::ZEN.Shared.Components.Common.ConfirmDialog>("Purge Record Struct", parameters);
+        var parameters = new DialogParameters { ["ContentText"] = $"Are you sure you want to drop purchase document draft {order.Number}?" };
+        var dialog = await DialogService.ShowAsync<MudMessageBox>("Purge Record Struct", parameters);
         var result = await dialog.Result;
 
-        if (result?.Data is bool confirmed && confirmed)
+        if (result != null && !result.Canceled)
         {
             try
             {
@@ -590,3 +590,5 @@
         public decimal UnitPrice { get; set; }
     }
 }
+
+

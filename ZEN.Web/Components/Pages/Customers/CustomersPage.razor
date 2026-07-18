@@ -218,13 +218,13 @@
 
     private async Task DeleteCustomer(CustomerDto customer)
     {
-        var parameters = new DialogParameters { ["Text"] = string.Format(L["DeleteCustomerConfirmation"], customer.Name) };
+        var parameters = new DialogParameters { ["ContentText"] = string.Format(L["DeleteCustomerConfirmation"], customer.Name) };
         var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small, FullScreen = false };
 
         var dialog = await DialogService.ShowAsync<ConfirmationDialog>(L["DeleteCustomerTitle"], parameters, options);
         var result = await dialog.Result;
 
-        if (result?.Data is bool confirmed && confirmed)
+        if (result != null && !result.Canceled)
         {
             try
             {
@@ -248,3 +248,5 @@
 
     private void CloseDialog() => _isDialogOpen = false;
 }
+
+

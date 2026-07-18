@@ -11,7 +11,7 @@
         };
 
         var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small };
-        var dialog = await dialogService.ShowAsync<MudDialog>(title, parameters, options);
+        var dialog = await dialogService.ShowAsync<MudMessageBox>(title, parameters, options);
         var result = await dialog.Result;
 
         return result != null && !result.Canceled;
