@@ -1,0 +1,41 @@
+@using Microsoft.AspNetCore.Http
+@using Microsoft.AspNetCore.Localization
+@using Microsoft.Extensions.Localization
+@using System.Globalization
+@using ZEN.Shared
+@inject IHttpContextAccessor HttpContextAccessor
+@inject IJSRuntime JSRuntime
+@inject NavigationManager Navigation
+@inject IStringLocalizer<SharedResource> L
+
+<MudSelect T="string" Label="@L["Language"]" Value="_selectedCulture" ValueChanged="OnLanguageChanged"
+           Variant="Variant.Outlined" Class="mr-2" Dense="true" Style="min-width: 120px;">
+    <MudSelectItem Value="@("en")">@L["English"]</MudSelectItem>
+    <MudSelectItem Value="@("ro")">@L["Romanian"]</MudSelectItem>
+    <MudSelectItem Value="@("ru")">@L["Russian"]</MudSelectItem>
+</MudSelect>
+
+@code {
+    private string _selectedCulture = "en";
+
+    protected override void OnInitialized()
+    {
+        var requestCultureFeature = HttpContextAccessor.HttpContext?.Features.Get<IRequestCultureFeature>();
+        if (requestCultureFeature?.RequestCulture.Culture != null)
+        {
+            _selectedCulture = requestCultureFeature.RequestCulture.Culture.TwoLetterISOLanguageName;
+        }
+    }
+
+    private async Task OnLanguageChanged(string value)
+    {
+        _selectedCulture = value;
+        var culture = new CultureInfo(value);
+        CultureInfo.CurrentCulture = culture;
+        CultureInfo.CurrentUICulture = culture;
+
+        var cultureCookieValue = CookieRequestCultureProvider.MakeCookieValue(new RequestCulture(culture));
+        await JSRuntime.InvokeVoidAsync("blazorSetCultureCookie", cultureCookieValue);
+        Navigation.NavigateTo(Navigation.Uri, forceLoad: true);
+    }
+}

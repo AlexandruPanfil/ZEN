@@ -1,0 +1,437 @@
+@page "/stock-purchases"
+@using Microsoft.AspNetCore.Authorization
+@using ZEN.Application.DTOs.Inventory
+@using ZEN.Application.DTOs.Products
+@using ZEN.Application.DTOs.Suppliers
+@using ZEN.Application.Services.Interfaces
+@using ZEN.Domain.Enums
+@using ZEN.Domain.Entities
+@using ZEN.Domain.Interfaces
+@inject IInventoryService InventoryService
+@inject ISupplierService SupplierService
+@inject IWarehouseService WarehouseService
+@inject IProductService ProductService
+@inject IStoreContext StoreContext
+@inject global::ZEN.Domain.Interfaces.IRepository<Store> StoreRepository
+@inject global::ZEN.Domain.Interfaces.IRepository<PurchaseOrder> PurchaseOrderRepository
+@inject IPurchaseOrderService PurchaseOrderService
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+
+@attribute [Authorize(Roles = "Administrator,Manager,InventoryManager")]
+
+<Microsoft.AspNetCore.Components.Web.PageTitle>Stock Purchases - ZEN POS</Microsoft.AspNetCore.Components.Web.PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-4">
+    <div class="d-flex justify-space-between align-center mb-6">
+        <div>
+            <MudText Typo="Typo.h4" Class="font-weight-bold" Color="Color.Primary">Stock Purchases</MudText>
+            <MudText Typo="Typo.subtitle2" Color="Color.Secondary">Record goods received from suppliers into warehouse inventory.</MudText>
+        </div>
+        <MudButton Variant="Variant.Filled"
+                   Color="Color.Primary"
+                   StartIcon="@Icons.Material.Filled.Add"
+                   Size="Size.Large"
+                   OnClick="OpenCreateDialog">
+            Record Stock Receipt
+        </MudButton>
+    </div>
+
+    <MudPaper Class="pa-4 mb-4" Elevation="1">
+        <MudGrid Class="align-center mb-2">
+            <MudItem xs="12" md="6" lg="7">
+                <MudTextField T="string"
+                              Placeholder="Filter by receipt #, supplier name..."
+                              Variant="Variant.Outlined"
+                              Adornment="Adornment.Start"
+                              AdornmentIcon="@Icons.Material.Filled.Search"
+                              @bind-Value="_searchTerm"
+                              Immediate="true"
+                              Clearable="true"
+                              Margin="Margin.Dense" />
+            </MudItem>
+            <MudItem xs="12" md="6" lg="5">
+                <MudSelect T="Guid?"
+                           Label="Supplier Filter"
+                           Variant="Variant.Outlined"
+                           Value="_selectedSupplierId"
+                           ValueChanged="OnSupplierChanged"
+                           Margin="Margin.Dense">
+                    <MudSelectItem T="Guid?" Value="@(null)">All Suppliers</MudSelectItem>
+                    @foreach (var supplier in _suppliers)
+                    {
+                        <MudSelectItem T="Guid?" Value="@supplier.Id">@supplier.Name</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+        </MudGrid>
+    </MudPaper>
+
+    <MudTable T="StockPurchaseDto" Items="@FilteredStockPurchases" Hover="true" Striped="true" Elevation="1" Breakpoint="Breakpoint.Md" Loading="@_isLoading">
+        <ToolBarContent>
+            <MudText Typo="Typo.h6" Class="font-weight-bold">Goods Receipts Register</MudText>
+        </ToolBarContent>
+        <HeaderContent>
+            <MudTh><MudTableSortLabel SortBy="new Func<StockPurchaseDto, object>(x => x.Number)">Receipt #</MudTableSortLabel></MudTh>
+            <MudTh>Supplier</MudTh>
+            <MudTh>Warehouse</MudTh>
+            <MudTh><MudTableSortLabel SortBy="new Func<StockPurchaseDto, object>(x => x.ReceiptDate)">Receipt Date</MudTableSortLabel></MudTh>
+            <MudTh>Invoice #</MudTh>
+            <MudTh>Status</MudTh>
+            <MudTh><MudTableSortLabel SortBy="new Func<StockPurchaseDto, object>(x => x.TotalAmount)">Total</MudTableSortLabel></MudTh>
+            <MudTh>Actions</MudTh>
+        </HeaderContent>
+        <RowTemplate Context="purchase">
+            <MudTd DataLabel="Receipt #" Class="font-weight-bold">@purchase.Number</MudTd>
+            <MudTd DataLabel="Supplier">@purchase.SupplierName</MudTd>
+            <MudTd DataLabel="Warehouse">@purchase.WarehouseName</MudTd>
+            <MudTd DataLabel="Receipt Date">@purchase.ReceiptDate.ToString("yyyy-MM-dd")</MudTd>
+            <MudTd DataLabel="Invoice">@(purchase.SupplierInvoiceNo ?? "—")</MudTd>
+            <MudTd DataLabel="Status">
+                <MudChip T="string" Color="@GetStatusColor(purchase.Status)" Variant="Variant.Text" Size="Size.Small" Class="font-weight-bold">
+                    @purchase.Status
+                </MudChip>
+            </MudTd>
+            <MudTd DataLabel="Total" Class="font-weight-bold color-primary">@purchase.TotalAmount.ToString("C")</MudTd>
+            <MudTd DataLabel="Actions">
+                <MudTooltip Text="View Details">
+                    <MudIconButton Icon="@Icons.Material.Filled.Visibility" Variant="Variant.Outlined" Color="Color.Info" Size="Size.Small" Class="mr-1" OnClick="@(() => ViewDetails(purchase))" />
+                </MudTooltip>
+            </MudTd>
+        </RowTemplate>
+        <NoRecordsContent>
+            <MudText Align="Align.Center" Class="pa-4 color-secondary">No stock purchases recorded.</MudText>
+        </NoRecordsContent>
+        <PagerContent>
+            <MudTablePager RowsPerPageString="Items per page:" />
+        </PagerContent>
+    </MudTable>
+</MudContainer>
+
+<MudDialog @bind-Visible="_isDialogOpen" Options="new DialogOptions { MaxWidth = MaxWidth.Large, FullWidth = true, CloseButton = true }">
+    <TitleContent>
+        <MudText Typo="Typo.h6" Class="font-weight-bold">
+            <MudIcon Icon="@Icons.Material.Filled.NoteAdd" Class="mr-2" />
+            Record Stock Receipt
+        </MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudStack Spacing="3" Class="py-2">
+            <MudGrid>
+                <MudItem xs="12" sm="6">
+                    <MudSelect T="Guid?" Label="Supplier" Variant="Variant.Outlined" @bind-Value="_editingModel.SupplierId" Required="true" Margin="Margin.Dense">
+                        @foreach (var supplier in _suppliers)
+                        {
+                            <MudSelectItem T="Guid?" Value="@supplier.Id">@supplier.Name</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudSelect T="Guid?" Label="Warehouse" Variant="Variant.Outlined" @bind-Value="_editingModel.WarehouseId" Required="true" Margin="Margin.Dense">
+                        @foreach (var warehouse in _warehouses)
+                        {
+                            <MudSelectItem T="Guid?" Value="@warehouse.Id">@warehouse.Name</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudDatePicker Label="Receipt Date" Variant="Variant.Outlined" @bind-Date="_editingModel.ReceiptDate" Margin="Margin.Dense" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudTextField T="string" Label="Supplier Invoice #" Variant="Variant.Outlined" @bind-Value="_editingModel.SupplierInvoiceNo" Margin="Margin.Dense" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudSelect T="Guid?" Label="Link to Purchase Order (Optional)" Variant="Variant.Outlined" @bind-Value="_editingModel.PurchaseOrderId" Margin="Margin.Dense" Clearable="true">
+                        <MudSelectItem T="Guid?" Value="@(null)">Free Entry (No PO)</MudSelectItem>
+                        @foreach (var po in _purchaseOrders.Where(p => p.Status == PurchaseOrderStatus.Sent || p.Status == PurchaseOrderStatus.PartiallyReceived))
+                        {
+                            <MudSelectItem T="Guid?" Value="@po.Id">@po.Number</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudNumericField T="decimal" Label="Amount Paid" Variant="Variant.Outlined" @bind-Value="_editingModel.PaidAmount" Min="0" Format="C" Margin="Margin.Dense" />
+                </MudItem>
+            </MudGrid>
+
+            <MudDivider Class="my-4" />
+            <div class="d-flex align-center justify-space-between mb-3">
+                <MudText Typo="Typo.h6" Class="font-weight-bold color-primary">Product Receipt Items</MudText>
+                <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" Size="Size.Small" OnClick="AddLineItem">Add Item</MudButton>
+            </div>
+
+            <div style="max-height: 320px; overflow-y: auto;" class="pe-2">
+                @foreach (var item in _editingModel.Items)
+                {
+                    <MudGrid Class="align-center mb-1" Spacing="2">
+                        <MudItem xs="12" sm="4">
+                            <MudSelect T="Guid?" Label="Product" Variant="Variant.Outlined" @bind-Value="item.ProductId" Required="true" Margin="Margin.Dense">
+                                @foreach (var product in _products)
+                                {
+                                    <MudSelectItem T="Guid?" Value="@product.Id">@product.Name</MudSelectItem>
+                                }
+                            </MudSelect>
+                        </MudItem>
+                        <MudItem xs="6" sm="2">
+                            <MudNumericField T="decimal" Label="Quantity" Variant="Variant.Outlined" @bind-Value="item.Quantity" Min="0.01m" Margin="Margin.Dense" />
+                        </MudItem>
+                        <MudItem xs="6" sm="3">
+                            <MudNumericField T="decimal" Label="Unit Cost" Variant="Variant.Outlined" @bind-Value="item.UnitCost" Min="0.00m" Format="C" Margin="Margin.Dense" />
+                        </MudItem>
+                        <MudItem xs="6" sm="2">
+                            <MudNumericField T="decimal" Label="Tax Rate %" Variant="Variant.Outlined" @bind-Value="item.TaxRate" Min="0" Margin="Margin.Dense" />
+                        </MudItem>
+                        <MudItem xs="12" sm="1" Class="d-flex align-center justify-end">
+                            <MudIconButton Icon="@Icons.Material.Filled.RemoveCircleOutline" Color="Color.Error" Size="Size.Medium" Disabled="@(_editingModel.Items.Count <= 1)" OnClick="@(() => RemoveLineItem(item))" />
+                        </MudItem>
+                    </MudGrid>
+                }
+            </div>
+
+            <div class="d-flex justify-end mt-2">
+                <MudText Typo="Typo.subtitle1" Class="font-weight-bold">Total: @_editingModel.Items.Sum(i => i.Quantity * i.UnitCost).ToString("C")</MudText>
+            </div>
+        </MudStack>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="CloseDialog" Variant="Variant.Text">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveStockPurchase">Record Receipt</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@if (_selectedPurchase is not null)
+{
+    <MudDialog @bind-Visible="_isDetailsOpen" Options="new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseButton = true }">
+        <TitleContent>
+            <MudText Typo="Typo.h6" Class="font-weight-bold color-primary">
+                <MudIcon Icon="@Icons.Material.Filled.FindInPage" Class="mr-2" />
+                Receipt: @_selectedPurchase.Number
+            </MudText>
+        </TitleContent>
+        <DialogContent>
+            <MudStack Spacing="3" Class="py-1">
+                <div class="d-flex justify-space-between align-center">
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">Supplier: <strong>@_selectedPurchase.SupplierName</strong></MudText>
+                    <MudChip T="string" Size="Size.Small" Color="@GetStatusColor(_selectedPurchase.Status)" Variant="Variant.Text" Class="font-weight-bold">@_selectedPurchase.Status</MudChip>
+                </div>
+                <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mt-n1">Warehouse: <strong>@_selectedPurchase.WarehouseName</strong></MudText>
+                <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mt-n1">Received: <strong>@_selectedPurchase.ReceiptDate.ToString("yyyy-MM-dd")</strong></MudText>
+
+                <MudDivider Class="my-2" />
+
+                <MudTable T="StockPurchaseItemDto" Items="@_selectedPurchase.Items" Dense="true" Hover="true" Elevation="0" Outlined="true">
+                    <HeaderContent>
+                        <MudTh>Product</MudTh>
+                        <MudTh Style="text-align: right;">Qty</MudTh>
+                        <MudTh Style="text-align: right;">Unit Cost</MudTh>
+                        <MudTh Style="text-align: right;">Total</MudTh>
+                    </HeaderContent>
+                    <RowTemplate Context="item">
+                        <MudTd DataLabel="Product">@item.ProductName</MudTd>
+                        <MudTd DataLabel="Qty" Style="text-align: right;">@item.Quantity</MudTd>
+                        <MudTd DataLabel="Unit Cost" Style="text-align: right;">@item.UnitCost.ToString("C")</MudTd>
+                        <MudTd DataLabel="Total" Style="text-align: right;" Class="font-weight-bold text-success">@item.Total.ToString("C")</MudTd>
+                    </RowTemplate>
+                </MudTable>
+
+                <div class="d-flex justify-space-between align-center mt-2 px-2">
+                    <MudText Typo="Typo.subtitle2" Color="Color.Secondary">Total Received:</MudText>
+                    <MudText Typo="Typo.h6" Class="font-weight-bold color-success">@_selectedPurchase.TotalAmount.ToString("C")</MudText>
+                </div>
+            </MudStack>
+        </DialogContent>
+        <DialogActions>
+            <MudButton Color="Color.Primary" OnClick="CloseDetailsDialog" Variant="Variant.Text">Close</MudButton>
+        </DialogActions>
+    </MudDialog>
+}
+
+@code {
+    private List<StockPurchaseDto> _stockPurchases = new();
+    private List<SupplierDto> _suppliers = new();
+    private List<WarehouseDto> _warehouses = new();
+    private List<ProductDto> _products = new();
+    private List<PurchaseOrderDto> _purchaseOrders = new();
+    private string _searchTerm = string.Empty;
+    private bool _isLoading = false;
+    private bool _isDialogOpen = false;
+    private bool _isDetailsOpen = false;
+    private Guid? _selectedSupplierId;
+    private StockPurchaseDto? _selectedPurchase;
+    private StockPurchaseFormModel _editingModel = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadLookupsAsync();
+        await LoadStockPurchasesAsync();
+    }
+
+    private IEnumerable<StockPurchaseDto> FilteredStockPurchases => _stockPurchases.Where(p =>
+        string.IsNullOrWhiteSpace(_searchTerm) ||
+        p.Number.Contains(_searchTerm, StringComparison.OrdinalIgnoreCase) ||
+        p.SupplierName.Contains(_searchTerm, StringComparison.OrdinalIgnoreCase));
+
+    private async Task LoadLookupsAsync()
+    {
+        try
+        {
+            _suppliers = (await SupplierService.GetAllAsync()).ToList();
+            _products = (await ProductService.GetAllAsync(StoreContext.GetCurrentStoreId())).ToList();
+            _purchaseOrders = (await PurchaseOrderService.GetAllAsync()).ToList();
+
+            var warehouses = new List<WarehouseDto>();
+            var currentStoreId = StoreContext.GetCurrentStoreId();
+
+            if (currentStoreId.HasValue)
+            {
+                warehouses.AddRange(await WarehouseService.GetActiveByStoreAsync(currentStoreId.Value));
+            }
+            else
+            {
+                var stores = await StoreRepository.FindAsync(s => s.IsActive);
+                foreach (var store in stores)
+                {
+                    warehouses.AddRange(await WarehouseService.GetActiveByStoreAsync(store.Id));
+                }
+            }
+
+            _warehouses = warehouses;
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error loading lookups: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task LoadStockPurchasesAsync()
+    {
+        _isLoading = true;
+        try
+        {
+            _stockPurchases = (await InventoryService.GetStockPurchasesAsync(_selectedSupplierId)).ToList();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error loading stock purchases: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task OnSupplierChanged(Guid? supplierId)
+    {
+        _selectedSupplierId = supplierId;
+        await LoadStockPurchasesAsync();
+    }
+
+    private void OpenCreateDialog()
+    {
+        _editingModel = new StockPurchaseFormModel
+        {
+            ReceiptDate = DateTime.Today,
+            PaidAmount = 0,
+            Items = [new StockPurchaseLineModel()]
+        };
+        _isDialogOpen = true;
+    }
+
+    private void ViewDetails(StockPurchaseDto purchase)
+    {
+        _selectedPurchase = purchase;
+        _isDetailsOpen = true;
+    }
+
+    private void CloseDetailsDialog()
+    {
+        _isDetailsOpen = false;
+        _selectedPurchase = null;
+    }
+
+    private void AddLineItem() => _editingModel.Items.Add(new StockPurchaseLineModel());
+
+    private void RemoveLineItem(StockPurchaseLineModel item)
+    {
+        if (_editingModel.Items.Count > 1)
+        {
+            _editingModel.Items.Remove(item);
+        }
+    }
+
+    private async Task SaveStockPurchase()
+    {
+        try
+        {
+            if (!_editingModel.SupplierId.HasValue || !_editingModel.WarehouseId.HasValue)
+            {
+                Snackbar.Add("Supplier and warehouse are required.", Severity.Warning);
+                return;
+            }
+
+            var items = _editingModel.Items
+                .Where(i => i.ProductId.HasValue && i.Quantity > 0 && i.UnitCost >= 0)
+                .Select(i => new CreateStockPurchaseItemRequest(
+                    i.ProductId!.Value,
+                    i.Quantity,
+                    i.UnitCost,
+                    i.TaxRate))
+                .ToList();
+
+            if (items.Count == 0)
+            {
+                Snackbar.Add("Specify at least one product item.", Severity.Warning);
+                return;
+            }
+
+            var request = new CreateStockPurchaseRequest(
+                _editingModel.SupplierId.Value,
+                _editingModel.WarehouseId.Value,
+                _editingModel.PurchaseOrderId,
+                _editingModel.SupplierInvoiceNo,
+                _editingModel.ReceiptDate ?? DateTime.Today,
+                items,
+                _editingModel.PaidAmount);
+
+            await InventoryService.CreateStockPurchaseAsync(request);
+            Snackbar.Add("Stock receipt recorded successfully.", Severity.Success);
+
+            CloseDialog();
+            await LoadStockPurchasesAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private void CloseDialog() => _isDialogOpen = false;
+
+    private static Color GetStatusColor(StockPurchaseStatus status) => status switch
+    {
+        StockPurchaseStatus.Draft => Color.Default,
+        StockPurchaseStatus.Confirmed => Color.Success,
+        StockPurchaseStatus.Cancelled => Color.Error,
+        _ => Color.Default
+    };
+
+    private sealed class StockPurchaseFormModel
+    {
+        public Guid? Id { get; set; }
+        public Guid? SupplierId { get; set; }
+        public Guid? WarehouseId { get; set; }
+        public Guid? PurchaseOrderId { get; set; }
+        public DateTime? ReceiptDate { get; set; } = DateTime.Today;
+        public string? SupplierInvoiceNo { get; set; }
+        public decimal PaidAmount { get; set; }
+        public List<StockPurchaseLineModel> Items { get; set; } = [];
+    }
+
+    private sealed class StockPurchaseLineModel
+    {
+        public Guid? ProductId { get; set; }
+        public decimal Quantity { get; set; } = 1;
+        public decimal UnitCost { get; set; }
+        public decimal TaxRate { get; set; }
+    }
+}

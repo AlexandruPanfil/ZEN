@@ -1,0 +1,228 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <data name="AppName" xml:space="preserve">
+    <value>ZEN POS</value>
+  </data>
+  <data name="Login" xml:space="preserve">
+    <value>Login</value>
+  </data>
+  <data name="Logout" xml:space="preserve">
+    <value>Logout</value>
+  </data>
+  <data name="Save" xml:space="preserve">
+    <value>Save</value>
+  </data>
+  <data name="Cancel" xml:space="preserve">
+    <value>Cancel</value>
+  </data>
+  <data name="Yes" xml:space="preserve">
+    <value>Yes</value>
+  </data>
+  <data name="No" xml:space="preserve">
+    <value>No</value>
+  </data>
+  <data name="Confirmation" xml:space="preserve">
+    <value>Are you sure?</value>
+  </data>
+  <data name="Dashboard" xml:space="preserve">
+    <value>Dashboard</value>
+  </data>
+  <data name="Sales" xml:space="preserve">
+    <value>Sales</value>
+  </data>
+  <data name="POS" xml:space="preserve">
+    <value>POS</value>
+  </data>
+  <data name="Shifts" xml:space="preserve">
+    <value>Shifts</value>
+  </data>
+  <data name="HeldSales" xml:space="preserve">
+    <value>Held Sales</value>
+  </data>
+  <data name="Products" xml:space="preserve">
+    <value>Products</value>
+  </data>
+  <data name="Taxes" xml:space="preserve">
+    <value>Taxes</value>
+  </data>
+  <data name="Promotions" xml:space="preserve">
+    <value>Promotions</value>
+  </data>
+  <data name="Inventory" xml:space="preserve">
+    <value>Inventory</value>
+  </data>
+  <data name="Stock" xml:space="preserve">
+    <value>Stock</value>
+  </data>
+  <data name="Stock Purchase" xml:space="preserve">
+    <value>Stock Purchase</value>
+  </data>
+  <data name="Stock Transfer" xml:space="preserve">
+    <value>Stock Transfer</value>
+  </data>
+  <data name="Warehouses" xml:space="preserve">
+    <value>Warehouses</value>
+  </data>
+  <data name="PurchaseOrders" xml:space="preserve">
+    <value>Purchase Orders</value>
+  </data>
+  <data name="Counts" xml:space="preserve">
+    <value>Counts</value>
+  </data>
+  <data name="Customers" xml:space="preserve">
+    <value>Customers</value>
+  </data>
+  <data name="Suppliers" xml:space="preserve">
+    <value>Suppliers</value>
+  </data>
+  <data name="Reports" xml:space="preserve">
+    <value>Reports</value>
+  </data>
+  <data name="SalesReports" xml:space="preserve">
+    <value>Sales Reports</value>
+  </data>
+  <data name="InventoryReports" xml:space="preserve">
+    <value>Inventory Reports</value>
+  </data>
+  <data name="FinancialReports" xml:space="preserve">
+    <value>Financial Reports</value>
+  </data>
+  <data name="EmployeeReports" xml:space="preserve">
+    <value>Employee Reports</value>
+  </data>
+  <data name="Admin" xml:space="preserve">
+    <value>Admin</value>
+  </data>
+  <data name="Users" xml:space="preserve">
+    <value>Users</value>
+  </data>
+  <data name="Roles" xml:space="preserve">
+    <value>Roles</value>
+  </data>
+  <data name="Stores" xml:space="preserve">
+    <value>Stores</value>
+  </data>
+  <data name="Settings" xml:space="preserve">
+    <value>Settings</value>
+  </data>
+  <data name="AuditLogs" xml:space="preserve">
+    <value>Audit Logs</value>
+  </data>
+  <data name="Equipment" xml:space="preserve">
+    <value>Equipment</value>
+  </data>
+  <data name="Printers" xml:space="preserve">
+    <value>Printers</value>
+  </data>
+  <data name="BankTerminals" xml:space="preserve">
+    <value>Bank Terminals</value>
+  </data>
+  <data name="Scanners" xml:space="preserve">
+    <value>Scanners</value>
+  </data>
+  <data name="CustomerDisplays" xml:space="preserve">
+    <value>Customer Displays</value>
+  </data>
+  <data name="CashDesks" xml:space="preserve">
+    <value>Cash Desks</value>
+  </data>
+  <data name="LocalizationSettings" xml:space="preserve">
+    <value>Localization</value>
+  </data>
+  <data name="DefaultLanguage" xml:space="preserve">
+    <value>Default Language</value>
+  </data>
+  <data name="DefaultCurrency" xml:space="preserve">
+    <value>Default Currency</value>
+  </data>
+  <data name="CurrencySymbol" xml:space="preserve">
+    <value>Currency Symbol</value>
+  </data>
+  <data name="DecimalSeparator" xml:space="preserve">
+    <value>Decimal Separator</value>
+  </data>
+  <data name="ThousandsSeparator" xml:space="preserve">
+    <value>Thousands Separator</value>
+  </data>
+  <data name="LocalizationSettingsSaved" xml:space="preserve">
+    <value>Localization settings saved successfully</value>
+  </data>
+  <data name="ErrorSavingSettings" xml:space="preserve">
+    <value>Error saving settings</value>
+  </data>
+  <data name="Welcome" xml:space="preserve">
+    <value>Welcome to ZEN POS</value>
+  </data>
+  <data name="WelcomeSubtitle" xml:space="preserve">
+    <value>System overview and key performance indicators.</value>
+  </data>
+  <data name="ActiveUsers" xml:space="preserve">
+    <value>Active Users</value>
+  </data>
+  <data name="TodaysSales" xml:space="preserve">
+    <value>Today's Sales</value>
+  </data>
+  <data name="MonthlySales" xml:space="preserve">
+    <value>Monthly Sales</value>
+  </data>
+  <data name="Language" xml:space="preserve">
+    <value>Language</value>
+  </data>
+  <data name="English" xml:space="preserve">
+    <value>English</value>
+  </data>
+  <data name="Romanian" xml:space="preserve">
+    <value>Romanian</value>
+  </data>
+  <data name="Russian" xml:space="preserve">
+    <value>Russian</value>
+  </data>
+  <data name="AddCustomer" xml:space="preserve">
+    <value>Add Customer</value>
+  </data>
+  <data name="NoMatchingCustomers" xml:space="preserve">
+    <value>No matching customers found</value>
+  </data>
+  <data name="CustomerDirectory" xml:space="preserve">
+    <value>Customer Directory</value>
+  </data>
+  <data name="SaveProfile" xml:space="preserve">
+    <value>Save Profile</value>
+  </data>
+  <data name="ModifyAccount" xml:space="preserve">
+    <value>Modify Account Context</value>
+  </data>
+  <data name="RegisterProfile" xml:space="preserve">
+    <value>Register Profile Data</value>
+  </data>
+  <data name="ProfileUpdated" xml:space="preserve">
+    <value>Customer profile updated successfully</value>
+  </data>
+  <data name="ProfileRegistered" xml:space="preserve">
+    <value>Customer profile registered successfully</value>
+  </data>
+  <data name="CustomerRemoved" xml:space="preserve">
+    <value>Customer removed successfully</value>
+  </data>
+  <data name="FailedToRemoveCustomer" xml:space="preserve">
+    <value>Failed to remove customer</value>
+  </data>
+  <data name="DeleteCustomerTitle" xml:space="preserve">
+    <value>Delete Customer</value>
+  </data>
+  <data name="DeleteCustomerConfirmation" xml:space="preserve">
+    <value>Are you sure you want to delete records for {0}?</value>
+  </data>
+  <data name="GeneralSettings" xml:space="preserve">
+    <value>General</value>
+  </data>
+  <data name="ReceiptSettings" xml:space="preserve">
+    <value>Receipt Format</value>
+  </data>
+  <data name="IntegrationSettings" xml:space="preserve">
+    <value>Integration</value>
+  </data>
+  <data name="BackupSettings" xml:space="preserve">
+    <value>Backup &amp; Data</value>
+  </data>
+</root>

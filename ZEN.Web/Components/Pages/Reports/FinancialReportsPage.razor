@@ -1,0 +1,125 @@
+@page "/reports/financial"
+@using Microsoft.AspNetCore.Authorization
+@using ZEN.Application.Services.Interfaces
+@using ZEN.Application.DTOs.Reports
+@inject IReportService ReportService
+@inject IStoreContext StoreContext
+@inject ISnackbar Snackbar
+@attribute [Authorize(Roles = "Administrator,Manager,Accountant")]
+
+<PageTitle>Financial Reports - ZEN POS</PageTitle>
+
+<MudText Typo="Typo.h3" GutterBottom="true">Financial Reports</MudText>
+
+<MudPaper Class="pa-4 mb-4">
+    <MudGrid>
+        <MudItem xs="12" sm="4">
+            <MudDatePicker Label="Start Date" @bind-Date="_startDate" />
+        </MudItem>
+        <MudItem xs="12" sm="4">
+            <MudDatePicker Label="End Date" @bind-Date="_endDate" />
+        </MudItem>
+        <MudItem xs="12" sm="4" Class="d-flex align-center">
+            <MudButton Variant="Variant.Filled" 
+                       Color="Color.Primary" 
+                       OnClick="GenerateReport" 
+                       StartIcon="@Icons.Material.Filled.Analytics"
+                       FullWidth="true">
+                Generate Report
+            </MudButton>
+        </MudItem>
+    </MudGrid>
+</MudPaper>
+
+@if (_isLoading)
+{
+    <MudProgressCircular Color="Color.Primary" Indeterminate="true" Class="ma-auto" />
+}
+else if (_report == null)
+{
+    <MudAlert Severity="Severity.Info" Variant="Variant.Filled" Class="mt-4">
+        Please select a date range and generate the report.
+    </MudAlert>
+}
+else
+{
+    <MudGrid Class="mt-4">
+        <MudItem xs="12" sm="6" md="3">
+            <MudCard Elevation="2">
+                <MudCardContent>
+                    <MudText Typo="Typo.subtitle2" Color="Color.Secondary">Total Sales</MudText>
+                    <MudText Typo="Typo.h4">@_report.TotalSales.ToString("C")</MudText>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudCard Elevation="2">
+                <MudCardContent>
+                    <MudText Typo="Typo.subtitle2" Color="Color.Secondary">Net Sales</MudText>
+                    <MudText Typo="Typo.h4">@_report.NetSales.ToString("C")</MudText>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudCard Elevation="2">
+                <MudCardContent>
+                    <MudText Typo="Typo.subtitle2" Color="Color.Secondary">Total Tax</MudText>
+                    <MudText Typo="Typo.h4">@_report.TotalTax.ToString("C")</MudText>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudCard Elevation="2">
+                <MudCardContent>
+                    <MudText Typo="Typo.subtitle2" Color="Color.Secondary">Total Discount</MudText>
+                    <MudText Typo="Typo.h4">@_report.TotalDiscount.ToString("C")</MudText>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+    </MudGrid>
+
+    <MudText Typo="Typo.h5" Class="mt-6 mb-2">Top Performing Products</MudText>
+    <MudTable Items="@_report.TopProducts" Hover="true" Breakpoint="Breakpoint.Sm">
+        <HeaderContent>
+            <MudTh>Product Name</MudTh>
+            <MudTh>Quantity Sold</MudTh>
+            <MudTh>Total Revenue</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="Product Name">@context.ProductName</MudTd>
+            <MudTd DataLabel="Quantity Sold">@context.Quantity</MudTd>
+            <MudTd DataLabel="Total Revenue">@context.TotalSales.ToString("C")</MudTd>
+        </RowTemplate>
+    </MudTable>
+}
+
+@code {
+    private DateTime? _startDate = DateTime.Today.AddDays(-30);
+    private DateTime? _endDate = DateTime.Today;
+    private SalesReportDto? _report;
+    private bool _isLoading = false;
+
+    private async Task GenerateReport()
+    {
+        if (!_startDate.HasValue || !_endDate.HasValue)
+        {
+            Snackbar.Add("Please select both start and end dates.", Severity.Warning);
+            return;
+        }
+
+        _isLoading = true;
+        try
+        {
+            var storeId = StoreContext.GetCurrentStoreId();
+            _report = await ReportService.GetSalesReportAsync(_startDate.Value, _endDate.Value, storeId);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error generating report: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+}

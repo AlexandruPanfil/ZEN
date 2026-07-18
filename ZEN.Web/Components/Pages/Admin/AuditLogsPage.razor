@@ -1,0 +1,153 @@
+@page "/admin/audit-logs"
+@using Microsoft.AspNetCore.Authorization
+@using MudBlazor
+@using ZEN.Application.DTOs.Admin
+@using ZEN.Application.Services.Interfaces
+@inject IAuditService AuditService
+@inject ISnackbar Snackbar
+@inject IJSRuntime JS
+@attribute [Authorize(Roles = "Administrator")]
+
+<PageTitle>Audit Logs - ZEN POS</PageTitle>
+
+<MudText Typo="Typo.h4" GutterBottom="true">Audit Logs</MudText>
+
+<MudPaper Elevation="0" Class="pa-4" Style="border: 1px solid var(--mud-palette-divider); border-radius: 12px;">
+    <MudToolBar Gutters="false" Class="mb-4" Style="gap: 12px;">
+        <MudTextField @bind-Value="_searchTerm"
+                      Placeholder="Search by user or entity..."
+                      Adornment="Adornment.Start"
+                      AdornmentIcon="@Icons.Material.Filled.Search"
+                      Immediate="true"
+                      Variant="Variant.Outlined"
+                      Margin="Margin.Dense"
+                      Style="max-width: 320px;" />
+
+        <MudSelect T="string" @bind-Value="_selectedAction" Label="Action" Variant="Variant.Outlined" Clearable="true" Style="min-width: 140px;">
+            <MudSelectItem Value="@("Create")">Create</MudSelectItem>
+            <MudSelectItem Value="@("Update")">Update</MudSelectItem>
+            <MudSelectItem Value="@("Delete")">Delete</MudSelectItem>
+        </MudSelect>
+
+        <MudDatePicker Label="Date From" @bind-Date="_startDate" Variant="Variant.Outlined" />
+        <MudDatePicker Label="Date To" @bind-Date="_endDate" Variant="Variant.Outlined" />
+
+        <MudSpacer />
+
+        <MudButton Variant="Variant.Outlined"
+                   StartIcon="@Icons.Material.Filled.Download"
+                   OnClick="ExportCsv">
+            Export CSV
+        </MudButton>
+    </MudToolBar>
+
+    <MudTable Items="@FilteredLogs"
+              Dense="true"
+              Hover="true"
+              Loading="_loading"
+              LoadingProgressColor="Color.Primary"
+              Elevation="0">
+        <HeaderContent>
+            <MudTh>Timestamp</MudTh>
+            <MudTh>User</MudTh>
+            <MudTh>Action</MudTh>
+            <MudTh>Entity</MudTh>
+            <MudTh>Entity ID</MudTh>
+            <MudTh>IP Address</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd>
+                <MudText Typo="Typo.body2">@context.Timestamp.ToString("yyyy-MM-dd HH:mm:ss")</MudText>
+            </MudTd>
+            <MudTd>
+                <MudText Typo="Typo.body2">@context.UserName</MudText>
+            </MudTd>
+            <MudTd>
+                <MudChip T="string" Size="Size.Small" Color="@GetActionColor(context.Action)" Variant="Variant.Filled">
+                    @context.Action
+                </MudChip>
+            </MudTd>
+            <MudTd>
+                <MudText Typo="Typo.body2">@context.EntityName</MudText>
+            </MudTd>
+            <MudTd>
+                <MudText Typo="Typo.body2">@context.EntityId</MudText>
+            </MudTd>
+            <MudTd>
+                <MudText Typo="Typo.body2">@(context.IpAddress ?? "—")</MudText>
+            </MudTd>
+        </RowTemplate>
+        <NoRecordsContent>
+            <MudText Typo="Typo.body2" Color="Color.Secondary" Class="pa-4">No audit logs found.</MudText>
+        </NoRecordsContent>
+    </MudTable>
+</MudPaper>
+
+@code {
+    private bool _loading = false;
+    private string _searchTerm = string.Empty;
+    private string _selectedAction = string.Empty;
+    private DateTime? _startDate;
+    private DateTime? _endDate;
+    private List<AuditLogDto> _allLogs = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAuditLogs();
+    }
+
+    private async Task LoadAuditLogs()
+    {
+        _loading = true;
+        try
+        {
+            _allLogs = (await AuditService.GetAuditLogsAsync(new AuditLogFilter(
+                PageNumber: 1,
+                PageSize: int.MaxValue))).ToList();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error loading audit logs: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private IEnumerable<AuditLogDto> FilteredLogs => _allLogs
+        .Where(l => string.IsNullOrWhiteSpace(_searchTerm) ||
+                    l.UserName.Contains(_searchTerm, StringComparison.OrdinalIgnoreCase) ||
+                    l.EntityName.Contains(_searchTerm, StringComparison.OrdinalIgnoreCase) ||
+                    l.EntityId.Contains(_searchTerm, StringComparison.OrdinalIgnoreCase))
+        .Where(l => string.IsNullOrWhiteSpace(_selectedAction) || l.Action == _selectedAction)
+        .Where(l => !_startDate.HasValue || l.Timestamp >= _startDate.Value)
+        .Where(l => !_endDate.HasValue || l.Timestamp <= _endDate.Value)
+        .OrderByDescending(l => l.Timestamp);
+
+    private Color GetActionColor(string action) => action switch
+    {
+        "Create" => Color.Success,
+        "Update" => Color.Warning,
+        "Delete" => Color.Error,
+        _ => Color.Default
+    };
+
+    private async Task ExportCsv()
+    {
+        try
+        {
+            var csv = "Timestamp,User,Action,Entity,Entity ID,IP Address\n";
+            foreach (var log in FilteredLogs)
+            {
+                csv += $"\"{log.Timestamp:yyyy-MM-dd HH:mm:ss}\",\"{log.UserName}\",\"{log.Action}\",\"{log.EntityName}\",\"{log.EntityId}\",\"{(log.IpAddress ?? "")}\"\n";
+            }
+
+            await JS.InvokeVoidAsync("downloadFile", "audit-logs.csv", csv);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error exporting: {ex.Message}", Severity.Error);
+        }
+    }
+}

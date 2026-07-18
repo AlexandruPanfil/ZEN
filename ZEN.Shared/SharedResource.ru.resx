@@ -1,0 +1,228 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <data name="AppName" xml:space="preserve">
+    <value>ZEN POS</value>
+  </data>
+  <data name="Login" xml:space="preserve">
+    <value>Вход</value>
+  </data>
+  <data name="Logout" xml:space="preserve">
+    <value>Выход</value>
+  </data>
+  <data name="Save" xml:space="preserve">
+    <value>Сохранить</value>
+  </data>
+  <data name="Cancel" xml:space="preserve">
+    <value>Отмена</value>
+  </data>
+  <data name="Yes" xml:space="preserve">
+    <value>Да</value>
+  </data>
+  <data name="No" xml:space="preserve">
+    <value>Нет</value>
+  </data>
+  <data name="Confirmation" xml:space="preserve">
+    <value>Подтверждение</value>
+  </data>
+  <data name="Dashboard" xml:space="preserve">
+    <value>Главная</value>
+  </data>
+  <data name="Sales" xml:space="preserve">
+    <value>Продажи</value>
+  </data>
+  <data name="POS" xml:space="preserve">
+    <value>POS</value>
+  </data>
+  <data name="Shifts" xml:space="preserve">
+    <value>Смены</value>
+  </data>
+  <data name="HeldSales" xml:space="preserve">
+    <value>Отложенные продажи</value>
+  </data>
+  <data name="Products" xml:space="preserve">
+    <value>Товары</value>
+  </data>
+  <data name="Taxes" xml:space="preserve">
+    <value>Налоги</value>
+  </data>
+  <data name="Promotions" xml:space="preserve">
+    <value>Акции</value>
+  </data>
+  <data name="Inventory" xml:space="preserve">
+    <value>Склад</value>
+  </data>
+  <data name="Stock" xml:space="preserve">
+    <value>Остатки</value>
+  </data>
+  <data name="Stock Purchase" xml:space="preserve">
+    <value>Поступление</value>
+  </data>
+  <data name="Stock Transfer" xml:space="preserve">
+    <value>Перемещение</value>
+  </data>
+  <data name="Warehouses" xml:space="preserve">
+    <value>Склады</value>
+  </data>
+  <data name="PurchaseOrders" xml:space="preserve">
+    <value>Закупки</value>
+  </data>
+  <data name="Counts" xml:space="preserve">
+    <value>Инвентаризация</value>
+  </data>
+  <data name="Customers" xml:space="preserve">
+    <value>Клиенты</value>
+  </data>
+  <data name="Suppliers" xml:space="preserve">
+    <value>Поставщики</value>
+  </data>
+  <data name="Reports" xml:space="preserve">
+    <value>Отчеты</value>
+  </data>
+  <data name="SalesReports" xml:space="preserve">
+    <value>Отчеты по продажам</value>
+  </data>
+  <data name="InventoryReports" xml:space="preserve">
+    <value>Отчеты по складу</value>
+  </data>
+  <data name="FinancialReports" xml:space="preserve">
+    <value>Финансовые отчеты</value>
+  </data>
+  <data name="EmployeeReports" xml:space="preserve">
+    <value>Отчеты по сотрудникам</value>
+  </data>
+  <data name="Admin" xml:space="preserve">
+    <value>Админ</value>
+  </data>
+  <data name="Users" xml:space="preserve">
+    <value>Пользователи</value>
+  </data>
+  <data name="Roles" xml:space="preserve">
+    <value>Роли</value>
+  </data>
+  <data name="Stores" xml:space="preserve">
+    <value>Магазины</value>
+  </data>
+  <data name="Settings" xml:space="preserve">
+    <value>Настройки</value>
+  </data>
+  <data name="AuditLogs" xml:space="preserve">
+    <value>Журнал аудита</value>
+  </data>
+  <data name="Equipment" xml:space="preserve">
+    <value>Оборудование</value>
+  </data>
+  <data name="Printers" xml:space="preserve">
+    <value>Принтеры</value>
+  </data>
+  <data name="BankTerminals" xml:space="preserve">
+    <value>Банковские терминалы</value>
+  </data>
+  <data name="Scanners" xml:space="preserve">
+    <value>Сканеры</value>
+  </data>
+  <data name="CustomerDisplays" xml:space="preserve">
+    <value>Клиентские дисплеи</value>
+  </data>
+  <data name="CashDesks" xml:space="preserve">
+    <value>Кассы</value>
+  </data>
+  <data name="LocalizationSettings" xml:space="preserve">
+    <value>Локализация</value>
+  </data>
+  <data name="DefaultLanguage" xml:space="preserve">
+    <value>Язык по умолчанию</value>
+  </data>
+  <data name="DefaultCurrency" xml:space="preserve">
+    <value>Валюта по умолчанию</value>
+  </data>
+  <data name="CurrencySymbol" xml:space="preserve">
+    <value>Символ валюты</value>
+  </data>
+  <data name="DecimalSeparator" xml:space="preserve">
+    <value>Десятичный разделитель</value>
+  </data>
+  <data name="ThousandsSeparator" xml:space="preserve">
+    <value>Разделитель тысяч</value>
+  </data>
+  <data name="LocalizationSettingsSaved" xml:space="preserve">
+    <value>Настройки локализации сохранены</value>
+  </data>
+  <data name="ErrorSavingSettings" xml:space="preserve">
+    <value>Ошибка сохранения настроек</value>
+  </data>
+  <data name="Welcome" xml:space="preserve">
+    <value>Добро пожаловать в ZEN POS</value>
+  </data>
+  <data name="WelcomeSubtitle" xml:space="preserve">
+    <value>Обзор системы и ключевые показатели эффективности.</value>
+  </data>
+  <data name="ActiveUsers" xml:space="preserve">
+    <value>Активные пользователи</value>
+  </data>
+  <data name="TodaysSales" xml:space="preserve">
+    <value>Продажи сегодня</value>
+  </data>
+  <data name="MonthlySales" xml:space="preserve">
+    <value>Месячные продажи</value>
+  </data>
+  <data name="Language" xml:space="preserve">
+    <value>Язык</value>
+  </data>
+  <data name="NoMatchingCustomers" xml:space="preserve">
+    <value>Совпадающие клиенты не найдены</value>
+  </data>
+  <data name="CustomerDirectory" xml:space="preserve">
+    <value>Директория клиентов</value>
+  </data>
+  <data name="SaveProfile" xml:space="preserve">
+    <value>Сохранить профиль</value>
+  </data>
+  <data name="ModifyAccount" xml:space="preserve">
+    <value>Изменить учетную запись</value>
+  </data>
+  <data name="RegisterProfile" xml:space="preserve">
+    <value>Зарегистрировать профиль</value>
+  </data>
+  <data name="ProfileUpdated" xml:space="preserve">
+    <value>Профиль клиента обновлен</value>
+  </data>
+  <data name="ProfileRegistered" xml:space="preserve">
+    <value>Профиль клиента зарегистрирован</value>
+  </data>
+  <data name="CustomerRemoved" xml:space="preserve">
+    <value>Клиент удален</value>
+  </data>
+  <data name="FailedToRemoveCustomer" xml:space="preserve">
+    <value>Не удалось удалить клиента</value>
+  </data>
+  <data name="DeleteCustomerTitle" xml:space="preserve">
+    <value>Удалить клиента</value>
+  </data>
+  <data name="DeleteCustomerConfirmation" xml:space="preserve">
+    <value>Вы уверены, что хотите удалить записи для {0}?</value>
+  </data>
+  <data name="English" xml:space="preserve">
+    <value>Английский</value>
+  </data>
+  <data name="Romanian" xml:space="preserve">
+    <value>Румынский</value>
+  </data>
+  <data name="Russian" xml:space="preserve">
+    <value>Русский</value>
+  </data>
+  <data name="AddCustomer" xml:space="preserve">
+    <value>Добавить клиента</value>
+  </data>
+  <data name="GeneralSettings" xml:space="preserve">
+    <value>Общие</value>
+  </data>
+  <data name="ReceiptSettings" xml:space="preserve">
+    <value>Формат чека</value>
+  </data>
+  <data name="IntegrationSettings" xml:space="preserve">
+    <value>Интеграция</value>
+  </data>
+  <data name="BackupSettings" xml:space="preserve">
+    <value>Резервная копия и данные</value>
+  </data>
+</root>

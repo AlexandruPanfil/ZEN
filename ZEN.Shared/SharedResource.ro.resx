@@ -1,0 +1,228 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <data name="AppName" xml:space="preserve">
+    <value>ZEN POS</value>
+  </data>
+  <data name="Login" xml:space="preserve">
+    <value>Conectare</value>
+  </data>
+  <data name="Logout" xml:space="preserve">
+    <value>Deconectare</value>
+  </data>
+  <data name="Save" xml:space="preserve">
+    <value>Salvează</value>
+  </data>
+  <data name="Cancel" xml:space="preserve">
+    <value>Anulează</value>
+  </data>
+  <data name="Yes" xml:space="preserve">
+    <value>Da</value>
+  </data>
+  <data name="No" xml:space="preserve">
+    <value>Nu</value>
+  </data>
+  <data name="Confirmation" xml:space="preserve">
+    <value>Confirmare</value>
+  </data>
+  <data name="Dashboard" xml:space="preserve">
+    <value>Dashboard</value>
+  </data>
+  <data name="Sales" xml:space="preserve">
+    <value>Vânzări</value>
+  </data>
+  <data name="POS" xml:space="preserve">
+    <value>POS</value>
+  </data>
+  <data name="Shifts" xml:space="preserve">
+    <value>Schimburi</value>
+  </data>
+  <data name="HeldSales" xml:space="preserve">
+    <value>Vânzări Amânate</value>
+  </data>
+  <data name="Products" xml:space="preserve">
+    <value>Produse</value>
+  </data>
+  <data name="Taxes" xml:space="preserve">
+    <value>Taxe</value>
+  </data>
+  <data name="Promotions" xml:space="preserve">
+    <value>Promotii</value>
+  </data>
+  <data name="Inventory" xml:space="preserve">
+    <value>Stoc</value>
+  </data>
+  <data name="Stock" xml:space="preserve">
+    <value>Stoc</value>
+  </data>
+  <data name="Stock Purchase" xml:space="preserve">
+    <value>Primire Marfă</value>
+  </data>
+  <data name="Stock Transfer" xml:space="preserve">
+    <value>Transfer Marfă</value>
+  </data>
+  <data name="Warehouses" xml:space="preserve">
+    <value>Depozite</value>
+  </data>
+  <data name="PurchaseOrders" xml:space="preserve">
+    <value>Comenzi de Achiziție</value>
+  </data>
+  <data name="Counts" xml:space="preserve">
+    <value>Numărătoare</value>
+  </data>
+  <data name="Customers" xml:space="preserve">
+    <value>Clienti</value>
+  </data>
+  <data name="Suppliers" xml:space="preserve">
+    <value>Furnizori</value>
+  </data>
+  <data name="Reports" xml:space="preserve">
+    <value>Rapoarte</value>
+  </data>
+  <data name="SalesReports" xml:space="preserve">
+    <value>Rapoarte Vânzări</value>
+  </data>
+  <data name="InventoryReports" xml:space="preserve">
+    <value>Rapoarte Stoc</value>
+  </data>
+  <data name="FinancialReports" xml:space="preserve">
+    <value>Rapoarte Financiare</value>
+  </data>
+  <data name="EmployeeReports" xml:space="preserve">
+    <value>Rapoarte Angajați</value>
+  </data>
+  <data name="Admin" xml:space="preserve">
+    <value>Administrare</value>
+  </data>
+  <data name="Users" xml:space="preserve">
+    <value>Utilizatori</value>
+  </data>
+  <data name="Roles" xml:space="preserve">
+    <value>Role</value>
+  </data>
+  <data name="Stores" xml:space="preserve">
+    <value>Magazine</value>
+  </data>
+  <data name="Settings" xml:space="preserve">
+    <value>Setări</value>
+  </data>
+  <data name="AuditLogs" xml:space="preserve">
+    <value>Jurnale Activitate</value>
+  </data>
+  <data name="Equipment" xml:space="preserve">
+    <value>Echipamente</value>
+  </data>
+  <data name="Printers" xml:space="preserve">
+    <value>Imprimante</value>
+  </data>
+  <data name="BankTerminals" xml:space="preserve">
+    <value>Terminale Bancare</value>
+  </data>
+  <data name="Scanners" xml:space="preserve">
+    <value>Scandevices</value>
+  </data>
+  <data name="CustomerDisplays" xml:space="preserve">
+    <value>Afisaje Client</value>
+  </data>
+  <data name="CashDesks" xml:space="preserve">
+    <value>Case de Casă</value>
+  </data>
+  <data name="LocalizationSettings" xml:space="preserve">
+    <value>Localizare</value>
+  </data>
+  <data name="DefaultLanguage" xml:space="preserve">
+    <value>Limbă Implicită</value>
+  </data>
+  <data name="DefaultCurrency" xml:space="preserve">
+    <value>Monedă Implicită</value>
+  </data>
+  <data name="CurrencySymbol" xml:space="preserve">
+    <value>Simbol Monedă</value>
+  </data>
+  <data name="DecimalSeparator" xml:space="preserve">
+    <value>Separator Zecimal</value>
+  </data>
+  <data name="ThousandsSeparator" xml:space="preserve">
+    <value>Separator Mii</value>
+  </data>
+  <data name="LocalizationSettingsSaved" xml:space="preserve">
+    <value>Setările de localizare au fost salvate cu succes</value>
+  </data>
+  <data name="ErrorSavingSettings" xml:space="preserve">
+    <value>Eroare la salvarea setărilor</value>
+  </data>
+  <data name="Welcome" xml:space="preserve">
+    <value>Bine ați venit la ZEN POS</value>
+  </data>
+  <data name="WelcomeSubtitle" xml:space="preserve">
+    <value>Prezentare generală și indicatori cheie de performanță.</value>
+  </data>
+  <data name="ActiveUsers" xml:space="preserve">
+    <value>Utilizatori Activi</value>
+  </data>
+  <data name="TodaysSales" xml:space="preserve">
+    <value>Vânzări de AstăZi</value>
+  </data>
+  <data name="MonthlySales" xml:space="preserve">
+    <value>Vânzări Lunare</value>
+  </data>
+  <data name="Language" xml:space="preserve">
+    <value>Limbă</value>
+  </data>
+  <data name="NoMatchingCustomers" xml:space="preserve">
+    <value>Nu s-au găsit clienți potriviați</value>
+  </data>
+  <data name="CustomerDirectory" xml:space="preserve">
+    <value>Director Clienti</value>
+  </data>
+  <data name="SaveProfile" xml:space="preserve">
+    <value>Salvează Profil</value>
+  </data>
+  <data name="ModifyAccount" xml:space="preserve">
+    <value>Modifică Contextul Contului</value>
+  </data>
+  <data name="RegisterProfile" xml:space="preserve">
+    <value>Înregistrează Date Profil</value>
+  </data>
+  <data name="ProfileUpdated" xml:space="preserve">
+    <value>Profilul clientului a fost actualizat cu succes</value>
+  </data>
+  <data name="ProfileRegistered" xml:space="preserve">
+    <value>Profilul clientului a fost înregistrat cu succes</value>
+  </data>
+  <data name="CustomerRemoved" xml:space="preserve">
+    <value>Clientul a fost eliminat cu succes</value>
+  </data>
+  <data name="FailedToRemoveCustomer" xml:space="preserve">
+    <value>Eroare la eliminarea clientului</value>
+  </data>
+  <data name="DeleteCustomerTitle" xml:space="preserve">
+    <value>Șterge Client</value>
+  </data>
+  <data name="DeleteCustomerConfirmation" xml:space="preserve">
+    <value>Sigur doriți să ștergeți înregistrările pentru {0}?</value>
+  </data>
+  <data name="English" xml:space="preserve">
+    <value>Engleză</value>
+  </data>
+  <data name="Romanian" xml:space="preserve">
+    <value>Română</value>
+  </data>
+  <data name="Russian" xml:space="preserve">
+    <value>Rusă</value>
+  </data>
+  <data name="AddCustomer" xml:space="preserve">
+    <value>Adaugă Client</value>
+  </data>
+  <data name="GeneralSettings" xml:space="preserve">
+    <value>Generale</value>
+  </data>
+  <data name="ReceiptSettings" xml:space="preserve">
+    <value>Format Bon</value>
+  </data>
+  <data name="IntegrationSettings" xml:space="preserve">
+    <value>Integrare</value>
+  </data>
+  <data name="BackupSettings" xml:space="preserve">
+    <value>Backup și Date</value>
+  </data>
+</root>
