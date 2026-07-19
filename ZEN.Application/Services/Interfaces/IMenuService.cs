@@ -1,0 +1,24 @@
+using ZEN.Application.DTOs.CashDeskMenu;
+
+namespace ZEN.Application.Services.Interfaces;
+
+public interface IMenuService
+{
+    Task<IEnumerable<MenuSummaryDto>> GetAllSummariesAsync(CancellationToken cancellationToken = default);
+    Task<MenuDto?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
+    Task<MenuDto> CreateAsync(CreateMenuRequest request, CancellationToken cancellationToken = default);
+    Task<MenuDto> UpdateAsync(UpdateMenuRequest request, CancellationToken cancellationToken = default);
+    Task<bool> DeleteAsync(Guid id, CancellationToken cancellationToken = default);
+    Task<IEnumerable<FlatMenuItemDto>> GetFlatItemsAsync(Guid menuId, CancellationToken cancellationToken = default);
+    Task<MenuDto> AddProductAsync(AddProductToMenuRequest request, CancellationToken cancellationToken = default);
+    Task<MenuDto> AddGroupAsync(AddGroupToMenuRequest request, CancellationToken cancellationToken = default);
+    Task<bool> RemoveMenuProductAsync(Guid menuProductId, CancellationToken cancellationToken = default);
+    Task<bool> RemoveMenuGroupAsync(Guid menuGroupId, CancellationToken cancellationToken = default);
+
+    Task<IEnumerable<GroupDto>> GetGroupsAsync(CancellationToken cancellationToken = default);
+    Task<GroupDto> CreateGroupAsync(CreateGroupRequest request, CancellationToken cancellationToken = default);
+    Task<GroupDto> UpdateGroupAsync(UpdateGroupRequest request, CancellationToken cancellationToken = default);
+    Task<bool> DeleteGroupAsync(Guid groupId, CancellationToken cancellationToken = default);
+    Task<bool> AddProductToGroupAsync(AddProductToGroupRequest request, CancellationToken cancellationToken = default);
+    Task<bool> RemoveProductFromGroupAsync(Guid groupProductId, CancellationToken cancellationToken = default);
+}

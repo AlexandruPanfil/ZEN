@@ -2,12 +2,17 @@
 @using Microsoft.AspNetCore.Authorization
 @using ZEN.Application.Services.Interfaces
 @using ZEN.Application.DTOs.Admin
+@using ZEN.Application.DTOs.CashDeskMenu
+@using ZEN.Application.DTOs.Products
 @using ZEN.Domain.Entities
 @using ZEN.Domain.Interfaces
+@using ZEN.Web.Components.Dialogs
 @inject ICashDeskService CashDeskService
+@inject IMenuService MenuService
 @inject IPrinterService PrinterService
 @inject ICustomerDisplayService CustomerDisplayService
 @inject IPaymentTerminalService PaymentTerminalService
+@inject IProductService ProductService
 @inject IRepository<Store> StoreRepository
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
@@ -46,6 +51,7 @@
             <MudTh>Terminals</MudTh>
             <MudTh>Fiscal Printer</MudTh>
             <MudTh>Customer Display</MudTh>
+            <MudTh>Menu</MudTh>
             <MudTh>Status</MudTh>
             <MudTh Style="text-align: right;">Actions</MudTh>
         </HeaderContent>
@@ -64,6 +70,7 @@
             </MudTd>
             <MudTd DataLabel="Fiscal Printer">@_fiscalPrinterNames.GetValueOrDefault(cashDesk.FiscalPrinterId ?? Guid.Empty, "—")</MudTd>
             <MudTd DataLabel="Customer Display">@_customerDisplayNames.GetValueOrDefault(cashDesk.CustomerDisplayId ?? Guid.Empty, "—")</MudTd>
+            <MudTd DataLabel="Menu">@_menuNames.GetValueOrDefault(cashDesk.MenuId ?? Guid.Empty, "—")</MudTd>
             <MudTd DataLabel="Status">
                 <MudChip T="string" Color="@(cashDesk.IsActive ? Color.Success : Color.Error)" Size="Size.Small">
                     @(cashDesk.IsActive ? "Active" : "Inactive")
@@ -83,7 +90,6 @@
     </MudTable>
 </MudContainer>
 
-<!-- Edit/Create Dialog -->
 <MudDialog @bind-Visible="_isDialogOpen" Options="new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true }">
     <TitleContent>
         <MudText Typo="Typo.subtitle1" Class="font-weight-bold">
@@ -132,7 +138,16 @@
                         }
                     </MudSelect>
                 </MudItem>
-                <MudItem xs="12" sm="6" Class="d-flex align-center ps-1">
+                <MudItem xs="12" sm="6">
+                    <MudSelect T="Guid?" Label="Menu" Variant="Variant.Outlined" @bind-Value="_editingCashDesk.MenuId" AnchorOrigin="Origin.BottomLeft" Margin="Margin.Dense" Style="font-size: 0.8rem;">
+                        <MudSelectItem T="Guid?" Value="@((Guid?)null)">— None —</MudSelectItem>
+                        @foreach (var menu in _menus)
+                        {
+                            <MudSelectItem T="Guid?" Value="@((Guid?)menu.Id)">@menu.Name</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12">
                     <MudSwitch @bind-Value="_editingCashDesk.IsActive" Color="Color.Primary" Label="Active" Dense="true" Style="font-size: 0.75rem;" />
                 </MudItem>
             </MudGrid>
@@ -150,9 +165,12 @@
     private IEnumerable<PrinterDto> _fiscalPrinters = new List<PrinterDto>();
     private IEnumerable<CustomerDisplayDto> _customerDisplays = new List<CustomerDisplayDto>();
     private IEnumerable<PaymentTerminalDto> _terminals = new List<PaymentTerminalDto>();
+    private IEnumerable<ProductDto> _products = new List<ProductDto>();
+    private IEnumerable<MenuSummaryDto> _menus = new List<MenuSummaryDto>();
     private Dictionary<Guid, string> _storeNames = new();
     private Dictionary<Guid, string> _fiscalPrinterNames = new();
     private Dictionary<Guid, string> _customerDisplayNames = new();
+    private Dictionary<Guid, string> _menuNames = new();
     private Dictionary<Guid, int> _cashDeskTerminalCounts = new();
     private Dictionary<Guid, string> _terminalNames = new();
     private string _searchTerm = string.Empty;
@@ -179,9 +197,12 @@
             _fiscalPrinters = PrinterService.GetAll().Where(p => p.PrinterType == "Fiscal");
             _customerDisplays = CustomerDisplayService.GetAll();
             _terminals = PaymentTerminalService.GetAll();
+            _products = await ProductService.GetAllAsync();
+            _menus = await MenuService.GetAllSummariesAsync();
             _storeNames = _stores.ToDictionary(s => s.Id, s => s.Name);
             _fiscalPrinterNames = _fiscalPrinters.ToDictionary(p => p.Id, p => p.Name);
             _customerDisplayNames = _customerDisplays.ToDictionary(d => d.Id, d => d.Name);
+            _menuNames = _menus.ToDictionary(m => m.Id, m => m.Name);
             _terminalNames = _terminals.ToDictionary(t => t.Id, t => t.Name);
         }
         catch (Exception ex)
@@ -214,20 +235,13 @@
         _isLoading = true;
         try
         {
-            // Load cash desks
             var cashDesks = await CashDeskService.GetAllAsync(cancellationToken: default);
-            
-            // Reload terminals to get fresh CashDeskId assignments
             await LoadTerminals();
-            
-            // Get terminal counts per cashdesk
             var terminalCounts = _terminals
                 .Where(t => t.CashDeskId.HasValue)
                 .GroupBy(t => t.CashDeskId!.Value)
                 .ToDictionary(g => g.Key, g => g.Count());
-            
             _cashDeskTerminalCounts = terminalCounts;
-            
             _cashDesks = string.IsNullOrWhiteSpace(_searchTerm)
                 ? cashDesks
                 : cashDesks.Where(cd => cd.Name.Contains(_searchTerm, StringComparison.OrdinalIgnoreCase));
@@ -259,11 +273,8 @@
     private async Task OpenEditDialog(CashDeskDto cashDesk)
     {
         _isEditMode = true;
-        
-        // Load detail to get assigned terminals
         var detail = await CashDeskService.GetDetailByIdAsync(cashDesk.Id);
         var assignedTerminalIds = detail?.PaymentTerminals.Select(t => t.Id).ToArray() ?? Array.Empty<Guid>();
-        
         _editingCashDesk = new CashDeskFormModel
         {
             Id = cashDesk.Id,
@@ -271,7 +282,8 @@
             StoreId = cashDesk.StoreId,
             IsActive = cashDesk.IsActive,
             FiscalPrinterId = cashDesk.FiscalPrinterId,
-            CustomerDisplayId = cashDesk.CustomerDisplayId
+            CustomerDisplayId = cashDesk.CustomerDisplayId,
+            MenuId = cashDesk.MenuId
         };
         _selectedTerminalValues.Clear();
         _selectedTerminalValues.AddRange(assignedTerminalIds);
@@ -284,16 +296,17 @@
         try
         {
             var terminalIds = _selectedTerminalValues.AsEnumerable();
-            
+
             if (_isEditMode)
             {
                 var request = new UpdateCashDeskRequest(
-                    _editingCashDesk.Id,
+                    _editingCashDesk.Id!.Value,
                     _editingCashDesk.Name,
                     _editingCashDesk.StoreId,
                     _editingCashDesk.IsActive,
                     _editingCashDesk.FiscalPrinterId,
                     _editingCashDesk.CustomerDisplayId,
+                    _editingCashDesk.MenuId,
                     terminalIds);
                 await CashDeskService.UpdateAsync(request);
                 Snackbar.Add("Cash desk updated successfully.", Severity.Success);
@@ -306,6 +319,7 @@
                     _editingCashDesk.IsActive,
                     _editingCashDesk.FiscalPrinterId,
                     _editingCashDesk.CustomerDisplayId,
+                    _editingCashDesk.MenuId,
                     terminalIds);
                 await CashDeskService.CreateAsync(request);
                 Snackbar.Add("Cash desk created successfully.", Severity.Success);
@@ -346,11 +360,12 @@
 
     private class CashDeskFormModel
     {
-        public Guid Id { get; set; }
+        public Guid? Id { get; set; }
         public string Name { get; set; } = string.Empty;
         public Guid? StoreId { get; set; }
         public bool IsActive { get; set; } = true;
         public Guid? FiscalPrinterId { get; set; }
         public Guid? CustomerDisplayId { get; set; }
+        public Guid? MenuId { get; set; }
     }
 }

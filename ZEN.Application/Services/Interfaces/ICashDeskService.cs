@@ -1,4 +1,5 @@
 using ZEN.Application.DTOs.Admin;
+using ZEN.Application.DTOs.CashDeskMenu;
 
 namespace ZEN.Application.Services.Interfaces;
 
@@ -10,6 +11,8 @@ public interface ICashDeskService
     Task<CashDeskDto> CreateAsync(CreateCashDeskRequest request, CancellationToken cancellationToken = default);
     Task<CashDeskDto> UpdateAsync(UpdateCashDeskRequest request, CancellationToken cancellationToken = default);
     Task<bool> DeleteAsync(Guid id, CancellationToken cancellationToken = default);
+
+    Task<CashDeskDto> AssignMenuAsync(AssignMenuToCashDeskRequest request, CancellationToken cancellationToken = default);
 }
 
 public record CreateCashDeskRequest(
@@ -18,6 +21,7 @@ public record CreateCashDeskRequest(
     bool IsActive,
     Guid? FiscalPrinterId,
     Guid? CustomerDisplayId,
+    Guid? MenuId,
     IEnumerable<Guid> TerminalIds);
 
 public record UpdateCashDeskRequest(
@@ -27,4 +31,5 @@ public record UpdateCashDeskRequest(
     bool IsActive,
     Guid? FiscalPrinterId,
     Guid? CustomerDisplayId,
+    Guid? MenuId,
     IEnumerable<Guid> TerminalIds);

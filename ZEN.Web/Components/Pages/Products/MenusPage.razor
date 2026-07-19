@@ -1,0 +1,357 @@
+@page "/products/menus"
+@using Microsoft.AspNetCore.Authorization
+@using ZEN.Application.Services.Interfaces
+@using ZEN.Application.DTOs.CashDeskMenu
+@using ZEN.Application.DTOs.Products
+@using ZEN.Domain.Entities
+@using ZEN.Domain.Interfaces
+@using ZEN.Web.Components.Dialogs
+@inject IMenuService MenuService
+@inject IProductService ProductService
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+@attribute [Authorize(Roles = "Administrator,Manager")]
+
+<Microsoft.AspNetCore.Components.Web.PageTitle>Cash Desk Menus - ZEN POS</Microsoft.AspNetCore.Components.Web.PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="mt-4">
+    <div class="d-flex justify-space-between align-center mb-4">
+        <MudText Typo="Typo.h5" Class="font-weight-bold" Color="Color.Primary">Cash Desk Menus</MudText>
+        <MudButton Variant="Variant.Filled"
+                   Color="Color.Primary"
+                   StartIcon="@Icons.Material.Filled.Add"
+                   OnClick="OpenCreateDialog">
+            Add Menu
+        </MudButton>
+    </div>
+
+    <MudTable T="MenuSummaryDto" Items="@_menus" Hover="true" Striped="true" Outlined="true" Dense="true" Loading="@_isLoading" LoadingProgressColor="Color.Info">
+        <HeaderContent>
+            <MudTh>Name</MudTh>
+            <MudTh>Store</MudTh>
+            <MudTh>Products</MudTh>
+            <MudTh>Groups</MudTh>
+            <MudTh Style="text-align: right;">Actions</MudTh>
+        </HeaderContent>
+        <RowTemplate Context="menu">
+            <MudTd DataLabel="Name">@menu.Name</MudTd>
+            <MudTd DataLabel="Store">@(_storeNames.GetValueOrDefault(menu.StoreId ?? Guid.Empty, "—") ?? "—")</MudTd>
+            <MudTd DataLabel="Products">@_menuProductCounts.GetValueOrDefault(menu.Id, 0)</MudTd>
+            <MudTd DataLabel="Groups">@_menuGroupCounts.GetValueOrDefault(menu.Id, 0)</MudTd>
+            <MudTd DataLabel="Actions" Style="text-align: right;">
+                <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Info" Size="Size.Small" OnClick="@(() => OpenEditDialog(menu))" />
+                <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small" OnClick="@(() => DeleteMenu(menu))" />
+            </MudTd>
+        </RowTemplate>
+        <NoRecordsContent>
+            <MudText Align="Align.Center" Class="pa-3">No menus found.</MudText>
+        </NoRecordsContent>
+        <PagerContent>
+            <MudTablePager />
+        </PagerContent>
+    </MudTable>
+</MudContainer>
+
+<MudDialog @bind-Visible="_isDialogOpen" Options="new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true }">
+    <TitleContent>
+        <MudText Typo="Typo.subtitle1" Class="font-weight-bold">
+            <MudIcon Icon="@(_isEditMode ? Icons.Material.Filled.Edit : Icons.Material.Filled.Add)" Class="mr-2" />
+            @(_isEditMode ? "Edit Menu" : "Add Menu")
+        </MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudForm @ref="_form" @bind-IsValid="@_formIsValid">
+            <MudGrid Spacing="2" Class="py-1">
+                <MudItem xs="12">
+                    <MudTextField Label="Name" Variant="Variant.Outlined" @bind-Value="_editing.Name" Required="true" For="@(() => _editing.Name)" Margin="Margin.Dense" Style="font-size: 0.8rem;" />
+                </MudItem>
+                <MudItem xs="12">
+                    <MudSelect T="Guid?" Label="Store" Variant="Variant.Outlined" @bind-Value="_editing.StoreId" AnchorOrigin="Origin.BottomLeft" Margin="Margin.Dense" Style="font-size: 0.8rem;">
+                        <MudSelectItem T="Guid?" Value="@((Guid?)null)">— None —</MudSelectItem>
+                        @foreach (var store in _stores)
+                        {
+                            <MudSelectItem T="Guid?" Value="@((Guid?)store.Id)">@store.Name</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+
+                @if (_currentMenu != null)
+                {
+                    <MudItem xs="12">
+                        <MudTabs Outlined="true">
+                            <MudTabPanel Text="Products" Icon="@Icons.Material.Filled.Inventory">
+                                <div class="d-flex justify-space-between align-center mb-2">
+                                    <MudText Typo="Typo.caption" Class="font-weight-bold">Products in Menu</MudText>
+                                    <MudButton OnClick="OpenProductPickerDialog" StartIcon="@Icons.Material.Filled.Add" Color="Color.Primary" Size="Size.Small">Add Product</MudButton>
+                                </div>
+                                <MudPaper Style="max-height: 250px; overflow-y: auto;">
+                                    @if (_currentMenu.Products.Any())
+                                    {
+                                        <MudList T="MenuProductDto" Dense="true">
+                                            @foreach (var product in _currentMenu.Products.OrderBy(p => p.Position))
+                                            {
+                                                <MudListItem>
+                                                    <MudGrid>
+                                                        <MudItem xs="8">
+                                                            <MudText>@product.ProductName (@product.SalePrice.ToString("C"))</MudText>
+                                                        </MudItem>
+                                                        <MudItem xs="4" Style="text-align: right;">
+                                                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small" OnClick="() => RemoveMenuProduct(product.Id)" />
+                                                        </MudItem>
+                                                    </MudGrid>
+                                                </MudListItem>
+                                            }
+                                        </MudList>
+                                    }
+                                    else
+                                    {
+                                        <MudText>No products assigned.</MudText>
+                                    }
+                                </MudPaper>
+                            </MudTabPanel>
+
+                            <MudTabPanel Text="Groups" Icon="@Icons.Material.Filled.Folder">
+                                <div class="d-flex justify-space-between align-center mb-2">
+                                    <MudText Typo="Typo.caption" Class="font-weight-bold">Groups in Menu</MudText>
+                                    <MudButton OnClick="OpenGroupPickerDialog" StartIcon="@Icons.Material.Filled.Add" Color="Color.Secondary" Size="Size.Small">Add Group</MudButton>
+                                </div>
+                                <MudPaper Style="max-height: 250px; overflow-y: auto;">
+                                    @if (_currentMenu.Groups.Any())
+                                    {
+                                        <MudList T="MenuGroupDto" Dense="true">
+                                            @foreach (var group in _currentMenu.Groups.OrderBy(g => g.Position))
+                                            {
+                                                <MudListItem>
+                                                    <MudGrid>
+                                                        <MudItem xs="8">
+                                                            <MudText>@group.GroupName (@group.Products.Count() products)</MudText>
+                                                        </MudItem>
+                                                        <MudItem xs="4" Style="text-align: right;">
+                                                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small" OnClick="() => RemoveMenuGroup(group.Id)" />
+                                                        </MudItem>
+                                                    </MudGrid>
+                                                </MudListItem>
+                                            }
+                                        </MudList>
+                                    }
+                                    else
+                                    {
+                                        <MudText>No groups assigned.</MudText>
+                                    }
+                                </MudPaper>
+                            </MudTabPanel>
+                        </MudTabs>
+                    </MudItem>
+                }
+            </MudGrid>
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="CloseDialog" Size="Size.Small">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveMenu" Disabled="@(!_formIsValid)" Size="Size.Small">Save</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private IEnumerable<MenuSummaryDto> _menus = new List<MenuSummaryDto>();
+    private IEnumerable<Store> _stores = new List<Store>();
+    private IEnumerable<ProductDto> _products = new List<ProductDto>();
+    private IEnumerable<GroupDto> _allGroups = new List<GroupDto>();
+    private Dictionary<Guid, string> _storeNames = new();
+    private Dictionary<Guid, int> _menuProductCounts = new();
+    private Dictionary<Guid, int> _menuGroupCounts = new();
+    private bool _isLoading = true;
+    private bool _isDialogOpen = false;
+    private bool _isEditMode = false;
+    private bool _formIsValid = false;
+    private MudForm? _form;
+
+    private MenuFormModel _editing = new();
+    private MenuDto? _currentMenu;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadStoresAndLookups();
+        await LoadMenus();
+    }
+
+    private async Task LoadStoresAndLookups()
+    {
+        try
+        {
+            var repo = StoreRepository;
+            _stores = (await StoreRepository.GetAllAsync()).Where(s => s.IsActive).ToList();
+            _storeNames = _stores.ToDictionary(s => s.Id, s => s.Name);
+            _products = await ProductService.GetAllAsync();
+            _allGroups = await MenuService.GetGroupsAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error loading lookups: {ex.Message}", Severity.Error);
+        }
+    }
+
+    [Inject] private IRepository<Store> StoreRepository { get; set; } = null!;
+
+    private async Task LoadMenus()
+    {
+        _isLoading = true;
+        try
+        {
+            var menus = (await MenuService.GetAllSummariesAsync()).ToList();
+            _menuProductCounts.Clear();
+            _menuGroupCounts.Clear();
+            foreach (var m in menus)
+            {
+                var detail = await MenuService.GetByIdAsync(m.Id);
+                _menuProductCounts[m.Id] = detail?.Products.Count() ?? 0;
+                _menuGroupCounts[m.Id] = detail?.Groups.Count() ?? 0;
+            }
+            _menus = menus;
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error loading menus: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private void OpenCreateDialog()
+    {
+        _isEditMode = false;
+        _editing = new MenuFormModel();
+        _currentMenu = null;
+        _isDialogOpen = true;
+    }
+
+    private async Task OpenEditDialog(MenuSummaryDto menu)
+    {
+        _isEditMode = true;
+        var detail = await MenuService.GetByIdAsync(menu.Id);
+        if (detail == null) return;
+        _editing = new MenuFormModel { Id = detail.Id, Name = detail.Name, StoreId = detail.StoreId };
+        _currentMenu = detail;
+        _isDialogOpen = true;
+    }
+
+    private async Task OpenProductPickerDialog()
+    {
+        var parameters = new DialogParameters
+        {
+            ["Products"] = _products,
+            ["OnProductSelected"] = EventCallback.Factory.Create<Guid>(this, async productId => await AddProductToMenu(productId))
+        };
+        await DialogService.ShowAsync<ProductPickerDialog>("Select Product", parameters, new DialogOptions { MaxWidth = MaxWidth.Medium });
+    }
+
+    private async Task AddProductToMenu(Guid productId)
+    {
+        if (_currentMenu == null) return;
+        _currentMenu = await MenuService.AddProductAsync(new AddProductToMenuRequest(_currentMenu.Id, productId, _currentMenu.Products.Count()));
+        _menuProductCounts[_currentMenu.Id] = _currentMenu.Products.Count();
+        Snackbar.Add("Product added to menu.", Severity.Success);
+        StateHasChanged();
+    }
+
+    private async Task RemoveMenuProduct(Guid menuProductId)
+    {
+        if (_currentMenu == null) return;
+        if (await MenuService.RemoveMenuProductAsync(menuProductId))
+        {
+            _currentMenu = await MenuService.GetByIdAsync(_currentMenu.Id);
+            _menuProductCounts[_currentMenu.Id] = _currentMenu.Products.Count();
+            Snackbar.Add("Product removed from menu.", Severity.Success);
+            StateHasChanged();
+        }
+    }
+
+    private async Task OpenGroupPickerDialog()
+    {
+        var parameters = new DialogParameters
+        {
+            ["Groups"] = _allGroups,
+            ["OnGroupSelected"] = EventCallback.Factory.Create<Guid>(this, async groupId => await AddGroupToMenu(groupId))
+        };
+        await DialogService.ShowAsync<GroupPickerDialog>("Select Group", parameters, new DialogOptions { MaxWidth = MaxWidth.Medium });
+    }
+
+    private async Task AddGroupToMenu(Guid groupId)
+    {
+        if (_currentMenu == null) return;
+        _currentMenu = await MenuService.AddGroupAsync(new AddGroupToMenuRequest(_currentMenu.Id, groupId, _currentMenu.Groups.Count()));
+        _menuGroupCounts[_currentMenu.Id] = _currentMenu.Groups.Count();
+        Snackbar.Add("Group added to menu.", Severity.Success);
+        StateHasChanged();
+    }
+
+    private async Task RemoveMenuGroup(Guid menuGroupId)
+    {
+        if (_currentMenu == null) return;
+        if (await MenuService.RemoveMenuGroupAsync(menuGroupId))
+        {
+            _currentMenu = await MenuService.GetByIdAsync(_currentMenu.Id);
+            _menuGroupCounts[_currentMenu.Id] = _currentMenu.Groups.Count();
+            Snackbar.Add("Group removed from menu.", Severity.Success);
+            StateHasChanged();
+        }
+    }
+
+    private async Task SaveMenu()
+    {
+        try
+        {
+            if (_isEditMode && _editing.Id.HasValue)
+            {
+                await MenuService.UpdateAsync(new UpdateMenuRequest(_editing.Id.Value, _editing.Name, _editing.StoreId));
+                Snackbar.Add("Menu updated successfully.", Severity.Success);
+            }
+            else
+            {
+                var created = await MenuService.CreateAsync(new CreateMenuRequest(_editing.Name, _editing.StoreId));
+                Snackbar.Add("Menu created successfully.", Severity.Success);
+                _currentMenu = await MenuService.GetByIdAsync(created.Id);
+            }
+            await LoadMenus();
+            CloseDialog();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error saving menu: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task DeleteMenu(MenuSummaryDto menu)
+    {
+        var parameters = new DialogParameters { ["ContentText"] = $"Delete menu '{menu.Name}'? This does not delete the cash desks using it." };
+        var dialog = await DialogService.ShowAsync<MudDialog>("Delete Menu", parameters, new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small });
+        var result = await dialog.Result;
+
+        if (!result.Canceled)
+        {
+            try
+            {
+                if (await MenuService.DeleteAsync(menu.Id))
+                {
+                    Snackbar.Add("Menu deleted successfully.", Severity.Success);
+                    await LoadMenus();
+                }
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Error deleting menu: {ex.Message}", Severity.Error);
+            }
+        }
+    }
+
+    private void CloseDialog() => _isDialogOpen = false;
+
+    private class MenuFormModel
+    {
+        public Guid? Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public Guid? StoreId { get; set; }
+    }
+}

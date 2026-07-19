@@ -4,68 +4,125 @@
 @inject ZEN.Windows.Services.PosAuthState PosAuthState
 @inject ISnackbar Snackbar
 @inject ZEN.Windows.Services.Sync.SyncApiClient ApiClient
-@inject ZEN.Windows.Services.ServerSettingsService SettingsService
 @using ZEN.Windows.Services
 @using MudBlazor
 
 <PageTitle>PIN Login - ZEN POS</PageTitle>
 
-<MudPaper Class="pa-4" Elevation="4" MaxWidth="400px" Style="margin: 2rem auto;">
-    <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="mb-2">
-        <MudText Typo="Typo.h4">PIN Login</MudText>
-        <MudIconButton Icon="@Icons.Material.Filled.Settings" 
-                        OnClick="OpenSettings" />
-    </MudStack>
-    <MudText Typo="Typo.body2" Style="color: var(--mud-palette-text-secondary);">
-        Demo: admin PIN <code>1234</code>, manager PIN <code>3333</code>, cashier PIN <code>2222</code>
-    </MudText>
-    <MudText Typo="Typo.caption" Color="Color.Info" Class="mt-1">Server: @SettingsService.ApiBaseUrl</MudText>
+<MudContainer MaxWidth="MaxWidth.Small" Class="mt-8">
+    <MudPaper Elevation="3" Class="pa-6">
+        <MudText Typo="Typo.h4" Align="Align.Center" GutterBottom="true">PIN Login</MudText>
 
-    <MudTextField @bind-Value="_pin"
-                 Label="PIN"
-                 InputType="InputType.Password"
-                 MaxLength="6"
-                 Variant="Variant.Filled"
-                 Class="mb-4"
-                 @onkeypress="HandleKeyPress" />
-
-    <MudButton ButtonType="ButtonType.Button"
-               Variant="Variant.Filled"
-               Color="Color.Primary"
-               Size="Size.Large"
-               FullWidth="true"
-               Disabled="_isProcessing"
-               OnClick="SubmitPin">
-        @if (_isProcessing)
+        @if (!string.IsNullOrWhiteSpace(_error))
         {
-            <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
-            <span>Logging in...</span>
+            <MudAlert Severity="Severity.Error" Class="mb-4">@_error</MudAlert>
         }
-        else
-        {
-            <span>Login</span>
-        }
-    </MudButton>
 
-    @if (!string.IsNullOrWhiteSpace(_error))
-    {
-        <MudAlert Severity="Severity.Error" Class="mt-3">@_error</MudAlert>
-    }
-</MudPaper>
+        <MudTextField Value="@_pin" ValueChanged="@((string value) => _pin = value)"
+                      Label="Enter PIN"
+                      Variant="Variant.Outlined"
+                      ReadOnly="true"
+                      Class="mb-4"
+                      InputType="InputType.Password" />
+
+        <MudGrid Spacing="2" Class="mb-4">
+            @for (int i = 1; i <= 9; i++)
+            {
+                var number = i;
+                <MudItem xs="4">
+                    <MudButton Variant="Variant.Filled"
+                               Color="Color.Primary"
+                               FullWidth="true"
+                               OnClick="@(() => AddDigit(number.ToString()))"
+                               Size="Size.Large">
+                        @number
+                    </MudButton>
+                </MudItem>
+            }
+            <MudItem xs="4">
+                <MudButton Variant="Variant.Outlined"
+                           Color="Color.Secondary"
+                           FullWidth="true"
+                           OnClick="ClearPin"
+                           Size="Size.Large">
+                    Clear
+                </MudButton>
+            </MudItem>
+            <MudItem xs="4">
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Primary"
+                           FullWidth="true"
+                           OnClick="@(() => AddDigit("0"))"
+                           Size="Size.Large">
+                    0
+                </MudButton>
+            </MudItem>
+            <MudItem xs="4">
+                <MudButton Variant="Variant.Outlined"
+                           Color="Color.Warning"
+                           FullWidth="true"
+                           OnClick="Backspace"
+                           Size="Size.Large">
+                    ⌫
+                </MudButton>
+            </MudItem>
+        </MudGrid>
+
+        <MudButton ButtonType="ButtonType.Button"
+                   Variant="Variant.Filled"
+                   Color="Color.Success"
+                   FullWidth="true"
+                   Disabled="_isProcessing || string.IsNullOrEmpty(_pin)"
+                   OnClick="SubmitPin">
+            @if (_isProcessing)
+            {
+                <MudProgressCircular Size="Size.Small" Indeterminate="true" />
+            }
+            else
+            {
+                <span>Login</span>
+            }
+        </MudButton>
+
+        <MudDivider Class="my-4" />
+
+        <MudButton Href="/settings"
+                   Variant="Variant.Text"
+                   Color="Color.Secondary"
+                   FullWidth="true">
+            Settings
+        </MudButton>
+    </MudPaper>
+</MudContainer>
 
 @code {
     private string _pin = string.Empty;
     private string? _error;
     private bool _isProcessing = false;
-    
+
     [Parameter]
     [SupplyParameterFromQuery]
     public string? ReturnUrl { get; set; }
 
-    private async Task HandleKeyPress(KeyboardEventArgs args)
+    private void AddDigit(string digit)
     {
-        if (args.Key == "Enter")
-            await SubmitPin();
+        if (_pin.Length < 6)
+        {
+            _pin += digit;
+        }
+    }
+
+    private void Backspace()
+    {
+        if (_pin.Length > 0)
+        {
+            _pin = _pin[..^1];
+        }
+    }
+
+    private void ClearPin()
+    {
+        _pin = string.Empty;
     }
 
     private async Task SubmitPin()
@@ -74,14 +131,13 @@
 
         _error = null;
         _isProcessing = true;
-        StateHasChanged();
 
         var trimmedPin = _pin?.Trim() ?? string.Empty;
-        
+
         try
         {
             string role;
-            
+
             if (TryDemoLogin(trimmedPin, out role))
             {
                 PosAuthState.SignIn(GetDemoUserName(trimmedPin), role);
@@ -89,7 +145,7 @@
             else
             {
                 var loginResponse = await ApiClient.LoginWithPinAsync(trimmedPin);
-                
+
                 if (loginResponse == null)
                 {
                     _error = "Invalid PIN. Use demo PINs: 1234 (admin), 3333 (manager), 2222 (cashier)";
@@ -102,10 +158,6 @@
                 PosAuthState.SignIn(loginResponse.UserName, role, loginResponse.Token, loginResponse.StoreId, loginResponse.CashDeskId);
             }
 
-            // Ensure state is updated before navigation
-            StateHasChanged();
-            await InvokeAsync(StateHasChanged);
-            
             if (string.Equals(role, PosRoles.Cashier, StringComparison.OrdinalIgnoreCase))
             {
                 Navigation.NavigateTo("/sell");
@@ -123,7 +175,6 @@
         finally
         {
             _isProcessing = false;
-            StateHasChanged();
         }
     }
 
@@ -157,10 +208,5 @@
             "2222" => "cashier@zen.pos",
             _ => "demo@zen.pos"
         };
-    }
-
-    private void OpenSettings()
-    {
-        Navigation.NavigateTo("/settings");
     }
 }

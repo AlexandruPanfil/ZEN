@@ -25,4 +25,5 @@ public class Product : BaseEntity
     public ICollection<ProductImage> Images { get; set; } = [];
     public ICollection<ProductVariant> Variants { get; set; } = [];
     public ICollection<InventoryItem> InventoryItems { get; set; } = [];
+    public ICollection<GroupProduct> GroupProducts { get; set; } = [];
 }

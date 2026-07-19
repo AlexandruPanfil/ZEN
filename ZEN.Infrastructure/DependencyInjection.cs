@@ -57,6 +57,7 @@ public static class DependencyInjection
         services.AddScoped<IScannerService, ScannerService>();
         services.AddScoped<ICustomerDisplayService, CustomerDisplayService>();
         services.AddScoped<ICashDeskService, CashDeskService>();
+        services.AddScoped<IMenuService, MenuService>();
 
         return services;
     }
@@ -94,6 +95,7 @@ public static class DependencyInjection
         services.AddScoped<IScannerService, ScannerService>();
         services.AddScoped<ICustomerDisplayService, CustomerDisplayService>();
         services.AddScoped<ICashDeskService, CashDeskService>();
+        services.AddScoped<IMenuService, MenuService>();
 
         return services;
     }

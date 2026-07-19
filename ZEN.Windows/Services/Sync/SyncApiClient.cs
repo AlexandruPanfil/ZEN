@@ -2,6 +2,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using ZEN.Application.DTOs.Admin;
 using ZEN.Application.DTOs.Auth;
+using ZEN.Application.DTOs.CashDeskMenu;
 using ZEN.Application.DTOs.Sync;
 
 namespace ZEN.Windows.Services.Sync;
@@ -116,6 +117,30 @@ public class SyncApiClient
             ? $"api/equipments/cash-desks?storeId={storeId.Value}"
             : "api/equipments/cash-desks";
         return await _httpClient.GetFromJsonAsync<IEnumerable<CashDeskDto>>(uri, cancellationToken) ?? [];
+    }
+
+    public async Task<IEnumerable<FlatMenuItemDto>> GetCashDeskMenuItemsAsync(Guid cashDeskId, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            return await _httpClient.GetFromJsonAsync<IEnumerable<FlatMenuItemDto>>($"api/equipments/cash-desks/{cashDeskId}/menu-items", cancellationToken) ?? [];
+        }
+        catch
+        {
+            return [];
+        }
+    }
+
+    public async Task<IEnumerable<GroupDto>> GetGroupsAsync(CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            return await _httpClient.GetFromJsonAsync<IEnumerable<GroupDto>>("api/equipments/groups", cancellationToken) ?? [];
+        }
+        catch
+        {
+            return [];
+        }
     }
 
     public void SetBearerToken(string? token)

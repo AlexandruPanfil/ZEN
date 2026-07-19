@@ -106,7 +106,8 @@ public record CashDeskDto(
     Guid? StoreId,
     bool IsActive,
     Guid? FiscalPrinterId,
-    Guid? CustomerDisplayId);
+    Guid? CustomerDisplayId,
+    Guid? MenuId);
 
 public record CashDeskDetailDto(
     Guid Id,
@@ -117,5 +118,6 @@ public record CashDeskDetailDto(
     string FiscalPrinterName,
     Guid? CustomerDisplayId,
     string CustomerDisplayName,
+    Guid? MenuId,
     IEnumerable<PaymentTerminalDto> PaymentTerminals,
     IEnumerable<ScannerDto> Scanners);

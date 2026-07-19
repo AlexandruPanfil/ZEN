@@ -48,6 +48,9 @@
   <data name="Promotions" xml:space="preserve">
     <value>Promotii</value>
   </data>
+  <data name="CashDeskMenus" xml:space="preserve">
+    <value>Meniu Case de Marcat</value>
+  </data>
   <data name="Inventory" xml:space="preserve">
     <value>Stoc</value>
   </data>

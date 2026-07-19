@@ -2,6 +2,7 @@
 @inject NavigationManager Navigation
 @inject ZEN.Windows.Services.PosAuthState PosAuthState
 @inject ISnackbar Snackbar
+@inject ZEN.Windows.Services.Sync.SyncApiClient ApiClient
 
 <PageTitle>Point of Sale - ZEN POS</PageTitle>
 
@@ -50,9 +51,44 @@ else
     private decimal TaxAmount => Cart.Sum(item => (item.Quantity * item.UnitPrice - item.Quantity * item.Discount) * (item.TaxRate / 100m));
     private decimal TotalAmount => Subtotal - DiscountAmount + TaxAmount;
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
-        AllProducts = GenerateDemoProducts();
+        await LoadProductsAsync();
+    }
+
+    private async Task LoadProductsAsync()
+    {
+        if (PosAuthState.CashDeskId.HasValue && ApiClient.IsApiAvailable)
+        {
+            var items = await ApiClient.GetCashDeskMenuItemsAsync(PosAuthState.CashDeskId.Value);
+            if (items.Any())
+            {
+                AllProducts = items
+                    .Where(i => i.ProductId != Guid.Empty)
+                    .Select(i => new ProductDto(
+                        i.ProductId,
+                        i.Name,
+                        null,
+                        null,
+                        null,
+                        0,
+                        i.SalePrice,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        true))
+                    .ToList();
+            }
+        }
+        
+        if (AllProducts.Count == 0)
+        {
+            AllProducts = GenerateDemoProducts();
+            Snackbar.Add("Showing demo products - configure cash desk menu in ZEN.Web", Severity.Info);
+        }
     }
 
     private void AddToCart(ProductDto product)

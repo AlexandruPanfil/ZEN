@@ -17,7 +17,7 @@ public class ZenDbContext : IdentityDbContext<AppUser, AppRole, string>
         _currentUserService = currentUserService;
     }
 
-    // Configuration
+// Configuration
     public DbSet<Store> Stores => Set<Store>();
     public DbSet<Tax> Taxes => Set<Tax>();
     public DbSet<Currency> Currencies => Set<Currency>();
@@ -26,6 +26,11 @@ public class ZenDbContext : IdentityDbContext<AppUser, AppRole, string>
     public DbSet<Scanner> Scanners => Set<Scanner>();
     public DbSet<CustomerDisplay> CustomerDisplays => Set<CustomerDisplay>();
     public DbSet<CashDesk> CashDesks => Set<CashDesk>();
+    public DbSet<Group> Groups => Set<Group>();
+    public DbSet<GroupProduct> GroupProducts => Set<GroupProduct>();
+    public DbSet<Menu> Menus => Set<Menu>();
+    public DbSet<MenuProduct> MenuProducts => Set<MenuProduct>();
+    public DbSet<MenuGroup> MenuGroups => Set<MenuGroup>();
 
     // Auth & Security
     public DbSet<Permission> Permissions => Set<Permission>();

@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using ZEN.Application.DTOs.Admin;
+using ZEN.Application.DTOs.CashDeskMenu;
 using ZEN.Application.Services.Interfaces;
 
 namespace ZEN.ApiService.Endpoints;
@@ -329,6 +330,241 @@ public static class EquipmentEndpoints
             return deleted ? Results.NoContent() : Results.NotFound();
         })
         .WithName("DeleteCashDesk")
+        .WithOpenApi()
+        .RequireAuthorization();
+
+        // Assign Menu to Cash Desk
+        group.MapPost("/cash-desks/{id:guid}/menu", async (
+            Guid id,
+            [FromBody] AssignMenuToCashDeskRequest request,
+            ICashDeskService cashDeskService,
+            CancellationToken ct) =>
+        {
+            if (id != request.CashDeskId) return Results.BadRequest();
+            var cashDesk = await cashDeskService.AssignMenuAsync(request, ct);
+            return Results.Ok(cashDesk);
+        })
+        .WithName("AssignMenuToCashDesk")
+        .WithOpenApi()
+        .RequireAuthorization();
+
+        // Menus
+        group.MapGet("/menus", async (
+            IMenuService menuService,
+            CancellationToken ct) =>
+        {
+            var menus = await menuService.GetAllSummariesAsync(ct);
+            return Results.Ok(menus);
+        })
+        .WithName("GetMenus")
+        .WithOpenApi()
+        .RequireAuthorization();
+
+        group.MapGet("/menus/{id:guid}", async (
+            Guid id,
+            IMenuService menuService,
+            CancellationToken ct) =>
+        {
+            var menu = await menuService.GetByIdAsync(id, ct);
+            return menu is not null ? Results.Ok(menu) : Results.NotFound();
+        })
+        .WithName("GetMenu")
+        .WithOpenApi()
+        .RequireAuthorization();
+
+        group.MapPost("/menus", async (
+            [FromBody] CreateMenuRequest request,
+            IMenuService menuService,
+            CancellationToken ct) =>
+        {
+            var menu = await menuService.CreateAsync(request, ct);
+            return Results.Created($"/api/equipments/menus/{menu.Id}", menu);
+        })
+        .WithName("CreateMenu")
+        .WithOpenApi()
+        .RequireAuthorization();
+
+        group.MapPut("/menus/{id:guid}", async (
+            Guid id,
+            [FromBody] UpdateMenuRequest request,
+            IMenuService menuService,
+            CancellationToken ct) =>
+        {
+            if (id != request.Id) return Results.BadRequest();
+            var menu = await menuService.UpdateAsync(request, ct);
+            return Results.Ok(menu);
+        })
+        .WithName("UpdateMenu")
+        .WithOpenApi()
+        .RequireAuthorization();
+
+        group.MapDelete("/menus/{id:guid}", async (
+            Guid id,
+            IMenuService menuService,
+            CancellationToken ct) =>
+        {
+            var deleted = await menuService.DeleteAsync(id, ct);
+            return deleted ? Results.NoContent() : Results.NotFound();
+        })
+        .WithName("DeleteMenu")
+        .WithOpenApi()
+        .RequireAuthorization();
+
+        group.MapGet("/menus/{id:guid}/items", async (
+            Guid id,
+            IMenuService menuService,
+            CancellationToken ct) =>
+        {
+            var items = await menuService.GetFlatItemsAsync(id, ct);
+            return Results.Ok(items);
+        })
+        .WithName("GetMenuItems")
+        .WithOpenApi()
+        .RequireAuthorization();
+
+        group.MapPost("/menus/{id:guid}/products", async (
+            Guid id,
+            [FromBody] AddProductToMenuRequest request,
+            IMenuService menuService,
+            CancellationToken ct) =>
+        {
+            var requestWithMenuId = request with { MenuId = id };
+            var menu = await menuService.AddProductAsync(requestWithMenuId, ct);
+            return Results.Ok(menu);
+        })
+        .WithName("AddProductToMenu")
+        .WithOpenApi()
+        .RequireAuthorization();
+
+        group.MapDelete("/menus/products/{menuProductId:guid}", async (
+            Guid menuProductId,
+            IMenuService menuService,
+            CancellationToken ct) =>
+        {
+            var deleted = await menuService.RemoveMenuProductAsync(menuProductId, ct);
+            return deleted ? Results.NoContent() : Results.NotFound();
+        })
+        .WithName("RemoveMenuProduct")
+        .WithOpenApi()
+        .RequireAuthorization();
+
+        group.MapPost("/menus/{id:guid}/groups", async (
+            Guid id,
+            [FromBody] AddGroupToMenuRequest request,
+            IMenuService menuService,
+            CancellationToken ct) =>
+        {
+            var requestWithMenuId = request with { MenuId = id };
+            var menu = await menuService.AddGroupAsync(requestWithMenuId, ct);
+            return Results.Ok(menu);
+        })
+        .WithName("AddGroupToMenu")
+        .WithOpenApi()
+        .RequireAuthorization();
+
+        group.MapDelete("/menus/groups/{menuGroupId:guid}", async (
+            Guid menuGroupId,
+            IMenuService menuService,
+            CancellationToken ct) =>
+        {
+            var deleted = await menuService.RemoveMenuGroupAsync(menuGroupId, ct);
+            return deleted ? Results.NoContent() : Results.NotFound();
+        })
+        .WithName("RemoveMenuGroup")
+        .WithOpenApi()
+        .RequireAuthorization();
+
+        // Groups
+        group.MapGet("/groups", async (
+            IMenuService menuService,
+            CancellationToken ct) =>
+        {
+            var groups = await menuService.GetGroupsAsync(ct);
+            return Results.Ok(groups);
+        })
+        .WithName("GetGroups")
+        .WithOpenApi()
+        .RequireAuthorization();
+
+        group.MapPost("/groups", async (
+            [FromBody] CreateGroupRequest request,
+            IMenuService menuService,
+            CancellationToken ct) =>
+        {
+            var group = await menuService.CreateGroupAsync(request, ct);
+            return Results.Created($"/api/equipments/groups/{group.Id}", group);
+        })
+        .WithName("CreateGroup")
+        .WithOpenApi()
+        .RequireAuthorization();
+
+        group.MapPut("/groups/{id:guid}", async (
+            Guid id,
+            [FromBody] UpdateGroupRequest request,
+            IMenuService menuService,
+            CancellationToken ct) =>
+        {
+            if (id != request.Id) return Results.BadRequest();
+            var group = await menuService.UpdateGroupAsync(request, ct);
+            return Results.Ok(group);
+        })
+        .WithName("UpdateGroup")
+        .WithOpenApi()
+        .RequireAuthorization();
+
+        group.MapDelete("/groups/{id:guid}", async (
+            Guid id,
+            IMenuService menuService,
+            CancellationToken ct) =>
+        {
+            var deleted = await menuService.DeleteGroupAsync(id, ct);
+            return deleted ? Results.NoContent() : Results.NotFound();
+        })
+        .WithName("DeleteGroup")
+        .WithOpenApi()
+        .RequireAuthorization();
+
+        group.MapPost("/groups/{groupId:guid}/products", async (
+            Guid groupId,
+            [FromBody] AddProductToGroupRequest request,
+            IMenuService menuService,
+            CancellationToken ct) =>
+        {
+            var requestWithGroupId = request with { GroupId = groupId };
+            var success = await menuService.AddProductToGroupAsync(requestWithGroupId, ct);
+            return success ? Results.Ok() : Results.BadRequest();
+        })
+        .WithName("AddProductToGroup")
+        .WithOpenApi()
+        .RequireAuthorization();
+
+        group.MapDelete("/groups/{groupId:guid}/products/{productInGroupId:guid}", async (
+            Guid groupId,
+            Guid productInGroupId,
+            IMenuService menuService,
+            CancellationToken ct) =>
+        {
+            var deleted = await menuService.RemoveProductFromGroupAsync(productInGroupId, ct);
+            return deleted ? Results.NoContent() : Results.NotFound();
+        })
+        .WithName("RemoveProductFromGroup")
+        .WithOpenApi()
+        .RequireAuthorization();
+
+        // Cash Desk menu items (resolved by cash desk for POS)
+        group.MapGet("/cash-desks/{id:guid}/menu-items", async (
+            Guid id,
+            ICashDeskService cashDeskService,
+            IMenuService menuService,
+            CancellationToken ct) =>
+        {
+            var cashDesk = await cashDeskService.GetByIdAsync(id, ct);
+            if (cashDesk == null) return Results.NotFound();
+            if (!cashDesk.MenuId.HasValue) return Results.Ok(Enumerable.Empty<FlatMenuItemDto>());
+            var items = await menuService.GetFlatItemsAsync(cashDesk.MenuId.Value, ct);
+            return Results.Ok(items);
+        })
+        .WithName("GetCashDeskMenuItems")
         .WithOpenApi()
         .RequireAuthorization();
 

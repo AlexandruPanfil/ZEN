@@ -1,72 +1,75 @@
 @using MudBlazor
 @using ZEN.Application.DTOs.Products
-@using ZEN.Windows.Models
 
-<div class="cart-sidebar">
-    <MudText Typo="Typo.h6" Class="cart-header">Cart Items</MudText>
-    
-    <div class="cart-items-container">
+<MudPaper Class="cart-sidebar d-flex flex-column" Elevation="0">
+    <MudText Typo="Typo.h6" Class="cart-header pb-2 border-bottom">Cart Items</MudText>
+
+    <div class="cart-items-container flex-grow-1 overflow-y-auto py-2">
         @if (CartItems == null || !CartItems.Any())
         {
-            <MudText Typo="Typo.body2" Class="empty-cart">Your cart is empty</MudText>
+            <MudText Typo="Typo.body2" Color="Color.Default" Class="empty-cart">Your cart is empty</MudText>
         }
         else
         {
             @foreach (var item in CartItems)
             {
-                <div class="cart-item">
-                    <MudText Typo="Typo.body1" Class="item-name">@item.ProductName</MudText>
-                    <div class="item-details">
-                        <div class="item-controls">
-                            <MudIconButton Icon="@Icons.Material.Filled.Remove" 
-                                          Size="Size.Small" 
-                                          OnClick="() => OnDecrement.InvokeAsync(item)" />
-<MudNumericField T="decimal" @bind-Value="item.Quantity"
-                                   Format="N2"
-                                   Min="0.01m"
-                                   Step="0.01m"
-                                   Style="width: 60px;"
-                                   Class="quantity-input" />
-                            <MudIconButton Icon="@Icons.Material.Filled.Add" 
-                                          Size="Size.Small" 
-                                          OnClick="() => OnIncrement.InvokeAsync(item)" />
+                <MudCard Elevation="1" Class="cart-item mb-2 pa-2">
+                    <MudCardContent Class="pa-0">
+                        <MudText Typo="Typo.body1" Class="item-name">@item.ProductName</MudText>
+                        <div class="item-details mt-1">
+                            <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+                                <MudStack Row="true" AlignItems="AlignItems.Center">
+                                    <MudIconButton Icon="@Icons.Material.Filled.Remove" 
+                                                  Size="Size.Small" 
+                                                  OnClick="() => OnDecrement.InvokeAsync(item)" />
+                                    <MudNumericField T="decimal" @bind-Value="item.Quantity"
+                                                     Format="N2"
+                                                     Min="0.01m"
+                                                     Step="0.01m"
+                                                     Style="width: 60px;" />
+                                    <MudIconButton Icon="@Icons.Material.Filled.Add" 
+                                                  Size="Size.Small" 
+                                                  OnClick="() => OnIncrement.InvokeAsync(item)" />
+                                </MudStack>
+                                <MudIconButton Icon="@Icons.Material.Filled.Delete" 
+                                              Color="Color.Error" 
+                                              Size="Size.Small" 
+                                              OnClick="() => OnRemove.InvokeAsync(item)" />
+                            </MudStack>
+                            <MudStack Row="true" Justify="Justify.SpaceBetween" Class="mt-1">
+                                <MudText Typo="Typo.body2">Price: @item.UnitPrice.ToString("C")</MudText>
+                                <MudText Typo="Typo.body2">Total: @item.LineTotal.ToString("C")</MudText>
+                            </MudStack>
                         </div>
-                        <MudText Typo="Typo.body2">Price: @item.UnitPrice.ToString("C")</MudText>
-                        <MudText Typo="Typo.body2">Discount: @((item.Discount * item.Quantity).ToString("C"))</MudText>
-                        <MudText Typo="Typo.h6">Total: @item.LineTotal.ToString("C")</MudText>
-                        <MudIconButton Icon="@Icons.Material.Filled.Delete" 
-                                      Color="Color.Error" 
-                                      Size="Size.Small" 
-                                      OnClick="() => OnRemove.InvokeAsync(item)" />
-                    </div>
-                </div>
+                    </MudCardContent>
+                </MudCard>
             }
         }
     </div>
 
     <MudDivider Class="my-2" />
 
-    <div class="order-summary">
+    <MudPaper Class="order-summary pa-2" Elevation="0">
         <MudText Typo="Typo.subtitle2">Order Summary</MudText>
-        <div class="summary-row">
+        <MudStack Row="true" Justify="Justify.SpaceBetween" Class="mt-1">
             <MudText>Subtotal:</MudText>
             <MudText>@Subtotal.ToString("C")</MudText>
-        </div>
-        <div class="summary-row">
+        </MudStack>
+        <MudStack Row="true" Justify="Justify.SpaceBetween">
             <MudText>Discount:</MudText>
             <MudText>@DiscountAmount.ToString("C")</MudText>
-        </div>
-        <div class="summary-row">
+        </MudStack>
+        <MudStack Row="true" Justify="Justify.SpaceBetween">
             <MudText>Tax:</MudText>
             <MudText>@TaxAmount.ToString("C")</MudText>
-        </div>
+        </MudStack>
         <MudDivider Class="my-1" />
-        <div class="summary-row total-row">
+        <MudStack Row="true" Justify="Justify.SpaceBetween" Class="total-row">
             <MudText Typo="Typo.h6">Total:</MudText>
-            <MudText Typo="Typo.h6">@TotalAmount.ToString("C")</MudText>
-        </div>
-    </div>
-</div>
+            <MudText Typo="Typo.h6" Color="Color.Primary">@TotalAmount.ToString("C")</MudText>
+        </MudStack>
+    </MudPaper>
+</MudPaper>
 
 @code {
     [Parameter] public IEnumerable<PosCartItem>? CartItems { get; set; }

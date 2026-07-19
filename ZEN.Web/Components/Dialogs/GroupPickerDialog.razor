@@ -1,0 +1,19 @@
+@using ZEN.Application.DTOs.CashDeskMenu
+
+<MudDialog>
+    <DialogContent>
+        <MudList T="GroupDto" Dense="true">
+            @foreach (var group in Groups ?? new List<GroupDto>())
+            {
+                <MudListItem OnClick="() => OnGroupSelected.InvokeAsync(group.Id)">
+                    <MudText>@group.Name (@group.Products.Count() products)</MudText>
+                </MudListItem>
+            }
+        </MudList>
+    </DialogContent>
+</MudDialog>
+
+@code {
+    [Parameter] public IEnumerable<GroupDto>? Groups { get; set; }
+    [Parameter] public EventCallback<Guid> OnGroupSelected { get; set; }
+}

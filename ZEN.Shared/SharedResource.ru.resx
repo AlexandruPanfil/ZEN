@@ -48,6 +48,9 @@
   <data name="Promotions" xml:space="preserve">
     <value>Акции</value>
   </data>
+  <data name="CashDeskMenus" xml:space="preserve">
+    <value>Меню касс</value>
+  </data>
   <data name="Inventory" xml:space="preserve">
     <value>Склад</value>
   </data>

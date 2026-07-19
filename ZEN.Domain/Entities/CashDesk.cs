@@ -13,4 +13,7 @@ public class CashDesk : BaseEntity
     public CustomerDisplay? CustomerDisplay { get; set; }
     public ICollection<PaymentTerminal> PaymentTerminals { get; set; } = [];
     public ICollection<Scanner> Scanners { get; set; } = [];
+
+    public Guid? MenuId { get; set; }
+    public Menu? Menu { get; set; }
 }

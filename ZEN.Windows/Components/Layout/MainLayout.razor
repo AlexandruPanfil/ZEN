@@ -1,22 +1,61 @@
 ﻿@inherits LayoutComponentBase
+@inject NavigationManager Navigation
+@inject ZEN.Windows.Services.PosAuthState PosAuthState
 
 <MudThemeProvider />
 <MudPopoverProvider />
 <MudDialogProvider />
 <MudSnackbarProvider />
 
-<div class="page">
-    <div class="sidebar">
+<MudLayout>
+    <MudAppBar Elevation="1">
+        <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start" OnClick="@ToggleDrawer" />
+        <MudText Typo="Typo.h5" Class="ml-3">ZEN POS</MudText>
+        <MudSpacer />
+        @if (PosAuthState.IsAuthenticated)
+        {
+            <MudText Typo="Typo.body1" Class="mr-2">@PosAuthState.UserName</MudText>
+            <MudIconButton Icon="@Icons.Material.Filled.Logout" Color="Color.Inherit" OnClick="@Logout" />
+        }
+        else
+        {
+            <MudButton Href="/pin-login" Variant="Variant.Text" Color="Color.Inherit">PIN Login</MudButton>
+        }
+    </MudAppBar>
+    <MudDrawer Open="@_drawerOpen" Elevation="1" ClipMode="DrawerClipMode.Always">
+        <MudDrawerHeader>
+            <MudText Typo="Typo.h6">ZEN POS</MudText>
+        </MudDrawerHeader>
         <NavMenu />
-    </div>
-
-    <main>
-        <div class="top-row px-4">
-            <a href="https://learn.microsoft.com/aspnet/core/" target="_blank">About</a>
-        </div>
-
-        <article class="content px-4">
+    </MudDrawer>
+    <MudMainContent>
+        <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-4 mb-4">
             @Body
-        </article>
-    </main>
+        </MudContainer>
+    </MudMainContent>
+</MudLayout>
+
+<MudScrollToTop>
+    <MudFab Color="Color.Primary" StartIcon="@Icons.Material.Filled.ArrowUpward" />
+</MudScrollToTop>
+
+<div id="blazor-error-ui">
+    An unhandled error has occurred.
+    <a href="" class="reload">Reload</a>
+    <a class="dismiss">🗙</a>
 </div>
+
+@code {
+    private bool _drawerOpen = true;
+
+    private void ToggleDrawer()
+    {
+        _drawerOpen = !_drawerOpen;
+    }
+
+    private async Task Logout()
+    {
+        PosAuthState.SignOut();
+        Navigation.NavigateTo("/", forceLoad: true);
+    }
+}

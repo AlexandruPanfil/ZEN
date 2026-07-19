@@ -4,76 +4,69 @@
 @inject ZEN.Windows.Services.PosAuthState PosAuthState
 @inject ZEN.Windows.Services.Sync.SyncApiClient ApiClient
 
-<div class="top-row ps-3 navbar navbar-dark">
-    <div class="container-fluid">
-        <a class="navbar-brand" href="">ZEN POS</a>
-    </div>
-</div>
+<MudNavMenu>
+    @if (PosAuthState.IsAuthenticated)
+    {
+        <MudNavLink Href="home" Icon="@Icons.Material.Filled.Dashboard" IconColor="Color.Primary">
+            Home
+        </MudNavLink>
 
-<input type="checkbox" title="Navigation menu" class="navbar-toggler" />
+        <MudNavGroup Title="Sales" Icon="@Icons.Material.Filled.PointOfSale" Expanded="false">
+            <MudNavLink Href="sell" Icon="@Icons.Material.Filled.ShoppingCart">POS</MudNavLink>
+            <MudNavLink Href="shifts" Icon="@Icons.Material.Filled.Schedule">Shifts</MudNavLink>
+            <MudNavLink Href="held-sales" Icon="@Icons.Material.Filled.Pause">Held Sales</MudNavLink>
+        </MudNavGroup>
 
-<div class="nav-scrollable" onclick="document.querySelector('.navbar-toggler').click()">
-    <nav class="nav flex-column">
-        @if (PosAuthState.IsAuthenticated)
+        @if (PosAuthState.IsAdmin || PosAuthState.IsManager)
         {
-            <div class="nav-item px-3">
-                <NavLink class="nav-link" href="home">Home</NavLink>
-            </div>
-            <div class="nav-item px-3">
-                <NavLink class="nav-link" href="sell">Sell</NavLink>
-            </div>
+            <MudNavGroup Title="Products" Icon="@Icons.Material.Filled.Inventory" Expanded="false">
+                <MudNavLink Href="admin/products" Icon="@Icons.Material.Filled.Category">Products</MudNavLink>
+                <MudNavLink Href="admin/equipments" Icon="@Icons.Material.Filled.SettingsInputComponent">Equipments</MudNavLink>
+            </MudNavGroup>
 
-            @if (PosAuthState.IsAdmin)
-            {
-                <div class="nav-item px-3">
-                    <NavLink class="nav-link" href="admin/products">Products</NavLink>
-                </div>
-                <div class="nav-item px-3">
-                    <NavLink class="nav-link" href="admin/equipments">Equipments</NavLink>
-                </div>
-                <div class="nav-item px-3">
-                    <NavLink class="nav-link" href="admin/settings">Settings</NavLink>
-                </div>
-            }
+            <MudNavGroup Title="Inventory" Icon="@Icons.Material.Filled.Warehouse" Expanded="false">
+                <MudNavLink Href="inventory" Icon="@Icons.Material.Filled.Inventory2">Stock</MudNavLink>
+                <MudNavLink Href="stock-purchases" Icon="@Icons.Material.Filled.ReceiptLong">Stock Purchase</MudNavLink>
+                <MudNavLink Href="warehouses" Icon="@Icons.Material.Filled.Store">Warehouses</MudNavLink>
+                <MudNavLink Href="purchase-orders" Icon="@Icons.Material.Filled.ShoppingBag">Purchase Orders</MudNavLink>
+                <MudNavLink Href="stock-transfers" Icon="@Icons.Material.Filled.LocalShipping">Stock Transfer</MudNavLink>
+                <MudNavLink Href="inventory-counts" Icon="@Icons.Material.Filled.Checklist">Counts</MudNavLink>
+            </MudNavGroup>
 
-            <AuthorizeView Roles="Administrator">
-                <Authorized>
-                    <div class="nav-item px-3">
-                        <NavLink class="nav-link" href="manager">Dashboard</NavLink>
-                    </div>
-                    <div class="nav-item px-3">
-                        <NavLink class="nav-link" href="manager/reports">Reports</NavLink>
-                    </div>
-                    <div class="nav-item px-3">
-                        <NavLink class="nav-link" href="manager/sync">Sync</NavLink>
-                    </div>
-                    <div class="nav-item px-3">
-                        <NavLink class="nav-link" href="manager/equipments">Equipment</NavLink>
-                    </div>
-                    <div class="nav-item px-3">
-                        <NavLink class="nav-link" href="manager/shifts">Shifts</NavLink>
-                    </div>
-                </Authorized>
-            </AuthorizeView>
+            <MudNavGroup Title="Reports" Icon="@Icons.Material.Filled.Assessment" Expanded="false">
+                <MudNavLink Href="manager/reports" Icon="@Icons.Material.Filled.TrendingUp">Sales Reports</MudNavLink>
+                <MudNavLink Href="reports/inventory" Icon="@Icons.Material.Filled.Inventory">Inventory Reports</MudNavLink>
+            </MudNavGroup>
+
+            <MudNavGroup Title="Admin" Icon="@Icons.Material.Filled.Settings" Expanded="false">
+                <MudNavLink Href="admin/users" Icon="@Icons.Material.Filled.ManageAccounts">Users</MudNavLink>
+                <MudNavLink Href="admin/roles" Icon="@Icons.Material.Filled.AdminPanelSettings">Roles</MudNavLink>
+                <MudNavLink Href="admin/stores" Icon="@Icons.Material.Filled.Storefront">Stores</MudNavLink>
+                <MudNavLink Href="admin/settings" Icon="@Icons.Material.Filled.Tune">Settings</MudNavLink>
+                <MudNavLink Href="admin/audit-logs" Icon="@Icons.Material.Filled.History">Audit Logs</MudNavLink>
+            </MudNavGroup>
+
+            <MudNavGroup Title="Equipment" Icon="@Icons.Material.Filled.SettingsInputComponent" Expanded="false">
+                <MudNavLink Href="manager/equipments" Icon="@Icons.Material.Filled.Print">Printers</MudNavLink>
+                <MudNavLink Href="equipments/bank-terminals" Icon="@Icons.Material.Filled.Payment">Bank Terminals</MudNavLink>
+                <MudNavLink Href="equipments/scanners" Icon="@Icons.Material.Filled.QrCodeScanner">Scanners</MudNavLink>
+                <MudNavLink Href="equipments/customer-displays" Icon="@Icons.Material.Filled.DisplaySettings">Customer Displays</MudNavLink>
+            </MudNavGroup>
         }
 
-        <div class="nav-item px-3 mt-auto">
-            <MudDivider Class="my-2" />
-            @if (PosAuthState.IsAuthenticated)
-            {
-                <MudButton Variant="Variant.Text" StartIcon="@Icons.Material.Filled.Logout" OnClick="Logout" Class="nav-link text-danger">
-                    Logout
-                </MudButton>
-            }
-            else
-            {
-                <MudButton Variant="Variant.Text" StartIcon="@Icons.Material.Filled.Lock" OnClick="GoToLogin" Class="nav-link">
-                    PIN Login
-                </MudButton>
-            }
-        </div>
-    </nav>
-</div>
+        <MudDivider Class="my-2" />
+
+        <MudPaper Class="pa-2" Elevation="0">
+            <MudButton Variant="Variant.Text" FullWidth="true" OnClick="Logout">Logout</MudButton>
+        </MudPaper>
+    }
+    else
+    {
+        <MudPaper Class="pa-2" Elevation="0">
+            <MudButton Variant="Variant.Text" FullWidth="true" OnClick="GoToLogin">PIN Login</MudButton>
+        </MudPaper>
+    }
+</MudNavMenu>
 
 @code {
     private void GoToLogin() => Navigation.NavigateTo("/pin-login");

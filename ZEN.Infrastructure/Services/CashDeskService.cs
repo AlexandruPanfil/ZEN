@@ -1,4 +1,5 @@
 using ZEN.Application.DTOs.Admin;
+using ZEN.Application.DTOs.CashDeskMenu;
 using ZEN.Application.Services.Interfaces;
 using ZEN.Domain.Entities;
 using ZEN.Domain.Enums;
@@ -19,13 +20,7 @@ public class CashDeskService : ICashDeskService
     public async Task<CashDeskDto?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
         var cashDesk = await _dbContext.CashDesks.FindAsync([id], cancellationToken);
-        return cashDesk == null ? null : new CashDeskDto(
-            cashDesk.Id,
-            cashDesk.Name,
-            cashDesk.StoreId,
-            cashDesk.IsActive,
-            cashDesk.FiscalPrinterId,
-            cashDesk.CustomerDisplayId);
+        return cashDesk == null ? null : ToDto(cashDesk);
     }
 
     public async Task<CashDeskDetailDto?> GetDetailByIdAsync(Guid id, CancellationToken cancellationToken = default)
@@ -49,6 +44,7 @@ public class CashDeskService : ICashDeskService
             cashDesk.FiscalPrinter?.Name ?? string.Empty,
             cashDesk.CustomerDisplayId,
             cashDesk.CustomerDisplay?.Name ?? string.Empty,
+            cashDesk.MenuId,
             cashDesk.PaymentTerminals.Select(pt => new PaymentTerminalDto(
                 pt.Id,
                 pt.Name,
@@ -78,37 +74,12 @@ public class CashDeskService : ICashDeskService
         }
 
         var cashDesks = await query.ToListAsync(cancellationToken);
-        return cashDesks.Select(cd => new CashDeskDto(
-            cd.Id,
-            cd.Name,
-            cd.StoreId,
-            cd.IsActive,
-            cd.FiscalPrinterId,
-            cd.CustomerDisplayId));
+        return cashDesks.Select(ToDto);
     }
 
     public async Task<CashDeskDto> CreateAsync(CreateCashDeskRequest request, CancellationToken cancellationToken = default)
     {
-        if (request.StoreId.HasValue)
-        {
-            var storeExists = await _dbContext.Stores.AnyAsync(s => s.Id == request.StoreId.Value && !s.IsDeleted, cancellationToken);
-            if (!storeExists)
-                throw new InvalidOperationException($"Store with ID {request.StoreId} not found.");
-        }
-
-        if (request.FiscalPrinterId.HasValue)
-        {
-            var fiscalPrinterExists = await _dbContext.Printers.AnyAsync(p => p.Id == request.FiscalPrinterId.Value && !p.IsDeleted && p.Type == PrinterType.Fiscal, cancellationToken);
-            if (!fiscalPrinterExists)
-                throw new InvalidOperationException($"Fiscal printer with ID {request.FiscalPrinterId} not found.");
-        }
-
-        if (request.CustomerDisplayId.HasValue)
-        {
-            var customerDisplayExists = await _dbContext.CustomerDisplays.AnyAsync(cd => cd.Id == request.CustomerDisplayId.Value && !cd.IsDeleted, cancellationToken);
-            if (!customerDisplayExists)
-                throw new InvalidOperationException($"Customer display with ID {request.CustomerDisplayId} not found.");
-        }
+        ValidateReferences(request.StoreId, request.FiscalPrinterId, request.CustomerDisplayId, request.MenuId, cancellationToken);
 
         var cashDesk = new CashDesk
         {
@@ -116,25 +87,19 @@ public class CashDeskService : ICashDeskService
             StoreId = request.StoreId,
             IsActive = request.IsActive,
             FiscalPrinterId = request.FiscalPrinterId,
-            CustomerDisplayId = request.CustomerDisplayId
+            CustomerDisplayId = request.CustomerDisplayId,
+            MenuId = request.MenuId
         };
 
         _dbContext.CashDesks.Add(cashDesk);
         await _dbContext.SaveChangesAsync(cancellationToken);
 
-        // Assign terminals to this cashdesk
         if (request.TerminalIds != null && request.TerminalIds.Any())
         {
             await AssignTerminalsAsync(cashDesk.Id, request.TerminalIds, cancellationToken);
         }
 
-        return new CashDeskDto(
-            cashDesk.Id,
-            cashDesk.Name,
-            cashDesk.StoreId,
-            cashDesk.IsActive,
-            cashDesk.FiscalPrinterId,
-            cashDesk.CustomerDisplayId);
+        return ToDto(cashDesk);
     }
 
     public async Task<CashDeskDto> UpdateAsync(UpdateCashDeskRequest request, CancellationToken cancellationToken = default)
@@ -145,27 +110,15 @@ public class CashDeskService : ICashDeskService
             throw new KeyNotFoundException($"Cash desk with ID {request.Id} not found.");
         }
 
-        if (request.FiscalPrinterId.HasValue)
-        {
-            var fiscalPrinterExists = await _dbContext.Printers.AnyAsync(p => p.Id == request.FiscalPrinterId.Value && !p.IsDeleted && p.Type == PrinterType.Fiscal, cancellationToken);
-            if (!fiscalPrinterExists)
-                throw new InvalidOperationException($"Fiscal printer with ID {request.FiscalPrinterId} not found.");
-        }
-
-        if (request.CustomerDisplayId.HasValue)
-        {
-            var customerDisplayExists = await _dbContext.CustomerDisplays.AnyAsync(cd => cd.Id == request.CustomerDisplayId.Value && !cd.IsDeleted, cancellationToken);
-            if (!customerDisplayExists)
-                throw new InvalidOperationException($"Customer display with ID {request.CustomerDisplayId} not found.");
-        }
+        ValidateReferences(request.StoreId, request.FiscalPrinterId, request.CustomerDisplayId, request.MenuId, cancellationToken);
 
         cashDesk.Name = request.Name;
         cashDesk.StoreId = request.StoreId;
         cashDesk.IsActive = request.IsActive;
         cashDesk.FiscalPrinterId = request.FiscalPrinterId;
         cashDesk.CustomerDisplayId = request.CustomerDisplayId;
+        cashDesk.MenuId = request.MenuId;
 
-        // Update terminal assignments
         var selectedTerminalIds = request.TerminalIds?.ToHashSet() ?? new HashSet<Guid>();
         var existingTerminals = await _dbContext.PaymentTerminals
             .Where(pt => pt.CashDeskId == request.Id)
@@ -190,13 +143,38 @@ public class CashDeskService : ICashDeskService
 
         await _dbContext.SaveChangesAsync(cancellationToken);
 
-        return new CashDeskDto(
-            cashDesk.Id,
-            cashDesk.Name,
-            cashDesk.StoreId,
-            cashDesk.IsActive,
-            cashDesk.FiscalPrinterId,
-            cashDesk.CustomerDisplayId);
+        return ToDto(cashDesk);
+    }
+
+    private async Task ValidateReferences(Guid? storeId, Guid? fiscalPrinterId, Guid? customerDisplayId, Guid? menuId, CancellationToken cancellationToken)
+    {
+        if (storeId.HasValue)
+        {
+            var storeExists = await _dbContext.Stores.AnyAsync(s => s.Id == storeId.Value && !s.IsDeleted, cancellationToken);
+            if (!storeExists)
+                throw new InvalidOperationException($"Store with ID {storeId} not found.");
+        }
+
+        if (fiscalPrinterId.HasValue)
+        {
+            var fiscalPrinterExists = await _dbContext.Printers.AnyAsync(p => p.Id == fiscalPrinterId.Value && !p.IsDeleted && p.Type == PrinterType.Fiscal, cancellationToken);
+            if (!fiscalPrinterExists)
+                throw new InvalidOperationException($"Fiscal printer with ID {fiscalPrinterId} not found.");
+        }
+
+        if (customerDisplayId.HasValue)
+        {
+            var customerDisplayExists = await _dbContext.CustomerDisplays.AnyAsync(cd => cd.Id == customerDisplayId.Value && !cd.IsDeleted, cancellationToken);
+            if (!customerDisplayExists)
+                throw new InvalidOperationException($"Customer display with ID {customerDisplayId} not found.");
+        }
+
+        if (menuId.HasValue)
+        {
+            var menuExists = await _dbContext.Menus.AnyAsync(m => m.Id == menuId.Value && !m.IsDeleted, cancellationToken);
+            if (!menuExists)
+                throw new InvalidOperationException($"Menu with ID {menuId} not found.");
+        }
     }
 
     private async Task AssignTerminalsAsync(Guid cashDeskId, IEnumerable<Guid> terminalIds, CancellationToken cancellationToken)
@@ -219,7 +197,6 @@ public class CashDeskService : ICashDeskService
             return false;
         }
 
-        // Unassign all terminals from this cashdesk
         var terminals = await _dbContext.PaymentTerminals
             .Where(pt => pt.CashDeskId == id)
             .ToListAsync(cancellationToken);
@@ -233,4 +210,31 @@ public class CashDeskService : ICashDeskService
         await _dbContext.SaveChangesAsync(cancellationToken);
         return true;
     }
+
+    public async Task<CashDeskDto> AssignMenuAsync(AssignMenuToCashDeskRequest request, CancellationToken cancellationToken = default)
+    {
+        var cashDesk = await _dbContext.CashDesks.FindAsync([request.CashDeskId], cancellationToken);
+        if (cashDesk == null)
+            throw new KeyNotFoundException($"Cash desk with ID {request.CashDeskId} not found.");
+
+        if (request.MenuId.HasValue)
+        {
+            var menuExists = await _dbContext.Menus.AnyAsync(m => m.Id == request.MenuId.Value && !m.IsDeleted, cancellationToken);
+            if (!menuExists)
+                throw new InvalidOperationException($"Menu with ID {request.MenuId} not found.");
+        }
+
+        cashDesk.MenuId = request.MenuId;
+        await _dbContext.SaveChangesAsync(cancellationToken);
+        return ToDto(cashDesk);
+    }
+
+    private static CashDeskDto ToDto(CashDesk cashDesk) => new(
+        cashDesk.Id,
+        cashDesk.Name,
+        cashDesk.StoreId,
+        cashDesk.IsActive,
+        cashDesk.FiscalPrinterId,
+        cashDesk.CustomerDisplayId,
+        cashDesk.MenuId);
 }

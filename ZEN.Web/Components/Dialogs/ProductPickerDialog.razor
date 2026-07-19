@@ -1,0 +1,19 @@
+@using ZEN.Application.DTOs.Products
+
+<MudDialog>
+    <DialogContent>
+        <MudList T="ProductDto" Dense="true">
+            @foreach (var product in Products ?? new List<ProductDto>())
+            {
+                <MudListItem OnClick="() => OnProductSelected.InvokeAsync(product.Id)">
+                    <MudText>@product.Name (@product.SalePrice.ToString("C"))</MudText>
+                </MudListItem>
+            }
+        </MudList>
+    </DialogContent>
+</MudDialog>
+
+@code {
+    [Parameter] public IEnumerable<ProductDto>? Products { get; set; }
+    [Parameter] public EventCallback<Guid> OnProductSelected { get; set; }
+}

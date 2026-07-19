@@ -37,14 +37,12 @@ a, .btn-link {
     max-width: 400px;
     overflow-y: auto;
     border-right: 1px solid var(--mud-palette-divider);
-    padding: 16px;
     box-sizing: border-box;
 }
 
 .sell-content {
     flex: 1;
     overflow-y: auto;
-    padding: 16px;
     box-sizing: border-box;
 }
 
@@ -125,10 +123,12 @@ a, .btn-link {
 .product-grid-card {
     cursor: pointer;
     height: 100%;
-    transition: transform 0.2s, box-shadow 0.2s;
 }
 
 .product-grid-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--mud-elevation-4);
+}
     transform: translateY(-2px);
     box-shadow: var(--mud-elevation-4);
 }
