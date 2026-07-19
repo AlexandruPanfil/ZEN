@@ -1,0 +1,51 @@
+@using MudBlazor
+
+<MudStack Row="true" Spacing="2" Class="action-bar">
+    <MudButton Variant="Variant.Text" 
+               Color="Color.Error" 
+               StartIcon="@Icons.Material.Filled.Refresh" 
+               OnClick="OnNewSale"
+               Disabled="CartEmpty">
+        New Sale
+    </MudButton>
+    
+    <MudButton Variant="Variant.Text" 
+               Color="Color.Info" 
+               StartIcon="@Icons.Material.Filled.Save" 
+               OnClick="OnHoldSale"
+               Disabled="CartEmpty">
+        Hold Sale
+    </MudButton>
+    
+    <MudButton Variant="Variant.Text" 
+               Color="Color.Warning" 
+               StartIcon="@Icons.Material.Filled.Restore" 
+               OnClick="OnResumeSale">
+        Resume Sale
+    </MudButton>
+    
+    <MudSpacer />
+    
+    <MudText Typo="Typo.body1" Class="change-due">Change Due: @ChangeDue.ToString("C")</MudText>
+    
+    <MudButton Variant="Variant.Filled" 
+               Color="Color.Primary" 
+               StartIcon="@Icons.Material.Filled.Payment" 
+               OnClick="OnProcessPayment"
+               Disabled="CartEmpty || !CanProcessPayment"
+               Size="Size.Large"
+               Class="pay-button">
+        Process Payment
+    </MudButton>
+</MudStack>
+
+@code {
+    [Parameter] public bool CartEmpty { get; set; }
+    [Parameter] public bool CanProcessPayment { get; set; }
+    [Parameter] public decimal ChangeDue { get; set; }
+
+    [Parameter] public EventCallback OnNewSale { get; set; }
+    [Parameter] public EventCallback OnHoldSale { get; set; }
+    [Parameter] public EventCallback OnResumeSale { get; set; }
+    [Parameter] public EventCallback OnProcessPayment { get; set; }
+}

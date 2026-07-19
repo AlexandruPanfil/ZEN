@@ -63,6 +63,21 @@ public static class DbSeeder
             await context.SaveChangesAsync();
         }
 
+        // Seed CashDesk
+        if (!await context.CashDesks.AnyAsync())
+        {
+            var defaultStore = await context.Stores.FirstAsync();
+            var cashDesk = new CashDesk
+            {
+                Id = Guid.NewGuid(),
+                StoreId = defaultStore.Id,
+                Name = "Main Cash Desk",
+                IsActive = true
+            };
+            context.CashDesks.Add(cashDesk);
+            await context.SaveChangesAsync();
+        }
+
         // Seed Roles
         var roleNames = new[] { "Administrator", "Cashier", "Manager", "Accountant", "InventoryManager", "Technician" };
         foreach (var roleName in roleNames)
@@ -159,6 +174,7 @@ public static class DbSeeder
         var cashierUser = await userManager.FindByEmailAsync("cashier@zen.pos");
         if (cashierUser == null)
         {
+            var mainCashDesk = await context.CashDesks.FirstOrDefaultAsync();
             cashierUser = new AppUser
             {
                 UserName = "cashier@zen.pos",
@@ -167,6 +183,7 @@ public static class DbSeeder
                 FirstName = "Cashier",
                 LastName = "User",
                 PIN = "2222",
+                CashDeskId = mainCashDesk?.Id,
                 IsActive = true
             };
             var result = await userManager.CreateAsync(cashierUser, "Cashier@1234");

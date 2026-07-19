@@ -2,7 +2,7 @@ namespace ZEN.Application.DTOs.Auth;
 
 public record LoginRequest(string Email, string Password);
 
-public record LoginResponse(string Token, string UserId, string UserName, string Email, IEnumerable<string> Roles);
+public record LoginResponse(string Token, string UserId, string UserName, string Email, IEnumerable<string> Roles, Guid? CashDeskId = null, Guid? StoreId = null);
 
 public record PinLoginRequest(string PIN);
 

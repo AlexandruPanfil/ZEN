@@ -1,0 +1,81 @@
+@using MudBlazor
+@using ZEN.Application.DTOs.Products
+@using ZEN.Windows.Models
+
+<div class="cart-sidebar">
+    <MudText Typo="Typo.h6" Class="cart-header">Cart Items</MudText>
+    
+    <div class="cart-items-container">
+        @if (CartItems == null || !CartItems.Any())
+        {
+            <MudText Typo="Typo.body2" Class="empty-cart">Your cart is empty</MudText>
+        }
+        else
+        {
+            @foreach (var item in CartItems)
+            {
+                <div class="cart-item">
+                    <MudText Typo="Typo.body1" Class="item-name">@item.ProductName</MudText>
+                    <div class="item-details">
+                        <div class="item-controls">
+                            <MudIconButton Icon="@Icons.Material.Filled.Remove" 
+                                          Size="Size.Small" 
+                                          OnClick="() => OnDecrement.InvokeAsync(item)" />
+<MudNumericField T="decimal" @bind-Value="item.Quantity"
+                                   Format="N2"
+                                   Min="0.01m"
+                                   Step="0.01m"
+                                   Style="width: 60px;"
+                                   Class="quantity-input" />
+                            <MudIconButton Icon="@Icons.Material.Filled.Add" 
+                                          Size="Size.Small" 
+                                          OnClick="() => OnIncrement.InvokeAsync(item)" />
+                        </div>
+                        <MudText Typo="Typo.body2">Price: @item.UnitPrice.ToString("C")</MudText>
+                        <MudText Typo="Typo.body2">Discount: @((item.Discount * item.Quantity).ToString("C"))</MudText>
+                        <MudText Typo="Typo.h6">Total: @item.LineTotal.ToString("C")</MudText>
+                        <MudIconButton Icon="@Icons.Material.Filled.Delete" 
+                                      Color="Color.Error" 
+                                      Size="Size.Small" 
+                                      OnClick="() => OnRemove.InvokeAsync(item)" />
+                    </div>
+                </div>
+            }
+        }
+    </div>
+
+    <MudDivider Class="my-2" />
+
+    <div class="order-summary">
+        <MudText Typo="Typo.subtitle2">Order Summary</MudText>
+        <div class="summary-row">
+            <MudText>Subtotal:</MudText>
+            <MudText>@Subtotal.ToString("C")</MudText>
+        </div>
+        <div class="summary-row">
+            <MudText>Discount:</MudText>
+            <MudText>@DiscountAmount.ToString("C")</MudText>
+        </div>
+        <div class="summary-row">
+            <MudText>Tax:</MudText>
+            <MudText>@TaxAmount.ToString("C")</MudText>
+        </div>
+        <MudDivider Class="my-1" />
+        <div class="summary-row total-row">
+            <MudText Typo="Typo.h6">Total:</MudText>
+            <MudText Typo="Typo.h6">@TotalAmount.ToString("C")</MudText>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public IEnumerable<PosCartItem>? CartItems { get; set; }
+    [Parameter] public decimal Subtotal { get; set; }
+    [Parameter] public decimal DiscountAmount { get; set; }
+    [Parameter] public decimal TaxAmount { get; set; }
+    [Parameter] public decimal TotalAmount { get; set; }
+
+    [Parameter] public EventCallback<PosCartItem> OnIncrement { get; set; }
+    [Parameter] public EventCallback<PosCartItem> OnDecrement { get; set; }
+    [Parameter] public EventCallback<PosCartItem> OnRemove { get; set; }
+}

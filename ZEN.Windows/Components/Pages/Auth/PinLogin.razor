@@ -4,16 +4,22 @@
 @inject ZEN.Windows.Services.PosAuthState PosAuthState
 @inject ISnackbar Snackbar
 @inject ZEN.Windows.Services.Sync.SyncApiClient ApiClient
+@inject ZEN.Windows.Services.ServerSettingsService SettingsService
 @using ZEN.Windows.Services
 @using MudBlazor
 
 <PageTitle>PIN Login - ZEN POS</PageTitle>
 
 <MudPaper Class="pa-4" Elevation="4" MaxWidth="400px" Style="margin: 2rem auto;">
-    <MudText Typo="Typo.h4" Align="Align.Center" GutterBottom="true">PIN Login</MudText>
-    <MudText Typo="Typo.body2" Align="Align.Center" Style="color: var(--mud-palette-text-secondary);">
+    <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="mb-2">
+        <MudText Typo="Typo.h4">PIN Login</MudText>
+        <MudIconButton Icon="@Icons.Material.Filled.Settings" 
+                        OnClick="OpenSettings" />
+    </MudStack>
+    <MudText Typo="Typo.body2" Style="color: var(--mud-palette-text-secondary);">
         Demo: admin PIN <code>1234</code>, manager PIN <code>3333</code>, cashier PIN <code>2222</code>
     </MudText>
+    <MudText Typo="Typo.caption" Color="Color.Info" Class="mt-1">Server: @SettingsService.ApiBaseUrl</MudText>
 
     <MudTextField @bind-Value="_pin"
                  Label="PIN"
@@ -70,51 +76,43 @@
         _isProcessing = true;
         StateHasChanged();
 
+        var trimmedPin = _pin?.Trim() ?? string.Empty;
+        
         try
         {
-            // Try API authentication first
-            var loginResponse = await ApiClient.LoginWithPinAsync(_pin);
-            if (loginResponse != null)
-            {
-                System.Diagnostics.Debug.WriteLine($"API login success: UserName={loginResponse.UserName}, Roles={string.Join(',', loginResponse.Roles)}");
-                
-                var primaryRole = loginResponse.Roles.FirstOrDefault() ?? "Guest";
-                ApiClient.SetBearerToken(loginResponse.Token);
-                PosAuthState.SignIn(loginResponse.UserName, primaryRole, loginResponse.Token);
-                
-                // Wait for auth state to propagate before navigating
-                await Task.Delay(200);
-                
-                NavigateAfterLogin(primaryRole);
-                return;
-            }
+            string role;
             
-            System.Diagnostics.Debug.WriteLine($"API login failed or unreachable, trying fallback PINs");
-            Snackbar.Add("Using offline mode (API unreachable)", Severity.Info);
-
-            // Fallback to hardcoded demo PINs for development
-            if (_pin == "1234")
+            if (TryDemoLogin(trimmedPin, out role))
             {
-                PosAuthState.SignIn("admin@zen.pos", PosRoles.Administrator);
-                await Task.Delay(200);
-                NavigateAfterLogin(PosRoles.Administrator);
-            }
-            else if (_pin == "3333")
-            {
-                PosAuthState.SignIn("manager@zen.pos", PosRoles.Manager);
-                await Task.Delay(200);
-                NavigateAfterLogin(PosRoles.Manager);
-            }
-            else if (_pin == "2222")
-            {
-                PosAuthState.SignIn("cashier@zen.pos", PosRoles.Cashier);
-                await Task.Delay(200);
-                NavigateAfterLogin(PosRoles.Cashier);
+                PosAuthState.SignIn(GetDemoUserName(trimmedPin), role);
             }
             else
             {
-                _error = "Invalid PIN.";
-                Snackbar.Add("Invalid PIN.", Severity.Error);
+                var loginResponse = await ApiClient.LoginWithPinAsync(trimmedPin);
+                
+                if (loginResponse == null)
+                {
+                    _error = "Invalid PIN. Use demo PINs: 1234 (admin), 3333 (manager), 2222 (cashier)";
+                    Snackbar.Add(_error, Severity.Warning);
+                    return;
+                }
+
+                role = loginResponse.Roles.FirstOrDefault() ?? "Guest";
+                ApiClient.SetBearerToken(loginResponse.Token);
+                PosAuthState.SignIn(loginResponse.UserName, role, loginResponse.Token, loginResponse.StoreId, loginResponse.CashDeskId);
+            }
+
+            // Ensure state is updated before navigation
+            StateHasChanged();
+            await InvokeAsync(StateHasChanged);
+            
+            if (string.Equals(role, PosRoles.Cashier, StringComparison.OrdinalIgnoreCase))
+            {
+                Navigation.NavigateTo("/sell");
+            }
+            else
+            {
+                Navigation.NavigateTo("/manager");
             }
         }
         catch (Exception ex)
@@ -129,19 +127,40 @@
         }
     }
 
-    private void NavigateAfterLogin(string role)
+    private bool TryDemoLogin(string pin, out string role)
     {
-        if (!string.IsNullOrEmpty(ReturnUrl))
+        if (pin == "1234")
         {
-            Navigation.NavigateTo(ReturnUrl, replace: true);
+            role = PosRoles.Administrator;
+            return true;
         }
-        else if (string.Equals(role, PosRoles.Cashier, StringComparison.OrdinalIgnoreCase))
+        if (pin == "3333")
         {
-            Navigation.NavigateTo("/sell", replace: true);
+            role = PosRoles.Manager;
+            return true;
         }
-        else
+        if (pin == "2222")
         {
-            Navigation.NavigateTo("/manager", replace: true);
+            role = PosRoles.Cashier;
+            return true;
         }
+        role = string.Empty;
+        return false;
+    }
+
+    private string GetDemoUserName(string pin)
+    {
+        return pin switch
+        {
+            "1234" => "admin@zen.pos",
+            "3333" => "manager@zen.pos",
+            "2222" => "cashier@zen.pos",
+            _ => "demo@zen.pos"
+        };
+    }
+
+    private void OpenSettings()
+    {
+        Navigation.NavigateTo("/settings");
     }
 }

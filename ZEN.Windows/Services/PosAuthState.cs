@@ -14,6 +14,7 @@ public sealed class PosAuthState
     public string? Role { get; private set; }
     public string? Token { get; private set; }
     public Guid? StoreId { get; private set; }
+    public Guid? CashDeskId { get; private set; }
 
     public bool IsAdmin => string.Equals(Role, PosRoles.Administrator, StringComparison.OrdinalIgnoreCase);
     public bool IsCashier => string.Equals(Role, PosRoles.Cashier, StringComparison.OrdinalIgnoreCase);
@@ -21,13 +22,14 @@ public sealed class PosAuthState
 
     public event Action? Changed;
 
-    public void SignIn(string? userName, string role, string? token = null, Guid? storeId = null)
+    public void SignIn(string? userName, string role, string? token = null, Guid? storeId = null, Guid? cashDeskId = null)
     {
         IsAuthenticated = true;
         UserName = userName;
         Role = role;
         Token = token;
         StoreId = storeId;
+        CashDeskId = cashDeskId;
         Changed?.Invoke();
     }
 
@@ -38,6 +40,7 @@ public sealed class PosAuthState
         Role = null;
         Token = null;
         StoreId = null;
+        CashDeskId = null;
         Changed?.Invoke();
     }
 }

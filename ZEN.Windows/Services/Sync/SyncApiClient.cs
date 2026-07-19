@@ -15,6 +15,12 @@ public class SyncApiClient
         _httpClient = httpClient;
     }
 
+    public void UpdateBaseUrl(string baseUrl)
+    {
+        if (!baseUrl.EndsWith("/")) baseUrl += "/";
+        _httpClient.BaseAddress = new Uri(baseUrl);
+    }
+
     public async Task<LoginResponse?> LoginWithPinAsync(string pin, CancellationToken cancellationToken = default)
     {
         try
@@ -23,8 +29,11 @@ public class SyncApiClient
             if (response.IsSuccessStatusCode)
             {
                 var result = await response.Content.ReadFromJsonAsync<LoginResponse>(cancellationToken);
-                if (result != null) IsApiAvailable = true;
-                return result;
+                if (result != null)
+                {
+                    IsApiAvailable = true;
+                    return result;
+                }
             }
             return null;
         }
@@ -32,7 +41,7 @@ public class SyncApiClient
         {
             return null; // API unreachable
         }
-        catch (TaskCanceledException) when (cancellationToken.IsCancellationRequested == false)
+        catch (TaskCanceledException)
         {
             return null; // Timeout
         }

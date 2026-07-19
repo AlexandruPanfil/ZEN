@@ -1,555 +1,146 @@
 @page "/sell"
 @inject NavigationManager Navigation
 @inject ZEN.Windows.Services.PosAuthState PosAuthState
-@inject IProductService ProductService
-@inject ISaleService SaleService
-@inject IStoreContext StoreContext
-@inject IShiftService ShiftService
-@inject ITaxService TaxService
-@inject AuthenticationStateProvider AuthStateProvider
 @inject ISnackbar Snackbar
-@inject MudBlazor.IDialogService DialogService
-
-@using System.Text.Json
-@using System.Security.Claims
-@using ZEN.Application.DTOs.Products
-@using ZEN.Application.DTOs.Sales
-@using ZEN.Domain.Enums
-@using Microsoft.AspNetCore.Components.Authorization
-@using MudBlazor
-@using ZEN.Windows.Components.Shared
 
 <PageTitle>Point of Sale - ZEN POS</PageTitle>
 
-<AuthorizeView Context="authContext">
-    <Authorized>
-        <MudPaper Class="pa-4" Elevation="4">
-            <div class="d-flex align-items-center mb-4">
-                <MudText Typo="Typo.h5">Point of Sale</MudText>
-                <MudSpacer />
-                <MudFab Color="Color.Primary" Size="Size.Medium" Icon="@Icons.Material.Filled.Tune" OnClick="OpenQuickActions" />
-                <MudText Typo="Typo.body2">User: @authContext.User.Identity?.Name ?? "Unknown"</MudText>
-            </div>
-
-            <QuickActionsPanel @bind-IsOpen="_quickActionsOpen" />
-
-            <MudGrid>
-                <MudItem xs="12" sm="6" md="4">
-                    <MudPaper Elevation="1" Class="pa-3">
-                        <MudText Typo="Typo.h6">Product Search</MudText>
-                        <MudTextField @bind-Value="SearchText"
-                                      Label="Search by name or barcode"
-                                      Adornment="Adornment.Start"
-                                      AdornmentIcon="@Icons.Material.Filled.Search"
-                                      IconSize="Size.Small"
-                                      Immediate="true"
-                                      @onkeypress="HandleSearchKeyPress"
-                                      Variant="Variant.Filled" />
-                        <MudList T="ProductDto">
-                            @if (SearchResults == null)
-                            {
-                                <MudText>Type to search...</MudText>
-                            }
-                            else if (SearchResults.Count == 0)
-                            {
-                                <MudText>No products found.</MudText>
-                            }
-                            else
-                            {
-                                @foreach (var product in SearchResults)
-                                {
-                                    <MudListItem T="ProductDto" @onclick="() => AddToCart(product)" Dense="true"
-                                                 Text="@product.Name"
-                                                 SecondaryText="@product.SalePrice.ToString("C")" />
-                                }
-                            }
-                        </MudList>
-                    </MudPaper>
-                </MudItem>
-
-                <MudItem xs="12" sm="6" md="5">
-                    <MudPaper Elevation="1" Class="pa-3">
-                        <MudText Typo="Typo.h6">Cart</MudText>
-                        @if (Cart == null || Cart.Count == 0)
-                        {
-                            <MudText Typo="Typo.body2">Your cart is empty.</MudText>
-                        }
-                        else
-                        {
-                            <MudTable Items="Cart" Hover="true">
-                                <HeaderContent>
-                                    <MudTh>Product</MudTh>
-                                    <MudTh>Qty</MudTh>
-                                    <MudTh>Price</MudTh>
-                                    <MudTh>Discount</MudTh>
-                                    <MudTh>Tax</MudTh>
-                                    <MudTh>Total</MudTh>
-                                    <MudTh></MudTh>
-                                </HeaderContent>
-                                <RowTemplate Context="cartItem">
-                                    <MudTd>
-                                        <MudText>@cartItem.Product.Name</MudText>
-                                    </MudTd>
-                                    <MudTd>
-                                        <MudNumericField T="decimal" @bind-Value="cartItem.Quantity"
-                                                         Format="N2"
-                                                         Min="0.01m"
-                                                         Step="0.01m"
-                                                         @onchange="async (e) => await UpdateQuantity(cartItem, e.Value as decimal?)"
-                                                         Style="width: 80px;" />
-                                    </MudTd>
-                                    <MudTd>
-                                        <MudText>@cartItem.UnitPrice.ToString("C")</MudText>
-                                    </MudTd>
-                                    <MudTd>
-                                        <MudNumericField T="decimal" @bind-Value="cartItem.Discount"
-                                                         Format="N2"
-                                                         Min="0m"
-                                                         Step="0.01m"
-                                                         @onchange="async (e) => await UpdateDiscount(cartItem, e.Value as decimal?)"
-                                                         Style="width: 80px;" />
-                                    </MudTd>
-                                    <MudTd>
-                                        <MudText>@cartItem.TaxRate.ToString("F1")%</MudText>
-                                    </MudTd>
-                                    <MudTd>
-                                        <MudText>@cartItem.LineTotal.ToString("C")</MudText>
-                                    </MudTd>
-                                    <MudTd>
-                                        <MudIconButton Icon="@Icons.Material.Filled.Delete"
-                                                         Color="Color.Error"
-                                                         Size="Size.Small"
-                                                         OnClick="() => RemoveFromCart(cartItem)" />
-                                    </MudTd>
-                                </RowTemplate>
-                            </MudTable>
-                        }
-                    </MudPaper>
-                </MudItem>
-
-                <MudItem xs="12" sm="12" md="3">
-                    <MudPaper Elevation="1" Class="pa-3">
-                        <MudText Typo="Typo.h6">Order Summary</MudText>
-                        <MudTable Items="SummaryRows" Hover="true">
-                            <RowTemplate>
-                                @{
-                                    var row = (SummaryRow)context;
-                                }
-                                <MudTd>@row.Label</MudTd>
-                                <MudTd>@row.Value</MudTd>
-                            </RowTemplate>
-                        </MudTable>
-
-                        <MudDivider Class="my-4" />
-
-                        <MudText Typo="Typo.subtitle2">Payment</MudText>
-                        <MudSelect T="PaymentMethod" Label="Payment Method"
-                                   @bind-Value="SelectedPaymentMethod">
-                            @foreach (PaymentMethod method in Enum.GetValues(typeof(PaymentMethod)))
-                            {
-                                <MudSelectItem Value="method">@method.ToString()</MudSelectItem>
-                            }
-                        </MudSelect>
-                        <MudTextField Label="Amount Received"
-                                      @bind-Value="AmountReceivedString"
-                                      InputType="InputType.Number"
-                                      Variant="Variant.Filled" />
-                        <MudText Typo="Typo.body2">Change Due: @ChangeDue.ToString("C")</MudText>
-
-                        <MudDivider Class="my-4" />
-
-                        <MudGrid>
-                            <MudItem xs="6">
-                                <MudButton Variant="Variant.Text" Color="Color.Error"
-                                           StartIcon="@Icons.Material.Filled.Undo"
-                                           OnClick="ClearCart">
-                                    New Sale
-                                </MudButton>
-                            </MudItem>
-                            <MudItem xs="6">
-                                <MudButton Variant="Variant.Filled" Color="Color.Primary"
-                                           StartIcon="@Icons.Material.Filled.Check"
-                                           Disabled="Cart == null || Cart.Count == 0 || AmountReceived < TotalAmount"
-                                           OnClick="ProcessPayment">
-                                    Pay
-                                </MudButton>
-                            </MudItem>
-                        </MudGrid>
-
-                        <MudDivider Class="my-4" />
-
-                        <MudGrid>
-                            <MudItem xs="6">
-                                <MudButton Variant="Variant.Text" Color="Color.Info"
-                                           StartIcon="@Icons.Material.Filled.Save"
-                                           OnClick="HoldSale">
-                                    Hold Sale
-                                </MudButton>
-                            </MudItem>
-                            <MudItem xs="6">
-                                <MudButton Variant="Variant.Text" Color="Color.Warning"
-                                           StartIcon="@Icons.Material.Filled.Restore"
-                                           OnClick="ResumeSale">
-                                    Resume Sale
-                                </MudButton>
-                            </MudItem>
-                        </MudGrid>
-                    </MudPaper>
-                </MudItem>
-            </MudGrid>
-        </MudPaper>
-    </Authorized>
-    <NotAuthorized>
-        <MudText Typo="Typo.h5">You are not authorized to access the POS. <MudLink Href="/pin-login">Login</MudLink></MudText>
-    </NotAuthorized>
-</AuthorizeView>
+@if (!PosAuthState.IsAuthenticated)
+{
+    <MudText Typo="Typo.h5" Class="ma-4">Not authenticated. Redirecting to login...</MudText>
+}
+else
+{
+    <SellPageLayout UserName="@PosAuthState.UserName"
+                    OnExit="HandleExit"
+                    OnSwitchToManager="HandleSwitchToManager">
+        <SidebarContent>
+            <SellCartSidebar CartItems="Cart"
+                            Subtotal="Subtotal"
+                            DiscountAmount="DiscountAmount"
+                            TaxAmount="TaxAmount"
+                            TotalAmount="TotalAmount"
+                            OnIncrement="IncrementCartItem"
+                            OnDecrement="DecrementCartItem"
+                            OnRemove="RemoveCartItem" />
+        </SidebarContent>
+        
+        <ChildContent>
+            <ProductGrid Products="AllProducts" OnProductSelected="AddToCart" />
+        </ChildContent>
+        
+        <FooterContent>
+            <SellActionBar CartEmpty="Cart.Count == 0"
+                          CanProcessPayment="true"
+                          ChangeDue="0"
+                          OnNewSale="ClearCart"
+                          OnHoldSale="HoldSale"
+                          OnResumeSale="ResumeSale"
+                          OnProcessPayment="ProcessPayment" />
+        </FooterContent>
+    </SellPageLayout>
+}
 
 @code {
-    private bool _quickActionsOpen = false;
-    private string? SearchText = "";
-    private List<ProductDto>? SearchResults;
-    private List<CartItem> Cart = new();
-    private ClaimsPrincipal? _user;
-    private PaymentMethod SelectedPaymentMethod = PaymentMethod.Cash;
-    private string AmountReceivedString = "";
-    private string? _error;
-    private decimal AmountReceived => decimal.TryParse(AmountReceivedString, out var amount) ? amount : 0m;
+    private List<ProductDto> AllProducts = new();
+    private List<PosCartItem> Cart = new();
 
     private decimal Subtotal => Cart.Sum(item => item.Quantity * item.UnitPrice);
     private decimal DiscountAmount => Cart.Sum(item => item.Quantity * item.Discount);
     private decimal TaxAmount => Cart.Sum(item => (item.Quantity * item.UnitPrice - item.Quantity * item.Discount) * (item.TaxRate / 100m));
     private decimal TotalAmount => Subtotal - DiscountAmount + TaxAmount;
-    private decimal ChangeDue => Math.Max(0, AmountReceived - TotalAmount);
 
-    private class SummaryRow
+    protected override void OnInitialized()
     {
-        public string Label { get; set; } = "";
-        public string Value { get; set; } = "";
-        public bool IsBold { get; set; }
+        AllProducts = GenerateDemoProducts();
     }
 
-    private IEnumerable<SummaryRow> SummaryRows => new List<SummaryRow>
+    private void AddToCart(ProductDto product)
     {
-        new SummaryRow { Label = "Subtotal:", Value = Subtotal.ToString("C"), IsBold = false },
-        new SummaryRow { Label = "Discount:", Value = DiscountAmount.ToString("C"), IsBold = false },
-        new SummaryRow { Label = "Tax:", Value = TaxAmount.ToString("C"), IsBold = false },
-        new SummaryRow { Label = "Total:", Value = TotalAmount.ToString("C"), IsBold = true }
-    };
-
-    private class CartItem
-    {
-        public ProductDto Product { get; set; } = default!;
-        public decimal Quantity { get; set; } = 1m;
-        public decimal UnitPrice { get; set; }
-        public decimal Discount { get; set; }
-        public decimal TaxRate { get; set; }
-
-        public decimal LineTotal => (Quantity * UnitPrice - Quantity * Discount) * (1 + TaxRate / 100m);
-    }
-
-    private class HeldSaleItemDto
-    {
-        public Guid ProductId { get; set; }
-        public decimal Quantity { get; set; }
-        public decimal UnitPrice { get; set; }
-        public decimal Discount { get; set; }
-        public decimal TaxRate { get; set; }
-    }
-
-    protected override async Task OnInitializedAsync()
-    {
-        try
+        var cartItem = new PosCartItem
         {
-            var authState = await AuthStateProvider.GetAuthenticationStateAsync();
-            _user = authState.User;
-            
-            System.Diagnostics.Debug.WriteLine($"Auth state loaded. IsAuthenticated: {_user.Identity?.IsAuthenticated}, Name: {_user.Identity?.Name}, Role: {PosAuthState.Role}");
-        }
-        catch (Exception ex)
-        {
-            _error = $"Error loading auth state: {ex.Message}";
-            Snackbar.Add(_error, Severity.Error);
-            _user = new ClaimsPrincipal(new ClaimsIdentity());
-        }
-    }
-
-    private async Task HandleSearchKeyPress(KeyboardEventArgs e)
-    {
-        if (e.Key == "Enter")
-        {
-            await SearchProducts();
-        }
-    }
-
-    private async Task SearchProducts()
-    {
-        if (string.IsNullOrWhiteSpace(SearchText))
-        {
-            SearchResults = new List<ProductDto>();
-            return;
-        }
-
-        try
-        {
-            SearchResults = (await ProductService.SearchAsync(SearchText.Trim())).ToList();
-        }
-        catch (Exception ex)
-        {
-            Snackbar.Add($"Error searching products: {ex.Message}", Severity.Error);
-        }
-    }
-
-    private async Task AddToCart(ProductDto product)
-    {
-        decimal taxRate = 0m;
-        if (product.TaxId.HasValue)
-        {
-            try
-            {
-                var taxDto = await TaxService.GetByIdAsync(product.TaxId.Value);
-                if (taxDto != null)
-                {
-                    taxRate = taxDto.Rate;
-                }
-            }
-            catch (Exception ex)
-            {
-                Snackbar.Add($"Error getting tax rate: {ex.Message}", Severity.Warning);
-            }
-        }
-
-        var cartItem = new CartItem
-        {
-            Product = product,
+            ProductId = product.Id,
+            ProductName = product.Name,
+            Quantity = 1,
             UnitPrice = product.SalePrice,
-            TaxRate = taxRate
+            TaxRate = 10m
         };
-
         Cart.Add(cartItem);
-        StateHasChanged();
     }
 
-    private async Task UpdateQuantity(CartItem item, decimal? newQuantity)
+    private void IncrementCartItem(PosCartItem item)
     {
-        if (newQuantity.HasValue && newQuantity.Value > 0)
+        item.Quantity += 1;
+    }
+
+    private void DecrementCartItem(PosCartItem item)
+    {
+        if (item.Quantity > 1)
         {
-            item.Quantity = newQuantity.Value;
-            StateHasChanged();
+            item.Quantity -= 1;
         }
         else
         {
-            await RemoveFromCart(item);
+            Cart.Remove(item);
         }
     }
 
-    private async Task UpdateDiscount(CartItem item, decimal? newDiscount)
-    {
-        if (newDiscount.HasValue && newDiscount >= 0)
-        {
-            item.Discount = newDiscount.Value;
-            StateHasChanged();
-        }
-    }
-
-    private async Task RemoveFromCart(CartItem item)
+    private void RemoveCartItem(PosCartItem item)
     {
         Cart.Remove(item);
-        StateHasChanged();
     }
 
     private void ClearCart()
     {
         Cart.Clear();
-        StateHasChanged();
+        Snackbar.Add("Cart cleared", Severity.Info);
     }
 
-    private async Task HoldSale()
+    private void HoldSale()
     {
-        if (Cart == null || Cart.Count == 0)
-        {
-            Snackbar.Add("Cart is empty. Cannot hold an empty sale.", Severity.Warning);
-            return;
-        }
+        Snackbar.Add("Demo mode: Hold sale not available without database connection", Severity.Info);
+    }
 
-        try
-        {
-            var storeId = StoreContext.GetCurrentStoreId();
-            if (!storeId.HasValue)
-            {
-                Snackbar.Add("No store selected. Please set a store first.", Severity.Error);
-                return;
-            }
+    private void ResumeSale()
+    {
+        Snackbar.Add("Demo mode: Resume sale not available without database connection", Severity.Info);
+    }
 
-            var heldSaleRequest = new HoldSaleRequest(
-                storeId.Value,
-                null,
-                JsonSerializer.Serialize(Cart.Select(item => new
-                {
-                    ProductId = item.Product.Id,
-                    Quantity = item.Quantity,
-                    UnitPrice = item.UnitPrice,
-                    Discount = item.Discount,
-                    TaxRate = item.TaxRate
-                }))
-            );
+    private void ProcessPayment()
+    {
+        Snackbar.Add("Demo mode: Payment processed (not saved to database)", Severity.Success);
+        ClearCart();
+    }
 
-            var heldSale = await SaleService.HoldSaleAsync(heldSaleRequest);
-            Snackbar.Add($"Sale held successfully. Hold ID: {heldSale.Id}", Severity.Success);
-            ClearCart();
-        }
-        catch (Exception ex)
+    private void HandleExit()
+    {
+        Navigation.NavigateTo("/");
+    }
+
+    private void HandleSwitchToManager()
+    {
+        if (PosAuthState.IsManager || PosAuthState.IsAdmin)
         {
-            Snackbar.Add($"Error holding sale: {ex.Message}", Severity.Error);
+            Navigation.NavigateTo("/manager");
         }
     }
 
-    private async Task ResumeSale()
+    private List<ProductDto> GenerateDemoProducts()
     {
-        try
+        return new List<ProductDto>
         {
-            var storeId = StoreContext.GetCurrentStoreId();
-            if (!storeId.HasValue)
-            {
-                Snackbar.Add("No store selected. Please set a store first.", Severity.Error);
-                return;
-            }
-
-            var heldSales = await SaleService.GetHeldSalesAsync(storeId.Value);
-            if (heldSales == null || !heldSales.Any())
-            {
-                Snackbar.Add("No held sales found for this store.", Severity.Info);
-                return;
-            }
-
-            var parameters = new DialogParameters();
-            parameters.Add(nameof(SelectHeldSaleDialog.HeldSales), heldSales.ToList());
-
-            var dialog = await DialogService.ShowAsync<SelectHeldSaleDialog>("Resume Sale", parameters);
-            var result = await dialog.Result;
-
-if (!result.Canceled && result.Data is HeldSaleDto heldSale && !string.IsNullOrEmpty(heldSale.SerializedItems))
-            {
-                try
-                {
-                    var heldItems = JsonSerializer.Deserialize<List<HeldSaleItemDto>>(heldSale.SerializedItems);
-                    if (heldItems != null)
-                    {
-                        Cart.Clear();
-                        foreach (var item in heldItems)
-                        {
-                            var productDto = await ProductService.GetByIdAsync(item.ProductId);
-                            if (productDto != null)
-                            {
-                                var cartItem = new CartItem
-                                {
-                                    Product = productDto,
-                                    Quantity = item.Quantity,
-                                    UnitPrice = item.UnitPrice,
-                                    Discount = item.Discount,
-                                    TaxRate = item.TaxRate
-                                };
-                                Cart.Add(cartItem);
-                            }
-                        }
-                        StateHasChanged();
-                        Snackbar.Add($"Sale resumed successfully. Held at: {heldSale.HeldAt:g}", Severity.Success);
-                    }
-                    else
-                    {
-                        Snackbar.Add("Failed to parse held sale items.", Severity.Error);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Snackbar.Add($"Error resuming sale: {ex.Message}", Severity.Error);
-                }
-            }
-         }
-         catch (Exception ex)
-         {
-             Snackbar.Add($"Error loading held sales: {ex.Message}", Severity.Error);
-         }
-     }
-
-     private async Task ProcessPayment()
-    {
-        if (Cart == null || Cart.Count == 0)
-        {
-            Snackbar.Add("Cart is empty. Cannot process payment.", Severity.Warning);
-            return;
-        }
-
-        if (AmountReceived < TotalAmount)
-        {
-            Snackbar.Add("Amount received is less than total amount due.", Severity.Warning);
-            return;
-        }
-
-        try
-        {
-            var storeId = StoreContext.GetCurrentStoreId();
-            if (!storeId.HasValue)
-            {
-                Snackbar.Add("No store selected. Please set a store first.", Severity.Error);
-                return;
-            }
-
-            var shiftId = await GetCurrentShiftAsync(storeId.Value);
-            if (!shiftId.HasValue)
-            {
-                Snackbar.Add("No active shift for the current store. Please open a shift first.", Severity.Error);
-                return;
-            }
-
-            var createSaleRequest = new CreateSaleRequest(
-                null,
-                storeId.Value,
-                shiftId.Value,
-                Cart.Select(item => new CreateSaleItemRequest(
-                    item.Product.Id,
-                    item.Quantity,
-                    item.UnitPrice,
-                    item.Discount,
-                    item.TaxRate
-                )),
-                new List<CreateSalePaymentRequest>
-                {
-                    new CreateSalePaymentRequest(
-                        SelectedPaymentMethod,
-                        AmountReceived
-                    )
-                },
-                0
-            );
-
-            var sale = await SaleService.CreateSaleAsync(createSaleRequest);
-            Snackbar.Add($"Sale completed successfully. Sale ID: {sale.Id}", Severity.Success);
-
-            ClearCart();
-            AmountReceivedString = "";
-            SelectedPaymentMethod = PaymentMethod.Cash;
-        }
-        catch (Exception ex)
-        {
-            Snackbar.Add($"Error processing payment: {ex.Message}", Severity.Error);
-        }
-    }
-
-    private async Task<Guid?> GetCurrentShiftAsync(Guid storeId)
-    {
-        try
-        {
-            var shift = await ShiftService.GetCurrentShiftAsync(storeId);
-            return shift?.Id;
-        }
-        catch
-        {
-            return null;
-        }
-    }
-
-    private void OpenQuickActions()
-    {
-        _quickActionsOpen = !_quickActionsOpen;
+            new(Guid.NewGuid(), "Coffee", "Fresh coffee", "1001", "SKU001", 2.50m, 3.50m, null, null, null, null, null, null, true),
+            new(Guid.NewGuid(), "Tea", "Hot tea", "1002", "SKU002", 2.00m, 3.00m, null, null, null, null, null, null, true),
+            new(Guid.NewGuid(), "Sandwich", "Chicken sandwich", "1003", "SKU003", 5.00m, 8.00m, null, null, null, null, null, null, true),
+            new(Guid.NewGuid(), "Salad", "Garden salad", "1004", "SKU004", 4.00m, 7.00m, null, null, null, null, null, null, true),
+            new(Guid.NewGuid(), "Cake", "Chocolate cake", "1005", "SKU005", 3.00m, 5.00m, null, null, null, null, null, null, true),
+            new(Guid.NewGuid(), "Water", "Bottled water", "1006", "SKU006", 1.00m, 2.00m, null, null, null, null, null, null, true),
+            new(Guid.NewGuid(), "Soda", "Canned soda", "1007", "SKU007", 1.50m, 2.50m, null, null, null, null, null, null, true),
+            new(Guid.NewGuid(), "Chips", "Potato chips", "1008", "SKU008", 2.00m, 3.50m, null, null, null, null, null, null, true),
+            new(Guid.NewGuid(), "Pizza", "Whole pizza", "1009", "SKU009", 12.00m, 15.00m, null, null, null, null, null, null, true),
+            new(Guid.NewGuid(), "Burger", "Beef burger", "1010", "SKU010", 8.00m, 10.00m, null, null, null, null, null, null, true),
+            new(Guid.NewGuid(), "Fries", "French fries", "1011", "SKU011", 3.00m, 4.50m, null, null, null, null, null, null, true),
+            new(Guid.NewGuid(), "Ice Cream", "Vanilla ice cream", "1012", "SKU012", 4.00m, 6.00m, null, null, null, null, null, null, true)
+        };
     }
 }

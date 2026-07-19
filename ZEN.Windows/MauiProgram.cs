@@ -1,12 +1,12 @@
-﻿using System.Net.Http;
+using System.Net.Http;
 using Microsoft.Extensions.Logging;
 using MudBlazor.Services;
 using Microsoft.AspNetCore.Components.Authorization;
 using ZEN.Application;
 using ZEN.Infrastructure;
-using ZEN.Infrastructure.Persistence;
 using ZEN.Windows.Services.Sync;
 using ZEN.Windows.Services;
+using ZEN.Domain.Interfaces;
 
 namespace ZEN.Windows;
 
@@ -22,16 +22,29 @@ public static class MauiProgram
 				fonts.AddFont("OpenSans-Regular.ttf", "OpenSansRegular");
 			});
 
-builder.Services.AddMauiBlazorWebView();
-  		builder.Services.AddSingleton<PosAuthState>();
-  		builder.Services.AddSingleton<AuthenticationStateProvider, PosAuthenticationStateProvider>();
-  		builder.Services.AddHttpContextAccessor(); // Required for CurrentUserService
-  		
-  		builder.Services.AddHttpClient<SyncApiClient>(client =>
+		builder.Services.AddMauiBlazorWebView();
+		builder.Services.AddSingleton<PosAuthState>();
+		builder.Services.AddSingleton<AuthenticationStateProvider, PosAuthenticationStateProvider>();
+		builder.Services.AddAuthorizationCore();
+		builder.Services.AddHttpContextAccessor();
+		
+		// SQLite path for future use (database init disabled due to MAUI Windows ContentRootPath bug)
+		var sqlitePath = Path.Combine(FileSystem.AppDataDirectory, "zen.db");
+		builder.Services.AddInfrastructureWindows(sqlitePath);
+		
+		builder.Services.AddSingleton<ICurrentUserService, PosCurrentUserService>();
+		builder.Services.AddSingleton<ServerSettingsService>();
+		builder.Services.AddApplication();
+
+		// Add dummy JWT config for local auth
+		builder.Configuration["Jwt:Key"] = "SuperSecretKeyForLocalMauiApp12345!";
+		builder.Configuration["Jwt:Issuer"] = "ZEN.POS";
+		builder.Configuration["Jwt:Audience"] = "ZEN.POS";
+
+		builder.Services.AddHttpClient<SyncApiClient>(client =>
 		{
-			var baseUrl = builder.Configuration["Sync:ApiBaseUrl"] ?? "https://localhost:7305/";
-			client.BaseAddress = new Uri(baseUrl);
-			client.Timeout = TimeSpan.FromSeconds(3); // Short timeout for quick fallback
+			client.BaseAddress = new Uri("http://localhost:5378/");
+			client.Timeout = TimeSpan.FromSeconds(10);
 		}).ConfigurePrimaryHttpMessageHandler(() =>
 		{
 			var handler = new HttpClientHandler();
@@ -41,55 +54,13 @@ builder.Services.AddMauiBlazorWebView();
 		builder.Services.AddScoped<IPosSyncService, PosSyncService>();
 		builder.Services.AddSingleton<PosSyncBackgroundWorker>();
 
-		// MudBlazor
 		builder.Services.AddMudServices();
-
-		// Application and Infrastructure layers
-		var sqlitePath = Path.Combine(FileSystem.AppDataDirectory, "zen.db");
-		builder.Services.AddInfrastructureWindows(sqlitePath);
-		builder.Services.AddApplication();
-
-		// Add dummy JWT config for local auth
-		builder.Configuration["Jwt:Key"] = "SuperSecretKeyForLocalMauiApp12345!";
-		builder.Configuration["Jwt:Issuer"] = "ZEN.POS";
-		builder.Configuration["Jwt:Audience"] = "ZEN.POS";
 
 #if DEBUG
 		builder.Services.AddBlazorWebViewDeveloperTools();
 		builder.Logging.AddDebug();
 #endif
 
-var app = builder.Build();
-
-		_ = Task.Run(async () =>
-		{
-			try
-			{
-				using var scope = app.Services.CreateScope();
-				var db = scope.ServiceProvider.GetRequiredService<ZenDbContext>();
-				var userManager = scope.ServiceProvider.GetRequiredService<Microsoft.AspNetCore.Identity.UserManager<ZEN.Infrastructure.Identity.AppUser>>();
-				var roleManager = scope.ServiceProvider.GetRequiredService<Microsoft.AspNetCore.Identity.RoleManager<ZEN.Infrastructure.Identity.AppRole>>();
-
-				// For development: delete and recreate database to include new sync tables
-				// In production, you would use migrations instead
-				var dbPath = Path.Combine(FileSystem.AppDataDirectory, "zen.db");
-				if (File.Exists(dbPath))
-				{
-					await db.Database.EnsureDeletedAsync();
-				}
-
-				await db.Database.EnsureCreatedAsync();
-				await ZEN.Infrastructure.Persistence.Seeders.DbSeeder.SeedAsync(db, userManager, roleManager);
-			}
-			catch (Exception ex)
-			{
-				System.Diagnostics.Debug.WriteLine($"DB init failed: {ex}");
-			}
-		});
-
-		// Note: Background sync worker disabled temporarily - requires running sync API
-		// app.Services.GetRequiredService<PosSyncBackgroundWorker>().Start();
-
-		return app;
+		return builder.Build();
 	}
 }

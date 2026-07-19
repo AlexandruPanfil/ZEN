@@ -23,6 +23,8 @@ public class PosCurrentUserService : ICurrentUserService
 
     public Guid? StoreId => _authState.StoreId;
 
+    public Guid? CashDeskId => _authState.CashDeskId;
+
     public IEnumerable<string> Roles => !string.IsNullOrEmpty(_authState.Role) ? [_authState.Role] : [];
 
     public bool IsAuthenticated => _authState.IsAuthenticated;

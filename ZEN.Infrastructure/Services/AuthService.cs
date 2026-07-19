@@ -51,17 +51,17 @@ public class AuthService : IAuthService
         if (user == null || !user.IsActive)
             throw new UnauthorizedAccessException("Invalid credentials");
 
-        var validPassword = await _userManager.CheckPasswordAsync(user, request.Password);
-        if (!validPassword)
-            throw new UnauthorizedAccessException("Invalid credentials");
+var validPassword = await _userManager.CheckPasswordAsync(user, request.Password);
+            if (!validPassword)
+                throw new UnauthorizedAccessException("Invalid credentials");
 
-        var roles = await _userManager.GetRolesAsync(user);
-        var token = GenerateJwtToken(user, roles);
+            var roles = await _userManager.GetRolesAsync(user);
+            var token = GenerateJwtToken(user, roles);
 
-        return new LoginResponse(token, user.Id, user.UserName!, user.Email!, roles);
-    }
+            return new LoginResponse(token, user.Id, user.UserName!, user.Email!, roles, user.CashDeskId, user.CashDesk?.StoreId);
+        }
 
-    public async Task<LoginResponse> PinLoginAsync(PinLoginRequest request, CancellationToken cancellationToken = default)
+        public async Task<LoginResponse> PinLoginAsync(PinLoginRequest request, CancellationToken cancellationToken = default)
     {
         var user = await _userManager.Users
             .Include(u => u.CashDesk)
@@ -72,7 +72,7 @@ public class AuthService : IAuthService
         var roles = await _userManager.GetRolesAsync(user);
         var token = GenerateJwtToken(user, roles);
 
-        return new LoginResponse(token, user.Id, user.UserName!, user.Email!, roles);
+        return new LoginResponse(token, user.Id, user.UserName!, user.Email!, roles, user.CashDeskId, user.CashDesk?.StoreId);
     }
 
     public async Task<UserDto> RegisterUserAsync(RegisterUserRequest request, CancellationToken cancellationToken = default)

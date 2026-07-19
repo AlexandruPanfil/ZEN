@@ -1,0 +1,33 @@
+@using MudBlazor
+
+<div class="sell-page-layout">
+    <MudAppBar Color="Color.Primary" Fixed="false" Dense="true" Class="sell-header">
+        <MudText Typo="Typo.h6" Class="app-title">ZEN POS</MudText>
+        <MudSpacer />
+        <MudText Typo="Typo.body2" Class="user-info">User: @UserName</MudText>
+        <MudIconButton Icon="@Icons.Material.Filled.Logout" Color="Color.Inherit" OnClick="OnExit" />
+        <MudIconButton Icon="@Icons.Material.Filled.SwitchAccount" Color="Color.Inherit" OnClick="OnSwitchToManager" />
+    </MudAppBar>
+
+    <div class="sell-main-content">
+        <div class="sell-sidebar">
+            @SidebarContent
+        </div>
+        <div class="sell-content">
+            @ChildContent
+        </div>
+    </div>
+
+    <MudPaper Elevation="1" Class="sell-footer">
+        @FooterContent
+    </MudPaper>
+</div>
+
+@code {
+    [Parameter] public string? UserName { get; set; }
+    [Parameter] public RenderFragment? SidebarContent { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    [Parameter] public RenderFragment? FooterContent { get; set; }
+    [Parameter] public EventCallback OnExit { get; set; }
+    [Parameter] public EventCallback OnSwitchToManager { get; set; }
+}

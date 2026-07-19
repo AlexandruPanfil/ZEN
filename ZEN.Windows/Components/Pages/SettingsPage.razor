@@ -1,0 +1,71 @@
+@page "/settings"
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+@inject ZEN.Windows.Services.Sync.SyncApiClient ApiClient
+@inject ZEN.Windows.Services.ServerSettingsService SettingsService
+@using MudBlazor
+
+<PageTitle>Server Settings - ZEN POS</PageTitle>
+
+<MudPaper Class="pa-4" Elevation="4" MaxWidth="400px" Style="margin: 2rem auto;">
+    <MudText Typo="Typo.h5" GutterBottom="true">Server Settings</MudText>
+    
+    <MudTextField @bind-Value="_serverUrl"
+                 Label="API Server URL"
+                 Placeholder="http://localhost:5378/"
+                 Variant="Variant.Filled"
+                 Class="mb-4" />
+
+    <MudButton Variant="Variant.Filled" 
+               Color="Color.Primary" 
+               OnClick="SaveSettings"
+               Class="mb-2">
+        Save
+    </MudButton>
+    
+    <MudButton Variant="Variant.Text" 
+               OnClick="GoBack">
+        Back
+    </MudButton>
+</MudPaper>
+
+@code {
+    private string _serverUrl = string.Empty;
+
+    protected override void OnInitialized()
+    {
+        _serverUrl = SettingsService.ApiBaseUrl;
+    }
+
+    private void SaveSettings()
+    {
+        if (string.IsNullOrWhiteSpace(_serverUrl))
+        {
+            Snackbar.Add("Server URL cannot be empty", Severity.Error);
+            return;
+        }
+
+        try
+        {
+            if (!Uri.TryCreate(_serverUrl, UriKind.Absolute, out _))
+            {
+                Snackbar.Add("Please enter a valid URL (e.g., http://localhost:5378/)", Severity.Error);
+                return;
+            }
+
+            SettingsService.UpdateApiBaseUrl(_serverUrl);
+            ApiClient.UpdateBaseUrl(_serverUrl);
+            Snackbar.Add("Settings saved", Severity.Success);
+            GoBack();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error saving settings: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo("/");
+    }
+}

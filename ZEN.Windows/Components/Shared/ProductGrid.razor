@@ -1,0 +1,27 @@
+@using MudBlazor
+@using ZEN.Application.DTOs.Products
+
+<MudGrid Spacing="2" Class="product-grid">
+    @foreach (var product in Products ?? new List<ProductDto>())
+    {
+        <MudItem xs="3">
+            <MudCard Class="product-grid-card" @onclick="() => OnProductSelected.InvokeAsync(product)">
+                <MudCardContent>
+                    <MudText Typo="Typo.h6">@product.Name</MudText>
+                    <MudText Typo="Typo.body2">@(product.SalePrice.ToString("C"))</MudText>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+    }
+    @if (Products?.Any() != true)
+    {
+        <MudItem xs="12">
+            <MudText Typo="Typo.body1">No products available</MudText>
+        </MudItem>
+    }
+</MudGrid>
+
+@code {
+    [Parameter] public IEnumerable<ProductDto>? Products { get; set; }
+    [Parameter] public EventCallback<ProductDto> OnProductSelected { get; set; }
+}

@@ -19,6 +19,8 @@ public class CurrentUserService : ICurrentUserService
 
     public Guid? StoreId => null;
 
+    public Guid? CashDeskId => null;
+
     public IEnumerable<string> Roles => _httpContextAccessor.HttpContext?.User?.Claims
         .Where(c => c.Type == ClaimTypes.Role)
         .Select(c => c.Value) ?? [];
