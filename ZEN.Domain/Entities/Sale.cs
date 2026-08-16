@@ -27,4 +27,5 @@ public class Sale : BaseEntity
     public ICollection<SaleItem> Items { get; set; } = [];
     public ICollection<SalePayment> Payments { get; set; } = [];
     public ICollection<LoyaltyTransaction> LoyaltyTransactions { get; set; } = [];
+    public ICollection<FiscalReceipt> FiscalReceipts { get; set; } = [];
 }

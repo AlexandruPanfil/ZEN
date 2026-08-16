@@ -103,11 +103,48 @@
                 <MudItem xs="12" sm="6" Class="d-flex align-center ps-1">
                     <MudSwitch @bind-Value="_editingPrinter.IsDefault" Color="Color.Primary" Label="Default Printer" Dense="true" Style="font-size: 0.75rem;" />
                 </MudItem>
+
+                @if (_editingPrinter.PrinterType == "Fiscal")
+                {
+                    <MudItem xs="12">
+                        <MudText Typo="Typo.subtitle2" Class="mt-2 mb-2 font-weight-bold">FiscalCloud Configuration</MudText>
+                        <MudDivider />
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudTextField Label="API Key" Variant="Variant.Outlined" @bind-Value="_editingPrinter.ApiKey" Margin="Margin.Dense" Style="font-size: 0.8rem;" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudTextField Label="API Secret" Variant="Variant.Outlined" @bind-Value="_editingPrinter.ApiSecret" InputType="InputType.Password" Margin="Margin.Dense" Style="font-size: 0.8rem;" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudTextField Label="Device ID (GUID)" Variant="Variant.Outlined" @bind-Value="_editingPrinter.DeviceId" Margin="Margin.Dense" Style="font-size: 0.8rem;" Placeholder="00000000-0000-0000-0000-000000000000" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudTextField Label="Point of Sale ID (GUID)" Variant="Variant.Outlined" @bind-Value="_editingPrinter.PointOfSaleId" Margin="Margin.Dense" Style="font-size: 0.8rem;" Placeholder="Optional" />
+                    </MudItem>
+                    <MudItem xs="12">
+                        <MudTextField Label="FiscalCloud Base URL" Variant="Variant.Outlined" @bind-Value="_editingPrinter.FiscalCloudBaseUrl" Margin="Margin.Dense" Style="font-size: 0.8rem;" Placeholder="https://fiscalcloud.md" />
+                    </MudItem>
+                }
             </MudGrid>
         </MudForm>
     </DialogContent>
     <DialogActions>
         <MudButton OnClick="CloseDialog" Size="Size.Small">Cancel</MudButton>
+        @if (_isEditMode && _editingPrinter.PrinterType == "Fiscal" && !string.IsNullOrEmpty(_editingPrinter.ApiKey))
+        {
+            <MudButton Color="Color.Secondary" Variant="Variant.Outlined" OnClick="TestFiscalCloudConnection" Size="Size.Small" Disabled="@_isTestingConnection">
+                @if (_isTestingConnection)
+                {
+                    <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                    <text>Testing...</text>
+                }
+                else
+                {
+                    <text>Test Connection</text>
+                }
+            </MudButton>
+        }
         <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SavePrinter" Disabled="@(!_formIsValid)" Size="Size.Small">Save</MudButton>
     </DialogActions>
 </MudDialog>
@@ -119,9 +156,12 @@
     private bool _isDialogOpen = false;
     private bool _isEditMode = false;
     private bool _formIsValid = false;
+    private bool _isTestingConnection = false;
     private MudForm? _form;
 
     private PrinterFormModel _editingPrinter = new();
+
+    [Inject] private HttpClient HttpClient { get; set; } = default!;
 
     protected override async Task OnInitializedAsync()
     {
@@ -173,7 +213,12 @@
             ConnectionType = printer.ConnectionType,
             ConnectionString = printer.ConnectionString,
             IsDefault = printer.IsDefault,
-            IsActive = printer.IsActive
+            IsActive = printer.IsActive,
+            ApiKey = printer.ApiKey,
+            ApiSecret = printer.ApiSecret,
+            DeviceId = printer.DeviceId,
+            PointOfSaleId = printer.PointOfSaleId,
+            FiscalCloudBaseUrl = printer.FiscalCloudBaseUrl
         };
         _isDialogOpen = true;
     }
@@ -192,7 +237,12 @@
                     _editingPrinter.ConnectionType,
                     _editingPrinter.ConnectionString,
                     _editingPrinter.IsDefault,
-                    _editingPrinter.IsActive);
+                    _editingPrinter.IsActive,
+                    _editingPrinter.ApiKey,
+                    _editingPrinter.ApiSecret,
+                    _editingPrinter.DeviceId,
+                    _editingPrinter.PointOfSaleId,
+                    _editingPrinter.FiscalCloudBaseUrl);
                 await PrinterService.UpdateAsync(request);
                 Snackbar.Add("Printer updated successfully.", Severity.Success);
             }
@@ -205,7 +255,12 @@
                     _editingPrinter.ConnectionType,
                     _editingPrinter.ConnectionString,
                     _editingPrinter.IsDefault,
-                    _editingPrinter.IsActive);
+                    _editingPrinter.IsActive,
+                    _editingPrinter.ApiKey,
+                    _editingPrinter.ApiSecret,
+                    _editingPrinter.DeviceId,
+                    _editingPrinter.PointOfSaleId,
+                    _editingPrinter.FiscalCloudBaseUrl);
                 await PrinterService.CreateAsync(request);
                 Snackbar.Add("Printer created successfully.", Severity.Success);
             }
@@ -215,6 +270,32 @@
         catch (Exception ex)
         {
             Snackbar.Add($"Error saving printer: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task TestFiscalCloudConnection()
+    {
+        _isTestingConnection = true;
+        try
+        {
+            var response = await HttpClient.PostAsync($"/api/equipments/printers/{_editingPrinter.Id}/test-fiscalcloud", null);
+            if (response.IsSuccessStatusCode)
+            {
+                Snackbar.Add("FiscalCloud connection successful!", Severity.Success);
+            }
+            else
+            {
+                var error = await response.Content.ReadAsStringAsync();
+                Snackbar.Add($"Connection failed: {error}", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error testing connection: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isTestingConnection = false;
         }
     }
 
@@ -253,5 +334,10 @@
         public string? ConnectionString { get; set; }
         public bool IsDefault { get; set; } = false;
         public bool IsActive { get; set; } = true;
+        public string? ApiKey { get; set; }
+        public string? ApiSecret { get; set; }
+        public string? DeviceId { get; set; }
+        public string? PointOfSaleId { get; set; }
+        public string? FiscalCloudBaseUrl { get; set; }
     }
 }

@@ -11,4 +11,11 @@ public class Printer : BaseEntity
     public string? ConnectionString { get; set; }
     public bool IsDefault { get; set; } = false;
     public bool IsActive { get; set; } = true;
+
+    // FiscalCloud-specific fields
+    public string? ApiKey { get; set; }
+    public string? ApiSecret { get; set; }
+    public string? DeviceId { get; set; }
+    public string? PointOfSaleId { get; set; }
+    public string? FiscalCloudBaseUrl { get; set; }
 }

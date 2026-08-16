@@ -79,7 +79,7 @@ public class CashDeskService : ICashDeskService
 
     public async Task<CashDeskDto> CreateAsync(CreateCashDeskRequest request, CancellationToken cancellationToken = default)
     {
-        ValidateReferences(request.StoreId, request.FiscalPrinterId, request.CustomerDisplayId, request.MenuId, cancellationToken);
+        await ValidateReferences(request.StoreId, request.FiscalPrinterId, request.CustomerDisplayId, request.MenuId, cancellationToken);
 
         var cashDesk = new CashDesk
         {
@@ -110,7 +110,7 @@ public class CashDeskService : ICashDeskService
             throw new KeyNotFoundException($"Cash desk with ID {request.Id} not found.");
         }
 
-        ValidateReferences(request.StoreId, request.FiscalPrinterId, request.CustomerDisplayId, request.MenuId, cancellationToken);
+        await ValidateReferences(request.StoreId, request.FiscalPrinterId, request.CustomerDisplayId, request.MenuId, cancellationToken);
 
         cashDesk.Name = request.Name;
         cashDesk.StoreId = request.StoreId;

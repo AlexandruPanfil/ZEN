@@ -58,6 +58,8 @@ public static class DependencyInjection
         services.AddScoped<ICustomerDisplayService, CustomerDisplayService>();
         services.AddScoped<ICashDeskService, CashDeskService>();
         services.AddScoped<IMenuService, MenuService>();
+        services.AddScoped<IFiscalCloudService, FiscalCloudService>();
+        services.AddScoped<IFiscalReceiptService, FiscalReceiptService>();
 
         return services;
     }
@@ -96,6 +98,8 @@ public static class DependencyInjection
         services.AddScoped<ICustomerDisplayService, CustomerDisplayService>();
         services.AddScoped<ICashDeskService, CashDeskService>();
         services.AddScoped<IMenuService, MenuService>();
+        services.AddScoped<IFiscalCloudService, FiscalCloudService>();
+        services.AddScoped<IFiscalReceiptService, FiscalReceiptService>();
 
         return services;
     }

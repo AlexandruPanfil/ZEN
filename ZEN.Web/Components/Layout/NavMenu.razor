@@ -81,6 +81,12 @@
         </MudNavGroup>
     </AuthorizeView>
 
+    <AuthorizeView Roles="Administrator,Manager">
+        <MudNavGroup Title="@L["Fiscal"]" Icon="@Icons.Material.Filled.Receipt" Expanded="false">
+            <MudNavLink Href="/equipments/fiscal-receipts" Icon="@Icons.Material.Filled.ReceiptLong">@L["FiscalReceipts"]</MudNavLink>
+        </MudNavGroup>
+    </AuthorizeView>
+
     <MudDivider Class="my-2" />
 
     <MudPaper Class="pa-2" Elevation="0">

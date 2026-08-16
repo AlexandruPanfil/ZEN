@@ -4,7 +4,7 @@ var cache = builder.AddRedis("cache")
     .WithDataVolume();
 
 var sql = builder.AddSqlServer("sql")
-    .WithImageTag("2019-latest");
+    .WithImageTag("2022-latest");
     //.WithDataVolume();
 var zendb = sql.AddDatabase("zendb");
 

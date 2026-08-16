@@ -86,6 +86,10 @@ public class ZenDbContext : IdentityDbContext<AppUser, AppRole, string>
     public DbSet<SyncOutboxItem> SyncOutboxItems => Set<SyncOutboxItem>();
     public DbSet<ProcessedSyncMessage> ProcessedSyncMessages => Set<ProcessedSyncMessage>();
 
+    // Fiscal
+    public DbSet<FiscalReceipt> FiscalReceipts => Set<FiscalReceipt>();
+    public DbSet<FiscalReceiptItem> FiscalReceiptItems => Set<FiscalReceiptItem>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);

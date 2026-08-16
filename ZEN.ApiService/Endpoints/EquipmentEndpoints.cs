@@ -82,6 +82,44 @@ public static class EquipmentEndpoints
         .WithOpenApi()
         .RequireAuthorization();
 
+        // Test FiscalCloud connection
+        group.MapPost("/printers/{id:guid}/test-fiscalcloud", async (
+            Guid id,
+            IPrinterService printerService,
+            IFiscalCloudService fiscalCloudService,
+            CancellationToken ct) =>
+        {
+            var printerDto = await printerService.GetByIdAsync(id, ct);
+            if (printerDto == null)
+                return Results.NotFound(new { Message = "Printer not found" });
+
+            if (string.IsNullOrEmpty(printerDto.ApiKey) ||
+                string.IsNullOrEmpty(printerDto.ApiSecret) ||
+                string.IsNullOrEmpty(printerDto.DeviceId))
+                return Results.BadRequest(new { Message = "FiscalCloud credentials not configured" });
+
+            // Convert DTO to entity for service call
+            var printer = new ZEN.Domain.Entities.Printer
+            {
+                Id = printerDto.Id,
+                ApiKey = printerDto.ApiKey,
+                ApiSecret = printerDto.ApiSecret,
+                DeviceId = printerDto.DeviceId,
+                PointOfSaleId = printerDto.PointOfSaleId,
+                FiscalCloudBaseUrl = printerDto.FiscalCloudBaseUrl
+            };
+
+            var status = await fiscalCloudService.GetStatusAsync(printer, ct);
+            return Results.Ok(new
+            {
+                Success = status.IsOnline && status.IsConnected,
+                Status = status
+            });
+        })
+        .WithName("TestFiscalCloudConnection")
+        .WithOpenApi()
+        .RequireAuthorization();
+
         // Payment Terminals
         group.MapGet("/payment-terminals", async (
             IPaymentTerminalService terminalService,
@@ -566,6 +604,31 @@ public static class EquipmentEndpoints
         })
         .WithName("GetCashDeskMenuItems")
         .WithOpenApi();
+
+        // Fiscal Receipts
+        group.MapGet("/fiscal-receipts", async (
+            [FromQuery] Guid? saleId,
+            IFiscalReceiptService receiptService,
+            CancellationToken ct) =>
+        {
+            var receipts = await receiptService.GetAllAsync(saleId, ct);
+            return Results.Ok(receipts);
+        })
+        .WithName("GetFiscalReceipts")
+        .WithOpenApi()
+        .RequireAuthorization();
+
+        group.MapGet("/fiscal-receipts/{id:guid}", async (
+            Guid id,
+            IFiscalReceiptService receiptService,
+            CancellationToken ct) =>
+        {
+            var receipt = await receiptService.GetByIdAsync(id, ct);
+            return receipt is not null ? Results.Ok(receipt) : Results.NotFound();
+        })
+        .WithName("GetFiscalReceipt")
+        .WithOpenApi()
+        .RequireAuthorization();
 
         return group;
     }

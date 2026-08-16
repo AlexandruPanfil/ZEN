@@ -1,0 +1,183 @@
+@page "/equipments/fiscal-receipts"
+@using Microsoft.AspNetCore.Authorization
+@using ZEN.Domain.Entities
+@using System.Text.Json
+@inject HttpClient HttpClient
+@inject ISnackbar Snackbar
+@attribute [Authorize(Roles = "Administrator,Manager")]
+
+<Microsoft.AspNetCore.Components.Web.PageTitle>Fiscal Receipts - ZEN POS</Microsoft.AspNetCore.Components.Web.PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="mt-4">
+    <div class="d-flex justify-space-between align-center mb-4">
+        <MudText Typo="Typo.h5" Class="font-weight-bold" Color="Color.Primary">Fiscal Receipts</MudText>
+    </div>
+
+    <MudDataGrid T="FiscalReceipt" Items="@_receipts" Hover="true" Striped="true" Outlined="true" Dense="true" Loading="@_isLoading" LoadingProgressColor="Color.Info">
+        <Columns>
+            <PropertyColumn Property="x => x.CreatedAt" Title="Date" Format="dd/MM/yyyy HH:mm" />
+            <PropertyColumn Property="x => x.Sale!.Number" Title="Sale Number" />
+            <PropertyColumn Property="x => x.OperationType" Title="Operation" />
+            <PropertyColumn Property="x => x.FiscalReceiptNumber" Title="Receipt Number" />
+            <PropertyColumn Property="x => x.Success" Title="Status">
+                <CellTemplate>
+                    <MudChip T="string" Color="@(context.Item.Success ? Color.Success : Color.Error)" Size="Size.Small">
+                        @(context.Item.Success ? "Success" : "Failed")
+                    </MudChip>
+                </CellTemplate>
+            </PropertyColumn>
+            <PropertyColumn Property="x => x.ErrorMessage" Title="Error" />
+            <TemplateColumn Title="Actions" CellStyle="text-align: right;">
+                <CellTemplate>
+                    <MudIconButton Icon="@Icons.Material.Filled.Visibility" Color="Color.Info" Size="Size.Small" OnClick="@(() => ViewDetails(context.Item))" />
+                </CellTemplate>
+            </TemplateColumn>
+        </Columns>
+        <PagerContent>
+            <MudDataGridPager T="FiscalReceipt" />
+        </PagerContent>
+    </MudDataGrid>
+</MudContainer>
+
+<!-- Details Dialog -->
+<MudDialog @bind-Visible="_isDetailsDialogOpen" Options="new DialogOptions { MaxWidth = MaxWidth.Large, FullWidth = true }">
+    <TitleContent>
+        <MudText Typo="Typo.h6">Fiscal Receipt Details</MudText>
+    </TitleContent>
+    <DialogContent>
+        @if (_selectedReceipt != null)
+        {
+            <MudGrid Spacing="2">
+                <MudItem xs="12" sm="6">
+                    <MudText Typo="Typo.subtitle2" Class="font-weight-bold">Receipt Information</MudText>
+                    <MudText><strong>Receipt Number:</strong> @_selectedReceipt.FiscalReceiptNumber</MudText>
+                    <MudText><strong>Date:</strong> @_selectedReceipt.FiscalReceiptDate?.ToString("dd/MM/yyyy HH:mm")</MudText>
+                    <MudText><strong>Operation Type:</strong> @_selectedReceipt.OperationType</MudText>
+                    <MudText><strong>Status:</strong> 
+                        <MudChip T="string" Color="@(_selectedReceipt.Success ? Color.Success : Color.Error)" Size="Size.Small">
+                            @(_selectedReceipt.Success ? "Success" : "Failed")
+                        </MudChip>
+                    </MudText>
+                    @if (!string.IsNullOrEmpty(_selectedReceipt.ErrorMessage))
+                    {
+                        <MudText Color="Color.Error"><strong>Error:</strong> @_selectedReceipt.ErrorMessage</MudText>
+                    }
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudText Typo="Typo.subtitle2" Class="font-weight-bold">Sale Information</MudText>
+                    <MudText><strong>Sale Number:</strong> @_selectedReceipt.Sale?.Number</MudText>
+                    <MudText><strong>Sale Date:</strong> @_selectedReceipt.Sale?.Date.ToString("dd/MM/yyyy HH:mm")</MudText>
+                    <MudText><strong>Total Amount:</strong> @_selectedReceipt.Sale?.TotalAmount.ToString("C")</MudText>
+                </MudItem>
+                <MudItem xs="12">
+                    <MudText Typo="Typo.subtitle2" Class="font-weight-bold mt-2">Items</MudText>
+                    <MudTable T="FiscalReceiptItem" Items="@_selectedReceipt.Items" Dense="true" Hover="true" Striped="true">
+                        <HeaderContent>
+                            <MudTh>Name</MudTh>
+                            <MudTh Style="text-align: right;">Quantity</MudTh>
+                            <MudTh Style="text-align: right;">Price</MudTh>
+                            <MudTh>Tax</MudTh>
+                            <MudTh Style="text-align: right;">Total</MudTh>
+                        </HeaderContent>
+                        <RowTemplate>
+                            <MudTd DataLabel="Name">@context.Name</MudTd>
+                            <MudTd DataLabel="Quantity" Style="text-align: right;">@context.Quantity</MudTd>
+                            <MudTd DataLabel="Price" Style="text-align: right;">@context.Price.ToString("C")</MudTd>
+                            <MudTd DataLabel="Tax">@context.TaxGroupCode</MudTd>
+                            <MudTd DataLabel="Total" Style="text-align: right;">@context.Total.ToString("C")</MudTd>
+                        </RowTemplate>
+                    </MudTable>
+                </MudItem>
+                @if (!string.IsNullOrEmpty(_selectedReceipt.RequestJson))
+                {
+                    <MudItem xs="12">
+                        <MudExpansionPanels Dense="true">
+                            <MudExpansionPanel Text="Request JSON">
+                                <MudPaper Class="pa-2" Style="max-height: 300px; overflow-y: auto;">
+                                    <pre style="font-size: 0.75rem; margin: 0;">@FormatJson(_selectedReceipt.RequestJson)</pre>
+                                </MudPaper>
+                            </MudExpansionPanel>
+                        </MudExpansionPanels>
+                    </MudItem>
+                }
+                @if (!string.IsNullOrEmpty(_selectedReceipt.ResponseJson))
+                {
+                    <MudItem xs="12">
+                        <MudExpansionPanels Dense="true">
+                            <MudExpansionPanel Text="Response JSON">
+                                <MudPaper Class="pa-2" Style="max-height: 300px; overflow-y: auto;">
+                                    <pre style="font-size: 0.75rem; margin: 0;">@FormatJson(_selectedReceipt.ResponseJson)</pre>
+                                </MudPaper>
+                            </MudExpansionPanel>
+                        </MudExpansionPanels>
+                    </MudItem>
+                }
+            </MudGrid>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="CloseDetailsDialog">Close</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private List<FiscalReceipt> _receipts = new();
+    private bool _isLoading = true;
+    private bool _isDetailsDialogOpen = false;
+    private FiscalReceipt? _selectedReceipt = null;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadReceipts();
+    }
+
+    private async Task LoadReceipts()
+    {
+        _isLoading = true;
+        try
+        {
+            var response = await HttpClient.GetAsync("/api/equipments/fiscal-receipts");
+            if (response.IsSuccessStatusCode)
+            {
+                _receipts = await response.Content.ReadFromJsonAsync<List<FiscalReceipt>>() ?? new();
+            }
+            else
+            {
+                Snackbar.Add("Failed to load fiscal receipts", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error loading receipts: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private void ViewDetails(FiscalReceipt receipt)
+    {
+        _selectedReceipt = receipt;
+        _isDetailsDialogOpen = true;
+    }
+
+    private void CloseDetailsDialog()
+    {
+        _isDetailsDialogOpen = false;
+        _selectedReceipt = null;
+    }
+
+    private string FormatJson(string json)
+    {
+        try
+        {
+            var jsonDocument = JsonDocument.Parse(json);
+            return JsonSerializer.Serialize(jsonDocument, new JsonSerializerOptions { WriteIndented = true });
+        }
+        catch
+        {
+            return json;
+        }
+    }
+}

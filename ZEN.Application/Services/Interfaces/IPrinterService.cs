@@ -22,7 +22,12 @@ namespace ZEN.Application.Services.Interfaces
         string? ConnectionType,
         string? ConnectionString,
         bool IsDefault,
-        bool IsActive);
+        bool IsActive,
+        string? ApiKey,
+        string? ApiSecret,
+        string? DeviceId,
+        string? PointOfSaleId,
+        string? FiscalCloudBaseUrl);
 
     public record UpdatePrinterRequest(
         Guid Id,
@@ -32,5 +37,10 @@ namespace ZEN.Application.Services.Interfaces
         string? ConnectionType,
         string? ConnectionString,
         bool IsDefault,
-        bool IsActive);
+        bool IsActive,
+        string? ApiKey,
+        string? ApiSecret,
+        string? DeviceId,
+        string? PointOfSaleId,
+        string? FiscalCloudBaseUrl);
 }

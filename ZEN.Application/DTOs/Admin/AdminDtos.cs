@@ -70,7 +70,12 @@ public record PrinterDto(
     string? ConnectionType,
     string? ConnectionString,
     bool IsDefault,
-    bool IsActive);
+    bool IsActive,
+    string? ApiKey,
+    string? ApiSecret,
+    string? DeviceId,
+    string? PointOfSaleId,
+    string? FiscalCloudBaseUrl);
 
 public record PaymentTerminalDto(
     Guid Id,

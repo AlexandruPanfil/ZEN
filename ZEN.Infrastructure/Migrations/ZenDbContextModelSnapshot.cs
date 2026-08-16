@@ -645,6 +645,105 @@ namespace ZEN.Infrastructure.Migrations
                     b.ToTable("Discounts");
                 });
 
+            modelBuilder.Entity("ZEN.Domain.Entities.FiscalReceipt", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ErrorMessage")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime?>("FiscalReceiptDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("FiscalReceiptNumber")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("OperationType")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("RequestJson")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ResponseJson")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid>("SaleId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("Success")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedAt");
+
+                    b.HasIndex("FiscalReceiptNumber");
+
+                    b.HasIndex("SaleId");
+
+                    b.ToTable("FiscalReceipts", (string)null);
+                });
+
+            modelBuilder.Entity("ZEN.Domain.Entities.FiscalReceiptItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("FiscalReceiptId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<decimal>("Price")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("Quantity")
+                        .HasPrecision(18, 3)
+                        .HasColumnType("decimal(18,3)");
+
+                    b.Property<string>("TaxGroupCode")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<decimal>("Total")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FiscalReceiptId");
+
+                    b.ToTable("FiscalReceiptItems", (string)null);
+                });
+
             modelBuilder.Entity("ZEN.Domain.Entities.Group", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1152,6 +1251,12 @@ namespace ZEN.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("ApiKey")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ApiSecret")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("ConnectionString")
                         .HasColumnType("nvarchar(max)");
 
@@ -1160,6 +1265,12 @@ namespace ZEN.Infrastructure.Migrations
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
+
+                    b.Property<string>("DeviceId")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("FiscalCloudBaseUrl")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
@@ -1172,6 +1283,9 @@ namespace ZEN.Infrastructure.Migrations
 
                     b.Property<string>("Name")
                         .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("PointOfSaleId")
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("PrinterName")
@@ -2808,6 +2922,28 @@ namespace ZEN.Infrastructure.Migrations
                     b.Navigation("CashDesk");
                 });
 
+            modelBuilder.Entity("ZEN.Domain.Entities.FiscalReceipt", b =>
+                {
+                    b.HasOne("ZEN.Domain.Entities.Sale", "Sale")
+                        .WithMany("FiscalReceipts")
+                        .HasForeignKey("SaleId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Sale");
+                });
+
+            modelBuilder.Entity("ZEN.Domain.Entities.FiscalReceiptItem", b =>
+                {
+                    b.HasOne("ZEN.Domain.Entities.FiscalReceipt", "FiscalReceipt")
+                        .WithMany("Items")
+                        .HasForeignKey("FiscalReceiptId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("FiscalReceipt");
+                });
+
             modelBuilder.Entity("ZEN.Domain.Entities.Group", b =>
                 {
                     b.HasOne("ZEN.Domain.Entities.Menu", "Menu")
@@ -3424,6 +3560,11 @@ namespace ZEN.Infrastructure.Migrations
                     b.Navigation("Promotions");
                 });
 
+            modelBuilder.Entity("ZEN.Domain.Entities.FiscalReceipt", b =>
+                {
+                    b.Navigation("Items");
+                });
+
             modelBuilder.Entity("ZEN.Domain.Entities.Group", b =>
                 {
                     b.Navigation("Products");
@@ -3475,6 +3616,8 @@ namespace ZEN.Infrastructure.Migrations
 
             modelBuilder.Entity("ZEN.Domain.Entities.Sale", b =>
                 {
+                    b.Navigation("FiscalReceipts");
+
                     b.Navigation("Items");
 
                     b.Navigation("LoyaltyTransactions");
