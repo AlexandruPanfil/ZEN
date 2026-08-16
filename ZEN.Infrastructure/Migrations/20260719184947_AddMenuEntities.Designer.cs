@@ -12,7 +12,7 @@ using ZEN.Infrastructure.Persistence;
 namespace ZEN.Infrastructure.Migrations
 {
     [DbContext(typeof(ZenDbContext))]
-    [Migration("20260719181959_AddMenuEntities")]
+    [Migration("20260719184947_AddMenuEntities")]
     partial class AddMenuEntities
     {
         /// <inheritdoc />

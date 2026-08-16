@@ -138,9 +138,20 @@
         {
             string role;
 
-            if (TryDemoLogin(trimmedPin, out role))
+            if (TryDemoLogin(trimmedPin, out role, out var demoCashDeskId))
             {
-                PosAuthState.SignIn(GetDemoUserName(trimmedPin), role);
+                // Try API first, fall back to demo
+                var loginResponse = await ApiClient.LoginWithPinAsync(trimmedPin);
+                if (loginResponse != null)
+                {
+                    ApiClient.SetBearerToken(loginResponse.Token);
+                    PosAuthState.SignIn(loginResponse.UserName, role, loginResponse.Token, loginResponse.StoreId, loginResponse.CashDeskId);
+                }
+                else
+                {
+                    // API unreachable or PIN not in DB - use demo mode
+                    PosAuthState.SignIn(GetDemoUserName(trimmedPin), role, null, null, demoCashDeskId);
+                }
             }
             else
             {
@@ -178,24 +189,28 @@
         }
     }
 
-    private bool TryDemoLogin(string pin, out string role)
+    private bool TryDemoLogin(string pin, out string role, out Guid? cashDeskId)
     {
         if (pin == "1234")
         {
             role = PosRoles.Administrator;
+            cashDeskId = null;
             return true;
         }
         if (pin == "3333")
         {
             role = PosRoles.Manager;
+            cashDeskId = null;
             return true;
         }
         if (pin == "2222")
         {
             role = PosRoles.Cashier;
+            cashDeskId = null; // Will be set from API if available
             return true;
         }
         role = string.Empty;
+        cashDeskId = null;
         return false;
     }
 

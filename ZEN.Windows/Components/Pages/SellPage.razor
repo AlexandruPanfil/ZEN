@@ -56,31 +56,38 @@ else
         await LoadProductsAsync();
     }
 
-    private async Task LoadProductsAsync()
+private async Task LoadProductsAsync()
     {
-        if (PosAuthState.CashDeskId.HasValue && ApiClient.IsApiAvailable)
+        // Try to load from API if CashDeskId is set (endpoint is now anonymous)
+        if (PosAuthState.CashDeskId.HasValue && PosAuthState.CashDeskId.Value != Guid.Empty)
         {
-            var items = await ApiClient.GetCashDeskMenuItemsAsync(PosAuthState.CashDeskId.Value);
-            if (items.Any())
+            try
             {
-                AllProducts = items
-                    .Where(i => i.ProductId != Guid.Empty)
-                    .Select(i => new ProductDto(
-                        i.ProductId,
-                        i.Name,
-                        null,
-                        null,
-                        null,
-                        0,
-                        i.SalePrice,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        true))
-                    .ToList();
+                var items = await ApiClient.GetCashDeskMenuItemsAsync(PosAuthState.CashDeskId.Value);
+                if (items.Any())
+                {
+                    AllProducts = items
+                        .Select(i => new ProductDto(
+                            i.ProductId,
+                            i.Name,
+                            null,
+                            null,
+                            null,
+                            0,
+                            i.SalePrice,
+                            null,
+                            null,
+                            null,
+                            null,
+                            null,
+                            null,
+                            true))
+                        .ToList();
+                }
+            }
+            catch
+            {
+                // Fall through to demo products on API error
             }
         }
         

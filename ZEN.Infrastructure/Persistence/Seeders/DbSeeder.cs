@@ -63,6 +63,33 @@ public static class DbSeeder
             await context.SaveChangesAsync();
         }
 
+        // Seed Categories
+        if (!await context.Categories.AnyAsync())
+        {
+            context.Categories.Add(new Category
+            {
+                Id = Guid.NewGuid(),
+                Name = "General",
+                SortOrder = 0,
+                IsActive = true
+            });
+            await context.SaveChangesAsync();
+        }
+
+        // Seed Products for Menu demo
+        if (!await context.Products.AnyAsync())
+        {
+            var defaultTax = await context.Taxes.FirstAsync(t => t.IsDefault);
+            var defaultCategory = await context.Categories.FirstAsync();
+
+            context.Products.AddRange(
+                new Product { Id = Guid.NewGuid(), Name = "Coffee", Barcode = "1001", CostPrice = 2.00m, SalePrice = 3.50m, TaxId = defaultTax.Id, CategoryId = defaultCategory.Id, IsActive = true },
+                new Product { Id = Guid.NewGuid(), Name = "Tea", Barcode = "1002", CostPrice = 1.50m, SalePrice = 3.00m, TaxId = defaultTax.Id, CategoryId = defaultCategory.Id, IsActive = true },
+                new Product { Id = Guid.NewGuid(), Name = "Sandwich", Barcode = "1003", CostPrice = 4.00m, SalePrice = 8.00m, TaxId = defaultTax.Id, CategoryId = defaultCategory.Id, IsActive = true }
+            );
+            await context.SaveChangesAsync();
+        }
+
         // Seed CashDesk
         if (!await context.CashDesks.AnyAsync())
         {
@@ -75,6 +102,38 @@ public static class DbSeeder
                 IsActive = true
             };
             context.CashDesks.Add(cashDesk);
+            await context.SaveChangesAsync();
+        }
+
+        // Seed Menu with products for CashDesk
+        if (!await context.Menus.AnyAsync())
+        {
+            var products = await context.Products.ToListAsync();
+            var menuId = Guid.NewGuid();
+            var menu = new Menu
+            {
+                Id = menuId,
+                Name = "Default POS Menu",
+                StoreId = (await context.Stores.FirstAsync()).Id
+            };
+
+            // Add first 3 products to menu (or create demo products if none exist)
+            for (int i = 0; i < Math.Min(3, products.Count); i++)
+            {
+                menu.Products.Add(new MenuProduct
+                {
+                    Id = Guid.NewGuid(),
+                    ProductId = products[i].Id,
+                    Position = i
+                });
+            }
+
+            context.Menus.Add(menu);
+            await context.SaveChangesAsync();
+
+            // Assign menu to cash desk
+            var cashDesk = await context.CashDesks.FirstAsync();
+            cashDesk.MenuId = menuId;
             await context.SaveChangesAsync();
         }
 

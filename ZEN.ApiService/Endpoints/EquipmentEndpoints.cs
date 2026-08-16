@@ -565,8 +565,7 @@ public static class EquipmentEndpoints
             return Results.Ok(items);
         })
         .WithName("GetCashDeskMenuItems")
-        .WithOpenApi()
-        .RequireAuthorization();
+        .WithOpenApi();
 
         return group;
     }
