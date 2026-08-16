@@ -1,8 +1,9 @@
 @page "/manager/equipments/printers"
 @using ZEN.Application.DTOs.Admin
 @using ZEN.Windows.Services
+@using ZEN.Windows.Services.Sync
 @using MudBlazor
-@inject IPrinterService PrinterService
+@inject SyncApiClient ApiClient
 @inject ISnackbar Snackbar
 @inject NavigationManager Navigation
 @inject PosAuthState PosAuthState
@@ -100,7 +101,7 @@ else
     {
         try
         {
-            var printers = await PrinterService.GetAllAsync();
+            var printers = await ApiClient.GetPrintersAsync(PosAuthState.StoreId);
             _printers = printers.ToList();
         }
         catch (Exception ex)

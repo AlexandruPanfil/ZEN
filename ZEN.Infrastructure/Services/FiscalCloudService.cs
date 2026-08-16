@@ -154,7 +154,17 @@ public class FiscalCloudService : IFiscalCloudService
             body);
 
         var httpClient = _httpClientFactory.CreateClient();
-        var baseUrl = printer.FiscalCloudBaseUrl?.TrimEnd('/') ?? "https://fiscalcloud.md";
+
+        // Ensure we have a valid base URL
+        var baseUrl = !string.IsNullOrWhiteSpace(printer.FiscalCloudBaseUrl) 
+            ? printer.FiscalCloudBaseUrl.TrimEnd('/') 
+            : "https://fiscalcloud.md";
+
+        if (string.IsNullOrWhiteSpace(baseUrl))
+        {
+            throw new InvalidOperationException("FiscalCloud Base URL is not configured and default URL is empty.");
+        }
+
         var requestUri = $"{baseUrl}{endpoint}";
 
         var httpRequest = new HttpRequestMessage(new HttpMethod(method), requestUri);

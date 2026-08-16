@@ -278,9 +278,14 @@
         _isTestingConnection = true;
         try
         {
+            // First, save the current changes
+            await SavePrinter();
+
+            // Then test the connection
             var response = await HttpClient.PostAsync($"/api/equipments/printers/{_editingPrinter.Id}/test-fiscalcloud", null);
             if (response.IsSuccessStatusCode)
             {
+                var result = await response.Content.ReadFromJsonAsync<dynamic>();
                 Snackbar.Add("FiscalCloud connection successful!", Severity.Success);
             }
             else

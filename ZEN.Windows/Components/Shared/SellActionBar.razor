@@ -31,7 +31,7 @@
     <MudButton Variant="Variant.Filled" 
                Color="Color.Primary" 
                StartIcon="@Icons.Material.Filled.Payment" 
-               OnClick="OnProcessPayment"
+               OnClick="HandleProcessPaymentClick"
                Disabled="CartEmpty || !CanProcessPayment"
                Size="Size.Large"
                Class="pay-button">
@@ -48,4 +48,12 @@
     [Parameter] public EventCallback OnHoldSale { get; set; }
     [Parameter] public EventCallback OnResumeSale { get; set; }
     [Parameter] public EventCallback OnProcessPayment { get; set; }
+
+    private async Task HandleProcessPaymentClick()
+    {
+        Console.WriteLine("=== SellActionBar: Process Payment Button Clicked ===");
+        Console.WriteLine($"CartEmpty: {CartEmpty}, CanProcessPayment: {CanProcessPayment}");
+        await OnProcessPayment.InvokeAsync();
+        Console.WriteLine("=== SellActionBar: EventCallback invoked ===");
+    }
 }

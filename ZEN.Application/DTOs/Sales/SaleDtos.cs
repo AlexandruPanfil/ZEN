@@ -35,7 +35,8 @@ public record SalePaymentDto(
 public record CreateSaleRequest(
     Guid? CustomerId,
     Guid StoreId,
-    Guid ShiftId,
+    Guid? ShiftId,
+    Guid? CashDeskId,
     IEnumerable<CreateSaleItemRequest> Items,
     IEnumerable<CreateSalePaymentRequest> Payments,
     decimal? LoyaltyPointsRedeemed);

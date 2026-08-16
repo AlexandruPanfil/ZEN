@@ -158,10 +158,75 @@ private async Task LoadProductsAsync()
         Snackbar.Add("Demo mode: Resume sale not available without database connection", Severity.Info);
     }
 
-    private void ProcessPayment()
+    private async Task ProcessPayment()
     {
-        Snackbar.Add("Demo mode: Payment processed (not saved to database)", Severity.Success);
-        ClearCart();
+        Console.WriteLine("=== ProcessPayment START ===");
+        Console.WriteLine($"Cart count: {Cart.Count}");
+
+        if (Cart.Count == 0)
+        {
+            Console.WriteLine("Cart is empty, showing warning");
+            Snackbar.Add("Cart is empty", Severity.Warning);
+            return;
+        }
+
+        try
+        {
+            Snackbar.Add("Processing payment...", Severity.Info);
+            Console.WriteLine($"Creating sale request for StoreId: {PosAuthState.StoreId}, CashDeskId: {PosAuthState.CashDeskId}");
+
+            // Build sale request
+            var request = new Application.DTOs.Sales.CreateSaleRequest(
+                CustomerId: null,
+                StoreId: PosAuthState.StoreId ?? Guid.Empty,
+                ShiftId: null,
+                CashDeskId: PosAuthState.CashDeskId,
+                Items: Cart.Select(item => new Application.DTOs.Sales.CreateSaleItemRequest(
+                    item.ProductId,
+                    item.Quantity,
+                    item.UnitPrice,
+                    item.Discount,
+                    item.TaxRate
+                )),
+                Payments: new[]
+                {
+                    new Application.DTOs.Sales.CreateSalePaymentRequest(
+                        Domain.Enums.PaymentMethod.Cash,
+                        TotalAmount
+                    )
+                },
+                LoyaltyPointsRedeemed: null
+            );
+
+            Console.WriteLine($"Request built. Total amount: {TotalAmount}, Items: {Cart.Count}");
+            Console.WriteLine($"Calling ApiClient.CreateSaleAsync...");
+
+            var sale = await ApiClient.CreateSaleAsync(request);
+
+            Console.WriteLine($"API response received: {(sale != null ? $"Success - Receipt #{sale.Number}" : "Failed - null response")}");
+
+            if (sale != null)
+            {
+                Snackbar.Add($"Sale completed! Receipt #{sale.Number}", Severity.Success);
+                ClearCart();
+            }
+            else
+            {
+                Snackbar.Add("Failed to complete sale. Check console for details.", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"=== EXCEPTION in ProcessPayment ===");
+            Console.WriteLine($"Message: {ex.Message}");
+            Console.WriteLine($"Type: {ex.GetType().Name}");
+            Console.WriteLine($"Stack: {ex.StackTrace}");
+            Snackbar.Add($"Error processing payment: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            Console.WriteLine("=== ProcessPayment END ===");
+        }
     }
 
     private void HandleExit()

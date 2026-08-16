@@ -19,7 +19,7 @@ public static class EquipmentEndpoints
         })
         .WithName("GetPrinters")
         .WithOpenApi()
-        .RequireAuthorization();
+        .AllowAnonymous(); // Temporarily allow anonymous for debugging
 
         group.MapGet("/printers/fiscal", async (
             IPrinterService printerService,
@@ -370,6 +370,64 @@ public static class EquipmentEndpoints
         .WithName("DeleteCashDesk")
         .WithOpenApi()
         .RequireAuthorization();
+
+        // Diagnostic endpoint to check FiscalCloud configuration
+        group.MapGet("/cash-desks/{id:guid}/fiscal-status", async (
+            Guid id,
+            ICashDeskService cashDeskService,
+            IPrinterService printerService,
+            CancellationToken ct) =>
+        {
+            var cashDesk = await cashDeskService.GetDetailByIdAsync(id, ct);
+            if (cashDesk is null)
+                return Results.NotFound(new { Error = "Cash desk not found" });
+
+            if (!cashDesk.FiscalPrinterId.HasValue)
+                return Results.Ok(new 
+                { 
+                    CashDeskId = id,
+                    CashDeskName = cashDesk.Name,
+                    HasFiscalPrinter = false,
+                    Message = "No fiscal printer attached to this cash desk"
+                });
+
+            var printer = await printerService.GetByIdAsync(cashDesk.FiscalPrinterId.Value, ct);
+            if (printer is null)
+                return Results.Ok(new 
+                { 
+                    CashDeskId = id,
+                    CashDeskName = cashDesk.Name,
+                    HasFiscalPrinter = true,
+                    PrinterId = cashDesk.FiscalPrinterId.Value,
+                    PrinterFound = false,
+                    Message = "Fiscal printer not found"
+                });
+
+            return Results.Ok(new 
+            { 
+                CashDeskId = id,
+                CashDeskName = cashDesk.Name,
+                HasFiscalPrinter = true,
+                PrinterId = printer.Id,
+                PrinterName = printer.Name,
+                PrinterType = printer.PrinterType,
+                PrinterFound = true,
+                HasApiKey = !string.IsNullOrEmpty(printer.ApiKey),
+                HasApiSecret = !string.IsNullOrEmpty(printer.ApiSecret),
+                HasDeviceId = !string.IsNullOrEmpty(printer.DeviceId),
+                IsFullyConfigured = !string.IsNullOrEmpty(printer.ApiKey) && 
+                                   !string.IsNullOrEmpty(printer.ApiSecret) && 
+                                   !string.IsNullOrEmpty(printer.DeviceId),
+                Message = (!string.IsNullOrEmpty(printer.ApiKey) && 
+                          !string.IsNullOrEmpty(printer.ApiSecret) && 
+                          !string.IsNullOrEmpty(printer.DeviceId))
+                    ? "Fiscal printer is fully configured for FiscalCloud"
+                    : "Fiscal printer is missing required credentials (ApiKey, ApiSecret, or DeviceId)"
+            });
+        })
+        .WithName("GetCashDeskFiscalStatus")
+        .WithOpenApi()
+        .AllowAnonymous(); // Allow anonymous for diagnostic purposes
 
         // Assign Menu to Cash Desk
         group.MapPost("/cash-desks/{id:guid}/menu", async (

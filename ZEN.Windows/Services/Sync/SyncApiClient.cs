@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using ZEN.Application.DTOs.Admin;
 using ZEN.Application.DTOs.Auth;
 using ZEN.Application.DTOs.CashDeskMenu;
+using ZEN.Application.DTOs.Sales;
 using ZEN.Application.DTOs.Sync;
 
 namespace ZEN.Windows.Services.Sync;
@@ -148,5 +149,39 @@ public class SyncApiClient
         _httpClient.DefaultRequestHeaders.Authorization = string.IsNullOrWhiteSpace(token)
             ? null
             : new AuthenticationHeaderValue("Bearer", token);
+    }
+
+    public async Task<SaleDto?> CreateSaleAsync(CreateSaleRequest request, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            Console.WriteLine($"[SyncApiClient] Creating sale - BaseAddress: {_httpClient.BaseAddress}");
+            Console.WriteLine($"[SyncApiClient] Authorization header: {_httpClient.DefaultRequestHeaders.Authorization?.ToString() ?? "NULL"}");
+            Console.WriteLine($"[SyncApiClient] Items count: {request.Items.Count()}, Total: {request.Payments.Sum(p => p.Amount)}");
+
+            var response = await _httpClient.PostAsJsonAsync("api/sales", request, cancellationToken);
+
+            Console.WriteLine($"[SyncApiClient] Response status: {(int)response.StatusCode} {response.StatusCode}");
+
+            if (response.IsSuccessStatusCode)
+            {
+                var result = await response.Content.ReadFromJsonAsync<SaleDto>(cancellationToken);
+                Console.WriteLine($"[SyncApiClient] Sale created successfully: {result?.Id}");
+                return result;
+            }
+
+            var errorContent = await response.Content.ReadAsStringAsync(cancellationToken);
+            Console.WriteLine($"[SyncApiClient] CreateSale FAILED");
+            Console.WriteLine($"[SyncApiClient] Status: {response.StatusCode}");
+            Console.WriteLine($"[SyncApiClient] Error body: {errorContent}");
+            return null;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[SyncApiClient] CreateSale EXCEPTION: {ex.GetType().Name}");
+            Console.WriteLine($"[SyncApiClient] Message: {ex.Message}");
+            Console.WriteLine($"[SyncApiClient] Stack trace: {ex.StackTrace}");
+            return null;
+        }
     }
 }
