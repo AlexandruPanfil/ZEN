@@ -1,10 +1,10 @@
 @using MudBlazor
 @using ZEN.Application.DTOs.Products
 
-<MudPaper Class="cart-sidebar d-flex flex-column" Elevation="0">
-    <MudText Typo="Typo.h6" Class="cart-header pb-2 border-bottom">Cart Items</MudText>
+<div class="cart-sidebar">
+    <MudText Typo="Typo.h6" Class="cart-header">Cart Items</MudText>
 
-    <div class="cart-items-container flex-grow-1 overflow-y-auto py-2">
+    <div class="cart-items-container">
         @if (CartItems == null || !CartItems.Any())
         {
             <MudText Typo="Typo.body2" Color="Color.Default" Class="empty-cart">Your cart is empty</MudText>
@@ -47,29 +47,28 @@
         }
     </div>
 
-    <MudDivider Class="my-2" />
-
-    <MudPaper Class="order-summary pa-2" Elevation="0">
-        <MudText Typo="Typo.subtitle2">Order Summary</MudText>
-        <MudStack Row="true" Justify="Justify.SpaceBetween" Class="mt-1">
-            <MudText>Subtotal:</MudText>
-            <MudText>@Subtotal.ToString("C")</MudText>
+    <div class="order-summary">
+        <MudText Typo="Typo.subtitle2" Class="mb-2">Order Summary</MudText>
+        <MudStack Row="true" Justify="Justify.SpaceBetween" Class="summary-row">
+            <MudText Typo="Typo.body2">Subtotal:</MudText>
+            <MudText Typo="Typo.body2">@Subtotal.ToString("C")</MudText>
         </MudStack>
-        <MudStack Row="true" Justify="Justify.SpaceBetween">
-            <MudText>Discount:</MudText>
-            <MudText>@DiscountAmount.ToString("C")</MudText>
+        <MudStack Row="true" Justify="Justify.SpaceBetween" Class="summary-row">
+            <MudText Typo="Typo.body2">Discount:</MudText>
+            <MudText Typo="Typo.body2">@DiscountAmount.ToString("C")</MudText>
         </MudStack>
-        <MudStack Row="true" Justify="Justify.SpaceBetween">
-            <MudText>Tax:</MudText>
-            <MudText>@TaxAmount.ToString("C")</MudText>
+        <MudStack Row="true" Justify="Justify.SpaceBetween" Class="summary-row">
+            <MudText Typo="Typo.body2">Tax:</MudText>
+            <MudText Typo="Typo.body2">@TaxAmount.ToString("C")</MudText>
         </MudStack>
-        <MudDivider Class="my-1" />
-        <MudStack Row="true" Justify="Justify.SpaceBetween" Class="total-row">
-            <MudText Typo="Typo.h6">Total:</MudText>
-            <MudText Typo="Typo.h6" Color="Color.Primary">@TotalAmount.ToString("C")</MudText>
-        </MudStack>
-    </MudPaper>
-</MudPaper>
+        <div class="total-row mt-2 pt-2">
+            <MudStack Row="true" Justify="Justify.SpaceBetween">
+                <MudText Typo="Typo.h6">Total:</MudText>
+                <MudText Typo="Typo.h6" Color="Color.Primary">@TotalAmount.ToString("C")</MudText>
+            </MudStack>
+        </div>
+    </div>
+</div>
 
 @code {
     [Parameter] public IEnumerable<PosCartItem>? CartItems { get; set; }

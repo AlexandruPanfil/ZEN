@@ -100,15 +100,24 @@ private async Task LoadProductsAsync()
 
     private void AddToCart(ProductDto product)
     {
-        var cartItem = new PosCartItem
+        var existingItem = Cart.FirstOrDefault(item => item.ProductId == product.Id);
+
+        if (existingItem != null)
         {
-            ProductId = product.Id,
-            ProductName = product.Name,
-            Quantity = 1,
-            UnitPrice = product.SalePrice,
-            TaxRate = 10m
-        };
-        Cart.Add(cartItem);
+            existingItem.Quantity += 1;
+        }
+        else
+        {
+            var cartItem = new PosCartItem
+            {
+                ProductId = product.Id,
+                ProductName = product.Name,
+                Quantity = 1,
+                UnitPrice = product.SalePrice,
+                TaxRate = 10m
+            };
+            Cart.Add(cartItem);
+        }
     }
 
     private void IncrementCartItem(PosCartItem item)

@@ -1,8 +1,9 @@
 ﻿@inherits LayoutComponentBase
 @inject NavigationManager Navigation
 @inject ZEN.Windows.Services.PosAuthState PosAuthState
+@inject MudBlazor.MudTheme VioletTheme
 
-<MudThemeProvider />
+<MudThemeProvider Theme="@VioletTheme" />
 <MudPopoverProvider />
 <MudDialogProvider />
 <MudSnackbarProvider />

@@ -1,15 +1,31 @@
 html, body {
-    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    font-family: 'Roboto', 'Helvetica Neue', Helvetica, Arial, sans-serif;
 }
 
 a, .btn-link {
-    color: #006bb7;
+    color: #8b5cf6;
 }
 
 .btn-primary {
     color: #fff;
-    background-color: #1b6ec2;
-    border-color: #1861ac;
+    background-color: #8b5cf6;
+    border-color: #7c3aed;
+}
+
+.btn-primary:hover {
+    background-color: #7c3aed;
+    border-color: #6d28d9;
+}
+
+/* Violet Theme Variables */
+:root {
+    --violet-primary: #8b5cf6;
+    --violet-primary-dark: #7c3aed;
+    --violet-primary-darker: #6d28d9;
+    --violet-light: #a78bfa;
+    --violet-lighter: #c4b5fd;
+    --violet-lightest: #ddd6fe;
+    --violet-background: #f9f7fe;
 }
 
 .sell-page-layout {
@@ -32,12 +48,15 @@ a, .btn-link {
 }
 
 .sell-sidebar {
-    width: 30%;
-    min-width: 280px;
-    max-width: 400px;
-    overflow-y: auto;
-    border-right: 1px solid var(--mud-palette-divider);
+    width: 40%;
+    min-width: 320px;
+    max-width: 500px;
+    overflow: hidden;
+    border-right: 1px solid var(--violet-lightest);
     box-sizing: border-box;
+    background-color: var(--violet-background);
+    display: flex;
+    flex-direction: column;
 }
 
 .sell-content {
@@ -55,29 +74,33 @@ a, .btn-link {
     height: 100%;
     display: flex;
     flex-direction: column;
+    padding: 16px;
+    background-color: var(--violet-background);
 }
 
 .cart-header {
-    padding-bottom: 8px;
-    border-bottom: 1px solid var(--mud-palette-divider);
-    margin-bottom: 8px;
+    flex-shrink: 0;
+    padding-bottom: 12px;
+    border-bottom: 2px solid var(--violet-primary);
+    margin-bottom: 12px;
 }
 
 .cart-items-container {
     flex: 1;
     overflow-y: auto;
-    min-height: 200px;
+    min-height: 0;
+    margin-bottom: 16px;
 }
 
 .empty-cart {
     text-align: center;
     padding: 24px;
-    color: var(--mud-palette-gray);
+    color: var(--violet-light);
 }
 
 .cart-item {
     padding: 8px 0;
-    border-bottom: 1px solid var(--mud-palette-divider);
+    border-bottom: 1px solid var(--violet-lightest);
 }
 
 .item-name {
@@ -100,20 +123,21 @@ a, .btn-link {
 }
 
 .order-summary {
-    margin-top: 8px;
+    flex-shrink: 0;
+    padding: 12px;
+    background-color: rgba(139, 92, 246, 0.05);
+    border-radius: 8px;
+    border: 1px solid var(--violet-lightest);
 }
 
 .summary-row {
-    display: flex;
-    justify-content: space-between;
-    padding: 4px 0;
+    padding: 2px 0;
 }
 
 .total-row {
     font-weight: bold;
-    border-top: 1px solid var(--mud-palette-divider);
-    padding-top: 8px;
-    margin-top: 8px;
+    border-top: 2px solid var(--violet-primary);
+    color: var(--violet-primary-dark);
 }
 
 .product-grid {
@@ -123,14 +147,12 @@ a, .btn-link {
 .product-grid-card {
     cursor: pointer;
     height: 100%;
+    transition: transform 0.2s, box-shadow 0.2s;
 }
 
 .product-grid-card:hover {
     transform: translateY(-2px);
-    box-shadow: var(--mud-elevation-4);
-}
-    transform: translateY(-2px);
-    box-shadow: var(--mud-elevation-4);
+    box-shadow: 0 10px 15px -3px rgba(139, 92, 246, 0.3), 0 4px 6px -2px rgba(139, 92, 246, 0.2);
 }
 
 .product-search-bar {
@@ -161,8 +183,8 @@ a, .btn-link {
     align-items: center;
     gap: 16px;
     padding: 12px 16px;
-    background-color: var(--mud-palette-surface);
-    border-top: 1px solid var(--mud-palette-divider);
+    background: linear-gradient(to right, var(--violet-background), #ffffff);
+    border-top: 2px solid var(--violet-lightest);
 }
 
 .payment-method-select {
@@ -174,7 +196,7 @@ a, .btn-link {
 }
 
 .btn:focus, .btn:active:focus, .btn-link.nav-link:focus, .form-control:focus, .form-check-input:focus {
-  box-shadow: 0 0 0 0.1rem white, 0 0 0 0.25rem #258cfb;
+  box-shadow: 0 0 0 0.1rem white, 0 0 0 0.25rem #8b5cf6;
 }
 
 .content {
@@ -186,15 +208,15 @@ h1:focus {
 }
 
 .valid.modified:not([type=checkbox]) {
-    outline: 1px solid #26b050;
+    outline: 1px solid #10b981;
 }
 
 .invalid {
-    outline: 1px solid #e50000;
+    outline: 1px solid #ef4444;
 }
 
 .validation-message {
-    color: #e50000;
+    color: #ef4444;
 }
 
 #blazor-error-ui {
