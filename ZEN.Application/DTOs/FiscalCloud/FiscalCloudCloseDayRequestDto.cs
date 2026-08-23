@@ -1,7 +1,7 @@
 namespace ZEN.Application.DTOs.FiscalCloud;
 
 public record FiscalCloudCloseDayRequestDto(
-    bool Print,
+    string? Id,
     bool PrintOnServer,
     string? PrintFormMediaType
 );

@@ -1,11 +1,35 @@
 namespace ZEN.Application.DTOs.FiscalCloud;
 
+public enum FiscalCloudReceiptType
+{
+    FiscalReceipt,
+    AlternativeReceipt
+}
+
 public record FiscalCloudReceiptDto(
-    string? ReceiptNumber,
-    DateTime? ReceiptDate,
+    string? FiscalDeviceId,
+    Guid? Id,
+    string? UniqueId,
+    int? Number,
+    string? NumberPresentation,
+    string? DateTimePresentation,
     decimal? TotalAmount,
-    string? QrCodeData,
-    string? BarcodeData
+    decimal? TotalPaid,
+    decimal? TotalChange
+);
+
+public record FiscalCloudSaleResponse(
+    string? ReceiptType,
+    FiscalCloudReceiptDto? FiscalReceipt,
+    FiscalCloudReceiptDto? AlternativeReceipt
+);
+
+public record FiscalCloudApiResponse(
+    bool Success,
+    string? Message,
+    string? FullExceptionMessage,
+    string? ErrorType,
+    FiscalCloudSaleResponse? Data
 );
 
 public record FiscalCloudSaleResponseDto(

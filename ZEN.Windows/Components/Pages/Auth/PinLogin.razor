@@ -125,69 +125,96 @@
         _pin = string.Empty;
     }
 
-    private async Task SubmitPin()
-    {
-        if (_isProcessing) return;
-
-        _error = null;
-        _isProcessing = true;
-
-        var trimmedPin = _pin?.Trim() ?? string.Empty;
-
-        try
+private async Task SubmitPin()
         {
-            string role;
+            if (_isProcessing) return;
 
-            if (TryDemoLogin(trimmedPin, out role, out var demoCashDeskId))
+            _error = null;
+            _isProcessing = true;
+
+            var trimmedPin = _pin?.Trim() ?? string.Empty;
+
+            try
             {
-                // Try API first, fall back to demo
-                var loginResponse = await ApiClient.LoginWithPinAsync(trimmedPin);
-                if (loginResponse != null)
+                string role;
+
+                if (TryDemoLogin(trimmedPin, out role, out var demoCashDeskId))
                 {
-                    ApiClient.SetBearerToken(loginResponse.Token);
-                    PosAuthState.SignIn(loginResponse.UserName, role, loginResponse.Token, loginResponse.StoreId, loginResponse.CashDeskId);
+                    // Try API first, fall back to demo
+                    var loginResponse = await ApiClient.LoginWithPinAsync(trimmedPin);
+                    if (loginResponse != null)
+                    {
+                        ApiClient.SetBearerToken(loginResponse.Token);
+                        // Prefer the real CashDeskId returned by the API; fall back to the demo value
+                        var cashDeskId = loginResponse.CashDeskId ?? demoCashDeskId;
+                        var storeId = loginResponse.StoreId;
+                        
+                        // Validate cashier has cash desk assigned
+                        if (string.Equals(role, PosRoles.Cashier, StringComparison.OrdinalIgnoreCase) && !cashDeskId.HasValue)
+                        {
+                            _error = "Cashier user must be assigned to a cash desk. Configure in ZEN.Web > Users.";
+                            Snackbar.Add(_error, Severity.Error);
+                            return;
+                        }
+                        
+                        PosAuthState.SignIn(loginResponse.UserName, role, loginResponse.Token, storeId, cashDeskId);
+                    }
+                    else
+                    {
+                        // API unreachable or PIN not in DB - use demo mode
+                        if (string.Equals(role, PosRoles.Cashier, StringComparison.OrdinalIgnoreCase) && !demoCashDeskId.HasValue)
+                        {
+                            _error = "Cashier user must be assigned to a cash desk. Configure in ZEN.Web > Users.";
+                            Snackbar.Add(_error, Severity.Error);
+                            return;
+                        }
+                        PosAuthState.SignIn(GetDemoUserName(trimmedPin), role, null, null, demoCashDeskId);
+                    }
                 }
                 else
                 {
-                    // API unreachable or PIN not in DB - use demo mode
-                    PosAuthState.SignIn(GetDemoUserName(trimmedPin), role, null, null, demoCashDeskId);
-                }
-            }
-            else
-            {
-                var loginResponse = await ApiClient.LoginWithPinAsync(trimmedPin);
+                    var loginResponse = await ApiClient.LoginWithPinAsync(trimmedPin);
 
-                if (loginResponse == null)
+                    if (loginResponse == null)
+                    {
+                        _error = "Invalid PIN. Use demo PINs: 1234 (admin), 3333 (manager), 2222 (cashier)";
+                        Snackbar.Add(_error, Severity.Warning);
+                        return;
+                    }
+
+                    role = loginResponse.Roles.FirstOrDefault() ?? "Guest";
+                    ApiClient.SetBearerToken(loginResponse.Token);
+                    
+                    // Validate cashier has cash desk assigned
+                    if (string.Equals(role, PosRoles.Cashier, StringComparison.OrdinalIgnoreCase) && !loginResponse.CashDeskId.HasValue)
+                    {
+                        _error = "Cashier user must be assigned to a cash desk. Configure in ZEN.Web > Users.";
+                        Snackbar.Add(_error, Severity.Error);
+                        return;
+                    }
+                    
+                    PosAuthState.SignIn(loginResponse.UserName, role, loginResponse.Token, loginResponse.StoreId, loginResponse.CashDeskId);
+                }
+
+                if (string.Equals(role, PosRoles.Cashier, StringComparison.OrdinalIgnoreCase))
                 {
-                    _error = "Invalid PIN. Use demo PINs: 1234 (admin), 3333 (manager), 2222 (cashier)";
-                    Snackbar.Add(_error, Severity.Warning);
-                    return;
+                    Navigation.NavigateTo("/sell");
                 }
-
-                role = loginResponse.Roles.FirstOrDefault() ?? "Guest";
-                ApiClient.SetBearerToken(loginResponse.Token);
-                PosAuthState.SignIn(loginResponse.UserName, role, loginResponse.Token, loginResponse.StoreId, loginResponse.CashDeskId);
+                else
+                {
+                    Navigation.NavigateTo("/manager");
+                }
             }
-
-            if (string.Equals(role, PosRoles.Cashier, StringComparison.OrdinalIgnoreCase))
+            catch (Exception ex)
             {
-                Navigation.NavigateTo("/sell");
+                _error = $"Login error: {ex.Message}";
+                Snackbar.Add(_error, Severity.Error);
             }
-            else
+            finally
             {
-                Navigation.NavigateTo("/manager");
+                _isProcessing = false;
             }
         }
-        catch (Exception ex)
-        {
-            _error = $"Login error: {ex.Message}";
-            Snackbar.Add(_error, Severity.Error);
-        }
-        finally
-        {
-            _isProcessing = false;
-        }
-    }
 
     private bool TryDemoLogin(string pin, out string role, out Guid? cashDeskId)
     {

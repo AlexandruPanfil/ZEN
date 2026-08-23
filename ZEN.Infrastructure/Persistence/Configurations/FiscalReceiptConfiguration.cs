@@ -17,7 +17,8 @@ public class FiscalReceiptConfiguration : IEntityTypeConfiguration<FiscalReceipt
 
         builder.Property(fr => fr.OperationType)
             .IsRequired()
-            .HasConversion<string>();
+            .HasConversion<string>()
+            .HasColumnType("nvarchar(max)");
 
         builder.Property(fr => fr.RequestJson)
             .HasColumnType("nvarchar(max)");
@@ -26,7 +27,7 @@ public class FiscalReceiptConfiguration : IEntityTypeConfiguration<FiscalReceipt
             .HasColumnType("nvarchar(max)");
 
         builder.Property(fr => fr.ErrorMessage)
-            .HasMaxLength(500);
+            .HasColumnType("nvarchar(max)");
 
         builder.HasOne(fr => fr.Sale)
             .WithMany(s => s.FiscalReceipts)

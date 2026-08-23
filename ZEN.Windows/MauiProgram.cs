@@ -42,9 +42,11 @@ public static class MauiProgram
 		builder.Configuration["Jwt:Issuer"] = "ZEN.POS";
 		builder.Configuration["Jwt:Audience"] = "ZEN.POS";
 
+		var serverSettings = new ServerSettingsService();
+		builder.Services.AddSingleton(serverSettings);
 		builder.Services.AddHttpClient<SyncApiClient>(client =>
 		{
-			client.BaseAddress = new Uri("http://localhost:5378/");
+			client.BaseAddress = new Uri(serverSettings.ApiBaseUrl);
 			client.Timeout = TimeSpan.FromSeconds(10);
 		}).ConfigurePrimaryHttpMessageHandler(() =>
 		{

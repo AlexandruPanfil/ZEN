@@ -45,6 +45,7 @@ else
 @code {
     private List<ProductDto> AllProducts = new();
     private List<PosCartItem> Cart = new();
+    private bool IsDemoCatalog = false;
 
     private decimal Subtotal => Cart.Sum(item => item.Quantity * item.UnitPrice);
     private decimal DiscountAmount => Cart.Sum(item => item.Quantity * item.Discount);
@@ -58,12 +59,16 @@ else
 
 private async Task LoadProductsAsync()
     {
+        IsDemoCatalog = false;
+
         // Try to load from API if CashDeskId is set (endpoint is now anonymous)
         if (PosAuthState.CashDeskId.HasValue && PosAuthState.CashDeskId.Value != Guid.Empty)
         {
             try
             {
+                Console.WriteLine($"[SellPage] Loading menu items for CashDeskId={PosAuthState.CashDeskId.Value}, BaseAddress={ApiClient.BaseAddress}");
                 var items = await ApiClient.GetCashDeskMenuItemsAsync(PosAuthState.CashDeskId.Value);
+                Console.WriteLine($"[SellPage] Menu API returned {items.Count()} items");
                 if (items.Any())
                 {
                     AllProducts = items
@@ -85,16 +90,18 @@ private async Task LoadProductsAsync()
                         .ToList();
                 }
             }
-            catch
+            catch (Exception ex)
             {
-                // Fall through to demo products on API error
+                Console.WriteLine($"[SellPage] Menu API error: {ex}");
+                Snackbar.Add($"Failed to load cash desk menu: {ex.Message}. Showing demo products (sales disabled).", Severity.Error);
             }
         }
-        
+
         if (AllProducts.Count == 0)
         {
             AllProducts = GenerateDemoProducts();
-            Snackbar.Add("Showing demo products - configure cash desk menu in ZEN.Web", Severity.Info);
+            IsDemoCatalog = true;
+            Snackbar.Add("Showing demo products - configure cash desk menu in ZEN.Web. Sales are DISABLED in demo mode.", Severity.Warning);
         }
     }
 
@@ -170,6 +177,28 @@ private async Task LoadProductsAsync()
             return;
         }
 
+        // Guard: demo catalog products do not exist in the database and would cause
+        // a FOREIGN KEY violation on SaleItems.ProductId.
+        if (IsDemoCatalog)
+        {
+            Snackbar.Add("Demo mode: cannot complete a sale because these products are not in the database. Assign a menu with real products to this cash desk in ZEN.Web.", Severity.Error);
+            return;
+        }
+
+        // Guard: StoreId must reference a real Store row (FK_Sales_Stores_StoreId).
+        if (!PosAuthState.StoreId.HasValue || PosAuthState.StoreId.Value == Guid.Empty)
+        {
+            Snackbar.Add("Cannot complete sale: no store is assigned to this session. Assign the cash desk to a store in ZEN.Web and log in again.", Severity.Error);
+            return;
+        }
+
+        // Guard: CashDeskId should be set for fiscal receipts
+        if (!PosAuthState.CashDeskId.HasValue || PosAuthState.CashDeskId.Value == Guid.Empty)
+        {
+            Snackbar.Add("ERROR: No cash desk assigned to this session. Cannot process sales without a cash desk. Please log in with a cashier assigned to a cash desk.", Severity.Error);
+            return;
+        }
+
         try
         {
             Snackbar.Add("Processing payment...", Severity.Info);
@@ -178,7 +207,7 @@ private async Task LoadProductsAsync()
             // Build sale request
             var request = new Application.DTOs.Sales.CreateSaleRequest(
                 CustomerId: null,
-                StoreId: PosAuthState.StoreId ?? Guid.Empty,
+                StoreId: PosAuthState.StoreId.Value,
                 ShiftId: null,
                 CashDeskId: PosAuthState.CashDeskId,
                 Items: Cart.Select(item => new Application.DTOs.Sales.CreateSaleItemRequest(
@@ -199,20 +228,99 @@ private async Task LoadProductsAsync()
             );
 
             Console.WriteLine($"Request built. Total amount: {TotalAmount}, Items: {Cart.Count}");
-            Console.WriteLine($"Calling ApiClient.CreateSaleAsync...");
+            Console.WriteLine($"Calling ApiClient.CreateSaleWithResultAsync...");
 
-            var sale = await ApiClient.CreateSaleAsync(request);
+            var (sale, error) = await ApiClient.CreateSaleWithResultAsync(request);
 
-            Console.WriteLine($"API response received: {(sale != null ? $"Success - Receipt #{sale.Number}" : "Failed - null response")}");
+            Console.WriteLine($"API response received: {(sale != null ? $"Success - Receipt #{sale.Number}" : $"Failed - {error}")}");
 
             if (sale != null)
             {
+                // Check if sale failed due to FiscalCloud
+                if (sale.Status == Domain.Enums.SaleStatus.Failed)
+                {
+                    var errorMsg = sale.FiscalReceiptError ?? "Fiscal receipt failed";
+                    Console.WriteLine($"Sale failed due to FiscalCloud: {errorMsg}");
+                    Snackbar.Add($"Sale FAILED - Fiscal receipt error: {errorMsg}", Severity.Error);
+                    
+                    // Show specific guidance based on error
+                    if (errorMsg.Contains("placeholder", StringComparison.OrdinalIgnoreCase) ||
+                        errorMsg.Contains("YOUR_", StringComparison.OrdinalIgnoreCase) ||
+                        errorMsg.Contains("REPLACE_WITH_ACTUAL_", StringComparison.OrdinalIgnoreCase))
+                    {
+                        Snackbar.Add("Action required: Configure actual FiscalCloud credentials in ZEN.Web > Equipments > Printers", Severity.Warning);
+                    }
+                    else if (errorMsg.Contains("not found") || errorMsg.Contains("not configured"))
+                    {
+                        Snackbar.Add("Action required: Add a FiscalCloud printer and link it to your cash desk in ZEN.Web", Severity.Warning);
+                    }
+                    else if (errorMsg.Contains("timed out") || errorMsg.Contains("timeout"))
+                    {
+                        Snackbar.Add("FiscalCloud agent may be slow or unreachable. Check if agent is running on port 50700.", Severity.Warning);
+                    }
+                    else if (errorMsg.Contains("authentication") || errorMsg.Contains("Unauthorized"))
+                    {
+                        Snackbar.Add("FiscalCloud authentication failed. Check ApiKey, ApiSecret, and DeviceId in printer settings.", Severity.Warning);
+                    }
+                    else if (errorMsg.Contains("not found") || errorMsg.Contains("404"))
+                    {
+                        Snackbar.Add("FiscalCloud agent not found. Ensure agent is running on http://localhost:50700", Severity.Warning);
+                    }
+                    else if (errorMsg.Contains("No cash desk"))
+                    {
+                        Snackbar.Add("Action required: Assign a cash desk to your user in ZEN.Web", Severity.Warning);
+                    }
+                    
+                    // Do NOT clear cart - user needs to retry or fix configuration
+                    return;
+                }
+
                 Snackbar.Add($"Sale completed! Receipt #{sale.Number}", Severity.Success);
+
+                if (sale.FiscalReceiptSent == true)
+                {
+                    Snackbar.Add("Fiscal receipt sent to FiscalCloud successfully.", Severity.Success);
+                }
+                else if (sale.FiscalReceiptSent == false)
+                {
+                    var errorMsg = sale.FiscalReceiptError ?? "Unknown fiscal error";
+                    Console.WriteLine($"Fiscal receipt failed: {errorMsg}");
+                    Snackbar.Add($"Sale saved, but fiscal receipt FAILED: {errorMsg}", Severity.Error);
+                    
+                    // Show specific guidance based on error
+                    if (errorMsg.Contains("placeholder", StringComparison.OrdinalIgnoreCase) ||
+                        errorMsg.Contains("YOUR_", StringComparison.OrdinalIgnoreCase) ||
+                        errorMsg.Contains("REPLACE_WITH_ACTUAL_", StringComparison.OrdinalIgnoreCase))
+                    {
+                        Snackbar.Add("Action required: Configure actual FiscalCloud credentials in ZEN.Web > Equipments > Printers", Severity.Warning);
+                    }
+                    else if (errorMsg.Contains("not found") || errorMsg.Contains("not configured"))
+                    {
+                        Snackbar.Add("Action required: Add a FiscalCloud printer and link it to your cash desk in ZEN.Web", Severity.Warning);
+                    }
+                    else if (errorMsg.Contains("timed out") || errorMsg.Contains("timeout"))
+                    {
+                        Snackbar.Add("FiscalCloud agent may be slow or unreachable. Check if agent is running on port 50700.", Severity.Warning);
+                    }
+                    else if (errorMsg.Contains("authentication") || errorMsg.Contains("Unauthorized"))
+                    {
+                        Snackbar.Add("FiscalCloud authentication failed. Check ApiKey, ApiSecret, and DeviceId in printer settings.", Severity.Warning);
+                    }
+                    else if (errorMsg.Contains("not found") || errorMsg.Contains("404"))
+                    {
+                        Snackbar.Add("FiscalCloud agent not found. Ensure agent is running on http://localhost:50700", Severity.Warning);
+                    }
+                }
+                else
+                {
+                    Snackbar.Add("Sale completed. Fiscal receipt status unknown.", Severity.Info);
+                }
+
                 ClearCart();
             }
             else
             {
-                Snackbar.Add("Failed to complete sale. Check console for details.", Severity.Error);
+                Snackbar.Add($"Failed to complete sale: {error ?? "unknown error"}", Severity.Error);
             }
         }
         catch (Exception ex)

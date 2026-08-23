@@ -21,6 +21,14 @@ public static class SaleEndpoints
 
                 return Results.Created($"/api/sales/{sale.Id}", sale);
             }
+            catch (InvalidOperationException ex)
+            {
+                logger.LogWarning(ex, "Invalid sale request: {Message}", ex.Message);
+                return Results.Problem(
+                    title: "Invalid sale request",
+                    detail: ex.Message,
+                    statusCode: 400);
+            }
             catch (Exception ex)
             {
                 logger.LogError(ex, "Error creating sale: {Message}", ex.Message);

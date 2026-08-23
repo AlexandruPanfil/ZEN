@@ -105,6 +105,34 @@ public static class DbSeeder
             await context.SaveChangesAsync();
         }
 
+        // Seed default FiscalCloud printer and link it to the cash desk so sales
+        // are forwarded to the local FiscalCloud agent (http://localhost:50700).
+        // IMPORTANT: Replace placeholder credentials with actual FiscalCloud credentials!
+        if (!await context.Printers.AnyAsync(p => p.Type == PrinterType.Fiscal))
+        {
+            var fiscalPrinter = new Printer
+            {
+                Id = Guid.NewGuid(),
+                Name = "FiscalCloud (Local)",
+                PrinterName = "FiscalCloud",
+                Type = PrinterType.Fiscal,
+                ConnectionType = "FiscalCloud",
+                IsDefault = true,
+                IsActive = true,
+                ApiKey = "REPLACE_WITH_ACTUAL_API_KEY",
+                ApiSecret = "REPLACE_WITH_ACTUAL_API_SECRET",
+                DeviceId = "REPLACE_WITH_ACTUAL_DEVICE_ID_GUID",
+                PointOfSaleId = "REPLACE_WITH_ACTUAL_POS_ID_GUID",
+                FiscalCloudBaseUrl = "http://localhost:50700"
+            };
+            context.Printers.Add(fiscalPrinter);
+            await context.SaveChangesAsync();
+
+            var cashDesk = await context.CashDesks.FirstAsync();
+            cashDesk.FiscalPrinterId = fiscalPrinter.Id;
+            await context.SaveChangesAsync();
+        }
+
         // Seed Menu with products for CashDesk
         if (!await context.Menus.AnyAsync())
         {

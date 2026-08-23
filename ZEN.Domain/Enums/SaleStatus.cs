@@ -5,5 +5,6 @@ public enum SaleStatus
     Completed,
     Voided,
     Refunded,
-    Held
+    Held,
+    Failed
 }

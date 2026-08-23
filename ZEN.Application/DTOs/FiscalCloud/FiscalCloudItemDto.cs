@@ -1,12 +1,12 @@
 namespace ZEN.Application.DTOs.FiscalCloud;
 
 public record FiscalCloudItemDto(
-    Guid? GoodId,
+    string? GoodId,
     string Name,
     decimal Quantity,
     decimal Price,
-    string? ModifierMode,
+    FiscalCloudModifierMode? ModifierMode,
     decimal? ModifierValue,
     string? TaxGroupCode,
-    string? Comment
+    string Comment
 );

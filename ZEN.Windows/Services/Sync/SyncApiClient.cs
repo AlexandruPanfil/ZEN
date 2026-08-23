@@ -23,6 +23,8 @@ public class SyncApiClient
         _httpClient.BaseAddress = new Uri(baseUrl);
     }
 
+    public Uri? BaseAddress => _httpClient.BaseAddress;
+
     public async Task<LoginResponse?> LoginWithPinAsync(string pin, CancellationToken cancellationToken = default)
     {
         try
@@ -153,35 +155,74 @@ public class SyncApiClient
 
     public async Task<SaleDto?> CreateSaleAsync(CreateSaleRequest request, CancellationToken cancellationToken = default)
     {
+        var result = await CreateSaleWithResultAsync(request, cancellationToken);
+        return result.Sale;
+    }
+
+    public async Task<(SaleDto? Sale, string? Error)> CreateSaleWithResultAsync(CreateSaleRequest request, CancellationToken cancellationToken = default)
+    {
         try
         {
             Console.WriteLine($"[SyncApiClient] Creating sale - BaseAddress: {_httpClient.BaseAddress}");
             Console.WriteLine($"[SyncApiClient] Authorization header: {_httpClient.DefaultRequestHeaders.Authorization?.ToString() ?? "NULL"}");
             Console.WriteLine($"[SyncApiClient] Items count: {request.Items.Count()}, Total: {request.Payments.Sum(p => p.Amount)}");
+            Console.WriteLine($"[SyncApiClient] CashDeskId: {request.CashDeskId}");
 
-            var response = await _httpClient.PostAsJsonAsync("api/sales", request, cancellationToken);
+            // Increase timeout for fiscal operations (can take 30+ seconds)
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            cts.CancelAfter(TimeSpan.FromSeconds(60));
+
+            var response = await _httpClient.PostAsJsonAsync("api/sales", request, cts.Token);
 
             Console.WriteLine($"[SyncApiClient] Response status: {(int)response.StatusCode} {response.StatusCode}");
 
             if (response.IsSuccessStatusCode)
             {
-                var result = await response.Content.ReadFromJsonAsync<SaleDto>(cancellationToken);
+                var result = await response.Content.ReadFromJsonAsync<SaleDto>(cts.Token);
                 Console.WriteLine($"[SyncApiClient] Sale created successfully: {result?.Id}");
-                return result;
+                return (result, null);
             }
 
-            var errorContent = await response.Content.ReadAsStringAsync(cancellationToken);
+            var errorContent = await response.Content.ReadAsStringAsync(cts.Token);
             Console.WriteLine($"[SyncApiClient] CreateSale FAILED");
             Console.WriteLine($"[SyncApiClient] Status: {response.StatusCode}");
             Console.WriteLine($"[SyncApiClient] Error body: {errorContent}");
-            return null;
+
+            return (null, ExtractProblemDetail(errorContent) ?? $"HTTP {(int)response.StatusCode}");
+        }
+        catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException || ex.Message.Contains("timeout") || ex.CancellationToken.IsCancellationRequested)
+        {
+            var errorMsg = "Sale request timed out (60s). This may indicate FiscalCloud agent is slow or unreachable.";
+            Console.WriteLine($"[SyncApiClient] CreateSale TIMEOUT: {errorMsg}");
+            return (null, errorMsg);
         }
         catch (Exception ex)
         {
             Console.WriteLine($"[SyncApiClient] CreateSale EXCEPTION: {ex.GetType().Name}");
             Console.WriteLine($"[SyncApiClient] Message: {ex.Message}");
             Console.WriteLine($"[SyncApiClient] Stack trace: {ex.StackTrace}");
-            return null;
+            return (null, ex.Message);
         }
+    }
+
+    private static string? ExtractProblemDetail(string? content)
+    {
+        if (string.IsNullOrWhiteSpace(content))
+            return null;
+
+        try
+        {
+            using var doc = System.Text.Json.JsonDocument.Parse(content);
+            if (doc.RootElement.TryGetProperty("detail", out var detail))
+                return detail.GetString();
+            if (doc.RootElement.TryGetProperty("title", out var title))
+                return title.GetString();
+        }
+        catch
+        {
+            // Not JSON - fall back to raw content
+        }
+
+        return content.Length > 500 ? content[..500] : content;
     }
 }

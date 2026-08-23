@@ -655,8 +655,7 @@ namespace ZEN.Infrastructure.Migrations
                         .HasColumnType("datetime2");
 
                     b.Property<string>("ErrorMessage")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<DateTime?>("FiscalReceiptDate")
                         .HasColumnType("datetime2");

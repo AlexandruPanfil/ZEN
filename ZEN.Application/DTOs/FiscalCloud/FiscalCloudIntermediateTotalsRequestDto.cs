@@ -1,7 +1,7 @@
 namespace ZEN.Application.DTOs.FiscalCloud;
 
 public record FiscalCloudIntermediateTotalsRequestDto(
-    bool Print,
+    string? Id,
     bool PrintOnServer,
     string? PrintFormMediaType
 );

@@ -3,9 +3,10 @@ namespace ZEN.Application.DTOs.FiscalCloud;
 public record FiscalCloudPaymentDto(
     int? TypeCode,
     decimal Amount,
-    bool? UseBankTerminal,
-    Guid? BankTerminal,
+    bool UseBankTerminal,
+    string? BankTerminal,
     string? BankTerminalCurrency,
     string? BankTerminalRRN,
-    string? BankTerminalOperationNumber
+    string? BankTerminalOperationNumber,
+    decimal DiscountAmount
 );

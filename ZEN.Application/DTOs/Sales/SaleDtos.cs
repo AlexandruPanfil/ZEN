@@ -15,6 +15,8 @@ public record SaleDto(
     decimal PaidAmount,
     decimal ChangeAmount,
     SaleStatus Status,
+    bool? FiscalReceiptSent,
+    string? FiscalReceiptError,
     IEnumerable<SaleItemDto> Items,
     IEnumerable<SalePaymentDto> Payments);
 
