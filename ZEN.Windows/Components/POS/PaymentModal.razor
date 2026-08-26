@@ -1,0 +1,213 @@
+@if (Visible)
+{
+    <div class="mud-overlay" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; display: flex; align-items: center; justify-content: center;">
+        <div class="mud-dialog" style="background: white; border-radius: 8px; padding: 24px; max-width: 600px; width: 90%; max-height: 80vh; overflow-y: auto; box-shadow: 0 4px 20px rgba(0,0,0,0.2);">
+            <h3 style="margin-top: 0;">Select Payment Method</h3>
+            <p>Total Amount: @TotalAmount.ToString("C")</p>
+            @if (RemainingAmount > 0)
+            {
+                <p style="color: var(--mud-palette-secondary);">Amount Due: @RemainingAmount.ToString("C")</p>
+            }
+            
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin: 16px 0;">
+                @foreach (var method in AvailableMethods)
+                {
+                    var isAvailable = IsMethodAvailable(method);
+                    var capturedMethod = method;
+                    var buttonStyle = $"background: {GetMethodColor(method)}; color: white; border: none; padding: 12px; border-radius: 4px; cursor: {(isAvailable ? "pointer" : "not-allowed")}; opacity: {(isAvailable ? "1" : "0.5")}; text-shadow: 0 1px 2px rgba(0,0,0,0.3); font-weight: 600;";
+                    <button class="mud-button mud-button-filled" 
+                            style="@buttonStyle"
+                            @onclick="() => SelectPaymentMethod(capturedMethod)"
+                            disabled="@(!isAvailable)">
+                        @GetMethodDisplayName(method)
+                    </button>
+                }
+            </div>
+            
+            @if (SelectedMethod.HasValue)
+            {
+                <div style="margin: 16px 0;">
+                    <h4>Selected: @GetMethodDisplayName(SelectedMethod.Value)</h4>
+                    <label style="display: block; margin-bottom: 8px;">Payment Amount</label>
+                    <input type="number" step="0.01" min="0.01" max="@RemainingAmount" 
+                           style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;"
+                           @bind-value="PaymentAmount" @bind-value:event="oninput" />
+                    <br><br>
+                    <button class="mud-button mud-button-filled" 
+                            style="background: var(--mud-palette-success); color: white; border: none; padding: 12px 24px; border-radius: 4px; cursor: pointer; font-weight: 600; text-shadow: 0 1px 2px rgba(0,0,0,0.3);"
+                            @onclick="AddPayment">
+                        @(Payments.Count > 0 ? "Add Another Payment" : "Add Payment")
+                    </button>
+                </div>
+                
+                @if (Payments.Count > 0)
+                {
+                    <hr style="margin: 16px 0;" />
+                    <h4>Payments Added:</h4>
+                    @foreach (var payment in Payments)
+                    {
+                        <div style="border: 1px solid #eee; border-radius: 4px; padding: 12px; margin: 8px 0; display: flex; justify-content: space-between;">
+                            <span>@GetMethodDisplayName(payment.Method)</span>
+                            <strong>@payment.Amount.ToString("C")</strong>
+                        </div>
+                    }
+                    <hr style="margin: 16px 0;" />
+                    <div style="display: flex; justify-content: space-between; font-size: 1.2em;">
+                        <span>Total Paid:</span>
+                        <strong style="color: var(--mud-palette-success);">@TotalPaid.ToString("C")</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; font-size: 1.2em;">
+                        <span>Remaining:</span>
+                        <strong style="color: @GetRemainingColor()">@RemainingAmount.ToString("C")</strong>
+                    </div>
+                }
+            }
+            
+            <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px;">
+                <button class="mud-button" 
+                        style="background: transparent; color: var(--mud-palette-primary); border: 1px solid var(--mud-palette-primary); padding: 12px 24px; border-radius: 4px; cursor: pointer; font-weight: 600;"
+                        @onclick="OnCancel">
+                    Cancel
+                </button>
+                @if (Payments.Count > 0 && RemainingAmount <= 0.005m)
+                {
+                    <button class="mud-button mud-button-filled" 
+                            style="background: var(--mud-palette-success); color: white; border: none; padding: 12px 24px; border-radius: 4px; cursor: pointer; font-weight: 600; text-shadow: 0 1px 2px rgba(0,0,0,0.3);"
+                            @onclick="OnConfirm">
+                        Confirm Payments
+                    </button>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public bool Visible { get; set; }
+
+    [Parameter]
+    public EventCallback<bool> VisibleChanged { get; set; }
+
+    [Parameter]
+    public decimal TotalAmount { get; set; }
+
+    [Parameter]
+    public List<Domain.Enums.PaymentMethod> AvailableMethods { get; set; } = new();
+
+    [Parameter]
+    public List<ZEN.Application.DTOs.Admin.PaymentTerminalDto> Terminals { get; set; } = new();
+
+    [Parameter]
+    public EventCallback<List<PaymentModal.PaymentSelection>> OnConfirmed { get; set; }
+
+    [Parameter]
+    public EventCallback OnCancelled { get; set; }
+
+    private Domain.Enums.PaymentMethod? SelectedMethod = null;
+    private decimal PaymentAmount = 0;
+    private List<PaymentSelection> Payments = new();
+
+    private decimal TotalPaid => Payments.Sum(p => p.Amount);
+    private decimal RemainingAmount => TotalAmount - TotalPaid;
+
+    public record PaymentSelection(Domain.Enums.PaymentMethod Method, decimal Amount, Guid? TerminalId = null);
+
+    private void SelectPaymentMethod(Domain.Enums.PaymentMethod method)
+    {
+        SelectedMethod = method;
+        PaymentAmount = RemainingAmount > 0 ? RemainingAmount : TotalAmount;
+    }
+
+    private bool IsMethodAvailable(Domain.Enums.PaymentMethod method)
+    {
+        var terminalsForMethod = GetTerminalsForMethod(method);
+        return method == Domain.Enums.PaymentMethod.Cash || terminalsForMethod.Any();
+    }
+
+    private IEnumerable<ZEN.Application.DTOs.Admin.PaymentTerminalDto> GetTerminalsForMethod(Domain.Enums.PaymentMethod method)
+    {
+        return method switch
+        {
+            Domain.Enums.PaymentMethod.CreditCard or Domain.Enums.PaymentMethod.DebitCard => Terminals.Where(t => 
+                t.TerminalType.Equals("Card", StringComparison.OrdinalIgnoreCase) ||
+                t.TerminalType.Equals("POS", StringComparison.OrdinalIgnoreCase)),
+            Domain.Enums.PaymentMethod.Mobile => Terminals.Where(t => 
+                t.TerminalType.Equals("Mobile", StringComparison.OrdinalIgnoreCase)),
+            Domain.Enums.PaymentMethod.QRCode => Terminals.Where(t => 
+                t.TerminalType.Equals("QRCode", StringComparison.OrdinalIgnoreCase) ||
+                t.TerminalType.Equals("QR", StringComparison.OrdinalIgnoreCase)),
+            _ => Enumerable.Empty<ZEN.Application.DTOs.Admin.PaymentTerminalDto>()
+        };
+    }
+
+    private string GetMethodColor(Domain.Enums.PaymentMethod method)
+    {
+        return method switch
+        {
+            Domain.Enums.PaymentMethod.Cash => "#8b5cf6",
+            Domain.Enums.PaymentMethod.CreditCard or Domain.Enums.PaymentMethod.DebitCard => "#a78bfa",
+            Domain.Enums.PaymentMethod.Mobile => "#3b82f6",
+            Domain.Enums.PaymentMethod.QRCode => "#7c3aed",
+            Domain.Enums.PaymentMethod.GiftCard => "#f59e0b",
+            Domain.Enums.PaymentMethod.StoreCredit => "#10b981",
+            Domain.Enums.PaymentMethod.BankTransfer => "#1f2937",
+            _ => "#6b7280"
+        };
+    }
+
+    private string GetMethodDisplayName(Domain.Enums.PaymentMethod method)
+    {
+        return method switch
+        {
+            Domain.Enums.PaymentMethod.Cash => "Cash",
+            Domain.Enums.PaymentMethod.CreditCard => "Credit Card",
+            Domain.Enums.PaymentMethod.DebitCard => "Debit Card",
+            Domain.Enums.PaymentMethod.Mobile => "Mobile Payment",
+            Domain.Enums.PaymentMethod.QRCode => "QR Code",
+            Domain.Enums.PaymentMethod.GiftCard => "Gift Card",
+            Domain.Enums.PaymentMethod.StoreCredit => "Store Credit",
+            Domain.Enums.PaymentMethod.BankTransfer => "Bank Transfer",
+            _ => method.ToString()
+        };
+    }
+
+    private void AddPayment()
+    {
+        if (!SelectedMethod.HasValue) return;
+        if (PaymentAmount <= 0) return;
+        if (PaymentAmount > RemainingAmount && Payments.Count > 0) return;
+
+        var terminalId = GetTerminalsForMethod(SelectedMethod.Value).FirstOrDefault()?.Id;
+
+        Payments.Add(new PaymentSelection(SelectedMethod.Value, PaymentAmount, terminalId));
+        SelectedMethod = null;
+        PaymentAmount = 0;
+    }
+
+    private string GetRemainingColor()
+    {
+        return RemainingAmount > 0 ? "var(--mud-palette-error)" : "var(--mud-palette-success)";
+    }
+
+    private void OnCancel()
+    {
+        Payments.Clear();
+        SelectedMethod = null;
+        PaymentAmount = 0;
+        OnCancelled.InvokeAsync();
+        VisibleChanged.InvokeAsync(false);
+    }
+
+    private async Task OnConfirm()
+    {
+        if (RemainingAmount > 0.005m) return;
+        
+        await OnConfirmed.InvokeAsync(Payments);
+        
+        Payments.Clear();
+        SelectedMethod = null;
+        PaymentAmount = 0;
+        await VisibleChanged.InvokeAsync(false);
+    }
+}

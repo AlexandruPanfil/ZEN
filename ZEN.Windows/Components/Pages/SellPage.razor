@@ -43,7 +43,7 @@ else
     </SellPageLayout>
 }
 
-<PaymentModal Visible="@ShowPaymentModal" 
+<PaymentModal @bind-Visible="@ShowPaymentModal" 
               TotalAmount="@TotalAmount" 
               AvailableMethods="@AvailableModalMethods" 
               Terminals="@ModalTerminals" 
@@ -57,8 +57,11 @@ else
 
     private decimal Subtotal => Cart.Sum(item => item.Quantity * item.UnitPrice);
     private decimal DiscountAmount => Cart.Sum(item => item.Quantity * item.Discount);
-    private decimal TaxAmount => Cart.Sum(item => (item.Quantity * item.UnitPrice - item.Quantity * item.Discount) * (item.TaxRate / 100m));
-    private decimal TotalAmount => Subtotal - DiscountAmount + TaxAmount;
+    private decimal TaxAmount => Cart.Sum(item => {
+        var lineTotal = item.Quantity * item.UnitPrice - item.Quantity * item.Discount;
+        return item.TaxRate > 0 ? Math.Round(lineTotal * item.TaxRate / (100m + item.TaxRate), 2) : 0m;
+    });
+    private decimal TotalAmount => Subtotal - DiscountAmount;
 
     protected override async Task OnInitializedAsync()
     {
@@ -94,7 +97,7 @@ private async Task LoadProductsAsync()
                             null,
                             null,
                             null,
-                            10m,
+                            i.TaxRate,
                             true))
                         .ToList();
                 }
@@ -130,7 +133,7 @@ private async Task LoadProductsAsync()
                 ProductName = product.Name,
                 Quantity = 1,
                 UnitPrice = product.SalePrice,
-                TaxRate = 10m
+                TaxRate = product.TaxRate
             };
             Cart.Add(cartItem);
         }
@@ -427,10 +430,11 @@ private async Task LoadProductsAsync()
     {
         Console.WriteLine("ShowPaymentModalAsync: Showing modal...");
         
-        // Initialize modal state
+        // Initialize modal state - set terminals and methods FIRST
         AvailableModalMethods = availableMethods;
         ModalTerminals = terminals;
         ShowPaymentModal = true;
+        StateHasChanged(); // Ensure modal renders immediately
 
         // Wait for user to confirm or cancel
         var tcs = new TaskCompletionSource<List<PaymentDialogSelection>?>();

@@ -340,18 +340,13 @@ private async Task<(bool Attempted, bool Success, string? ErrorMessage)> SendToF
                     item.ProductId, productNames.TryGetValue(item.ProductId, out var n) ? n : "Unknown");
             }
             
-            // Determine taxGroupCode - only send if we have a standard tax rate that maps to known FiscalCloud codes
+            // Determine taxGroupCode - map all tax rates to FiscalCloud codes
             // FiscalCloud codes: "A" = 20%, "B" = 8%, "_" = 0% (without TVA)
-            // For non-standard rates, don't send taxGroupCode (it's optional in FiscalCloud API)
-            string? taxGroupCode = null;
-            var standardTaxGroup = MapTaxRateToTaxGroup(item.TaxRate);
-            if (item.TaxRate == 0 || item.TaxRate == 8 || item.TaxRate == 20)
+            // For non-standard rates, default to "B" (8%)
+            string taxGroupCode = MapTaxRateToTaxGroup(item.TaxRate);
+            if (item.TaxRate != 0 && item.TaxRate != 8 && item.TaxRate != 20)
             {
-                taxGroupCode = standardTaxGroup;
-            }
-            else
-            {
-                _logger.LogDebug("Product {ProductId} has non-standard tax rate {TaxRate}%. Not sending taxGroupCode to FiscalCloud (field is optional).", item.ProductId, item.TaxRate);
+                _logger.LogDebug("Product {ProductId} has non-standard tax rate {TaxRate}%. Defaulting to taxGroupCode 'B' (8%) for FiscalCloud.", item.ProductId, item.TaxRate);
             }
             
             return new Application.DTOs.FiscalCloud.FiscalCloudItemDto(
