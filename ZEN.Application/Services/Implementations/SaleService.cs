@@ -57,6 +57,11 @@ public class SaleService : ISaleService
     {
         await ValidateSaleRequestAsync(request, cancellationToken);
 
+        // Resolve tax rates from products first
+        var productIds = request.Items.Select(i => i.ProductId).Distinct().ToList();
+        var products = await _productRepository.FindAsync(p => productIds.Contains(p.Id), cancellationToken);
+        var productTaxRates = products.ToDictionary(p => p.Id, p => p.Tax?.Rate ?? 0m);
+
         var sale = new Sale
         {
             Number = GenerateSaleNumber(),
@@ -65,10 +70,10 @@ public class SaleService : ISaleService
             UserId = _currentUserService.UserId ?? "system",
             ShiftId = request.ShiftId,
             StoreId = request.StoreId,
-            SubTotal = request.Items.Sum(i => i.Quantity * i.UnitPrice),
-            TaxAmount = request.Items.Sum(i => i.Quantity * i.UnitPrice * (i.TaxRate / 100m)),
-            DiscountAmount = request.Items.Sum(i => i.Discount),
-            TotalAmount = request.Items.Sum(i => (i.Quantity * i.UnitPrice) - i.Discount + ((i.Quantity * i.UnitPrice) * (i.TaxRate / 100m))),
+            SubTotal = 0, // Will calculate after resolving tax rates
+            TaxAmount = 0,
+            DiscountAmount = 0,
+            TotalAmount = 0,
             PaidAmount = request.Payments.Sum(p => p.Amount),
             ChangeAmount = 0,
             LoyaltyPointsRedeemed = request.LoyaltyPointsRedeemed ?? 0,
@@ -76,25 +81,37 @@ public class SaleService : ISaleService
             Notes = null
         };
 
-        sale.ChangeAmount = Math.Max(0, sale.PaidAmount - sale.TotalAmount);
-
-        // Add sale items
+        // Add sale items with resolved tax rates - prices are tax-inclusive
         foreach (var item in request.Items)
         {
-            var taxAmount = (item.Quantity * item.UnitPrice) * (item.TaxRate / 100m);
-            var totalPrice = (item.Quantity * item.UnitPrice) - item.Discount + taxAmount;
+            var taxRate = item.TaxRate ?? productTaxRates.GetValueOrDefault(item.ProductId, 0m);
+            
+            // Price is tax-inclusive, so we need to extract tax
+            // Tax Amount = (LineTotal * TaxRate) / (100 + TaxRate)
+            var lineTotal = (item.Quantity * item.UnitPrice) - item.Discount;
+            var taxAmount = taxRate > 0 ? (lineTotal * taxRate / (100m + taxRate)) : 0m;
+            var netAmount = lineTotal - taxAmount;
+            var totalPrice = lineTotal; // Total is the tax-inclusive price
+            
             sale.Items.Add(new SaleItem
             {
                 ProductId = item.ProductId,
                 Quantity = item.Quantity,
                 UnitPrice = item.UnitPrice,
-                TaxRate = item.TaxRate,
+                TaxRate = taxRate,
                 TaxAmount = taxAmount,
                 DiscountAmount = item.Discount,
                 TotalPrice = totalPrice,
                 CostPrice = 0
             });
         }
+
+        // Calculate totals
+        sale.SubTotal = sale.Items.Sum(i => i.Quantity * i.UnitPrice);
+        sale.TaxAmount = sale.Items.Sum(i => i.TaxAmount);
+        sale.DiscountAmount = sale.Items.Sum(i => i.DiscountAmount);
+        sale.TotalAmount = sale.Items.Sum(i => i.TotalPrice);
+        sale.ChangeAmount = Math.Max(0, sale.PaidAmount - sale.TotalAmount);
 
         // Add sale payments
         foreach (var payment in request.Payments)
@@ -310,21 +327,17 @@ private async Task<(bool Attempted, bool Success, string? ErrorMessage)> SendToF
                 throw new InvalidOperationException($"Product '{item.ProductId}' has invalid price ({item.UnitPrice}). Price must be greater than 0 for FiscalCloud.");
             }
             
-            // Determine goodId - only send if we have a valid SKU/Barcode that might exist in FiscalCloud catalog
-            // FiscalCloud catalog typically expects SKU or Barcode as the product identifier
-            // If we don't have SKU/Barcode, don't send goodId (it's optional in FiscalCloud API)
+            // Determine goodId - FiscalCloud requires goodId to exist in their product catalog
+            // Only send goodId if the product has a SKU (which should be synced to FiscalCloud)
             string? goodId = null;
             if (productSkus.TryGetValue(item.ProductId, out var sku) && !string.IsNullOrWhiteSpace(sku))
             {
                 goodId = sku;
             }
-            else if (productBarcodes.TryGetValue(item.ProductId, out var barcode) && !string.IsNullOrWhiteSpace(barcode))
-            {
-                goodId = barcode;
-            }
             else
             {
-                _logger.LogDebug("Product {ProductId} has no SKU or Barcode. Not sending goodId to FiscalCloud (field is optional).", item.ProductId);
+                _logger.LogWarning("Product {ProductId} ({ProductName}) has no SKU. FiscalCloud requires goodId to exist in catalog. Sale may fail.", 
+                    item.ProductId, productNames.TryGetValue(item.ProductId, out var n) ? n : "Unknown");
             }
             
             // Determine taxGroupCode - only send if we have a standard tax rate that maps to known FiscalCloud codes
@@ -348,8 +361,8 @@ private async Task<(bool Attempted, bool Success, string? ErrorMessage)> SendToF
                     : $"Product {item.ProductId}",
                 Quantity: item.Quantity,
                 Price: item.UnitPrice,
-                ModifierMode: item.DiscountAmount > 0 ? FiscalCloudModifierMode.ByAmount : null,
-                ModifierValue: item.DiscountAmount > 0 ? item.DiscountAmount : null,
+                ModifierMode: FiscalCloudModifierMode.ByAmount,
+                ModifierValue: item.DiscountAmount > 0 ? item.DiscountAmount : 0m,
                 TaxGroupCode: taxGroupCode,
                 Comment: ""
             );
@@ -386,12 +399,7 @@ private async Task<(bool Attempted, bool Success, string? ErrorMessage)> SendToF
             amountModifications.Add(new Application.DTOs.FiscalCloud.FiscalCloudAmountModificationDto(
                 FiscalCloudModifierMode.ByAmount, totalDiscount));
         }
-        else
-        {
-            // FiscalCloud requires at least one amount modification
-            amountModifications.Add(new Application.DTOs.FiscalCloud.FiscalCloudAmountModificationDto(
-                FiscalCloudModifierMode.ByAmount, 0));
-        }
+        // If no discount, send empty array (not an item with 0)
 
         // Generate a unique ID for the fiscal request
         var requestId = Guid.NewGuid().ToString();
@@ -399,32 +407,21 @@ private async Task<(bool Attempted, bool Success, string? ErrorMessage)> SendToF
         var fiscalRequest = new Application.DTOs.FiscalCloud.FiscalCloudSaleRequestDto(
             Id: requestId,
             PrintOnServer: true,
-            PrintFormMediaType: Application.DTOs.FiscalCloud.FiscalCloudPrintFormMediaType.Json,
-            PdfPrintFormSettings: new Application.DTOs.FiscalCloud.PdfPrintFormSettingsDto(
-                ContentWidth: 0,
-                HorizontalMargin: 0,
-                VerticalMargin: 0,
-                FontSize: 0
-            ),
-            ImagePrintFormSettings: new Application.DTOs.FiscalCloud.ImagePrintFormSettingsDto(
-                ContentWidth: 0,
-                HorizontalMargin: 0,
-                VerticalMargin: 0,
-                FontSize: 0,
-                Width: 0
-            ),
+            PrintFormMediaType: null,
+            PdfPrintFormSettings: null,
+            ImagePrintFormSettings: null,
             Print: true,
             SendToEmail: false,
-            EmailAddress: "test@test.md",
+            EmailAddress: null,
             SendToPhone: false,
-            PhoneNumber: "079123456",
+            PhoneNumber: null,
             AdditionalHeaderText: "",
             AdditionalFooterText: "Bonusuri acumulate: 34",
             Items: fiscalItems,
             Payments: fiscalPayments,
             AmountModifications: amountModifications,
             ReceiptMode: Application.DTOs.FiscalCloud.FiscalCloudReceiptMode.FiscalReceiptOnly,
-            AlternativeReceiptSeriesAndNumber: "ABC00000001"
+            AlternativeReceiptSeriesAndNumber: ""
         );
 
         // Validate the fiscal request before sending
@@ -703,9 +700,9 @@ private async Task<(bool Attempted, bool Success, string? ErrorMessage)> SendToF
             i.Product?.Name ?? "Unknown",
             i.Quantity,
             i.UnitPrice,
-            0,
+            i.DiscountAmount,
             i.TaxRate,
-            i.Quantity * i.UnitPrice)),
+            i.TotalPrice)),
         sale.Payments.Select(p => new SalePaymentDto(p.Method, p.Amount, p.PaidAt)));
 
     private string GenerateSaleNumber() => $"SALE-{DateTime.UtcNow:yyyyMMdd}-{Guid.NewGuid().ToString("N")[..6].ToUpperInvariant()}";

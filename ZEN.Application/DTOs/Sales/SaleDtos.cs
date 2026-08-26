@@ -48,7 +48,7 @@ public record CreateSaleItemRequest(
     decimal Quantity,
     decimal UnitPrice,
     decimal Discount,
-    decimal TaxRate);
+    decimal? TaxRate);
 
 public record CreateSalePaymentRequest(
     PaymentMethod Method,

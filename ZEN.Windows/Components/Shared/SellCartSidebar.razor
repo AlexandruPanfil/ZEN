@@ -50,7 +50,7 @@
     <div class="order-summary">
         <MudText Typo="Typo.subtitle2" Class="mb-2">Order Summary</MudText>
         <MudStack Row="true" Justify="Justify.SpaceBetween" Class="summary-row">
-            <MudText Typo="Typo.body2">Subtotal:</MudText>
+            <MudText Typo="Typo.body2">Subtotal (inc. tax):</MudText>
             <MudText Typo="Typo.body2">@Subtotal.ToString("C")</MudText>
         </MudStack>
         <MudStack Row="true" Justify="Justify.SpaceBetween" Class="summary-row">
@@ -61,9 +61,13 @@
             <MudText Typo="Typo.body2">Tax:</MudText>
             <MudText Typo="Typo.body2">@TaxAmount.ToString("C")</MudText>
         </MudStack>
+        <MudStack Row="true" Justify="Justify.SpaceBetween" Class="summary-row">
+            <MudText Typo="Typo.body2">Net Amount:</MudText>
+            <MudText Typo="Typo.body2">@(Subtotal - TaxAmount).ToString("C")</MudText>
+        </MudStack>
         <div class="total-row mt-2 pt-2">
             <MudStack Row="true" Justify="Justify.SpaceBetween">
-                <MudText Typo="Typo.h6">Total:</MudText>
+                <MudText Typo="Typo.h6">Total to Pay:</MudText>
                 <MudText Typo="Typo.h6" Color="Color.Primary">@TotalAmount.ToString("C")</MudText>
             </MudStack>
         </div>

@@ -73,8 +73,8 @@ public class MenuService : IMenuService
     public async Task<IEnumerable<FlatMenuItemDto>> GetFlatItemsAsync(Guid menuId, CancellationToken cancellationToken = default)
     {
         var menu = await _dbContext.Menus
-            .Include(m => m.Products).ThenInclude(mp => mp.Product)
-            .Include(m => m.Groups).ThenInclude(mg => mg.Group).ThenInclude(g => g.Products).ThenInclude(gp => gp.Product)
+            .Include(m => m.Products).ThenInclude(mp => mp.Product).ThenInclude(p => p.Tax)
+            .Include(m => m.Groups).ThenInclude(mg => mg.Group).ThenInclude(g => g.Products).ThenInclude(gp => gp.Product).ThenInclude(p => p.Tax)
             .FirstOrDefaultAsync(m => m.Id == menuId && !m.IsDeleted, cancellationToken);
 
         if (menu == null)
@@ -84,7 +84,7 @@ public class MenuService : IMenuService
 
         foreach (var mp in menu.Products.Where(p => p.Product != null).OrderBy(p => p.Position))
         {
-            items.Add(new FlatMenuItemDto(mp.ProductId, mp.Product!.Name, mp.Product.SalePrice, null, null));
+            items.Add(new FlatMenuItemDto(mp.ProductId, mp.Product!.Name, mp.Product.SalePrice, null, null, mp.Product.Tax?.Rate ?? 0m));
         }
 
         foreach (var mg in menu.Groups.Where(g => g.Group != null).OrderBy(g => g.Position))
@@ -92,7 +92,7 @@ public class MenuService : IMenuService
             var group = mg.Group!;
             foreach (var gp in group.Products.Where(p => p.Product != null).OrderBy(p => p.Position))
             {
-                items.Add(new FlatMenuItemDto(gp.ProductId, gp.Product!.Name, gp.Product.SalePrice, group.Id, group.Name));
+                items.Add(new FlatMenuItemDto(gp.ProductId, gp.Product!.Name, gp.Product.SalePrice, group.Id, group.Name, gp.Product.Tax?.Rate ?? 0m));
             }
         }
 

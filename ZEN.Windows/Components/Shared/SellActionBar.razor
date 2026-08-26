@@ -32,10 +32,10 @@
                Color="Color.Primary" 
                StartIcon="@Icons.Material.Filled.Payment" 
                OnClick="HandleProcessPaymentClick"
-               Disabled="CartEmpty || !CanProcessPayment"
+               Disabled="@(CartEmpty || !CanProcessPayment)"
                Size="Size.Large"
                Class="pay-button">
-        Process Payment
+        Process Payment @($"(CartEmpty={CartEmpty}, CanPay={CanProcessPayment})")
     </MudButton>
 </MudStack>
 

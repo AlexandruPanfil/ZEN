@@ -51,7 +51,9 @@ public class SyncService : ISyncService
                 p.SalePrice,
                 p.IsActive,
                 p.IsDeleted,
-                p.UpdatedAt))
+                p.UpdatedAt,
+                p.TaxId,
+                p.Tax?.Rate ?? 0m))
             .ToList();
 
         return new ProductsDeltaResponse(DateTime.UtcNow, hasMore, items);

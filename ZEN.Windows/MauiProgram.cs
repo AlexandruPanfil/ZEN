@@ -13,6 +13,8 @@ namespace ZEN.Windows;
 
 public static class MauiProgram
 {
+	public static IServiceProvider? ServiceProvider { get; private set; }
+	
 	public static MauiApp CreateMauiApp()
 	{
 		var builder = MauiApp.CreateBuilder();
@@ -25,6 +27,7 @@ public static class MauiProgram
 
 		builder.Services.AddMauiBlazorWebView();
 		builder.Services.AddSingleton<PosAuthState>();
+		builder.Services.AddSingleton<TokenSyncService>();
 		builder.Services.AddSingleton<AuthenticationStateProvider, PosAuthenticationStateProvider>();
 		builder.Services.AddAuthorizationCore();
 		builder.Services.AddHttpContextAccessor();
@@ -44,16 +47,20 @@ public static class MauiProgram
 
 		var serverSettings = new ServerSettingsService();
 		builder.Services.AddSingleton(serverSettings);
-		builder.Services.AddHttpClient<SyncApiClient>(client =>
+		
+		// Create HttpClient as singleton for SyncApiClient
+		var httpClientHandler = new HttpClientHandler
 		{
-			client.BaseAddress = new Uri(serverSettings.ApiBaseUrl);
-			client.Timeout = TimeSpan.FromSeconds(10);
-		}).ConfigurePrimaryHttpMessageHandler(() =>
+			ServerCertificateCustomValidationCallback = (message, cert, chain, errors) => true
+		};
+		var httpClient = new HttpClient(httpClientHandler)
 		{
-			var handler = new HttpClientHandler();
-			handler.ServerCertificateCustomValidationCallback = (message, cert, chain, errors) => true;
-			return handler;
-		});
+			BaseAddress = new Uri(serverSettings.ApiBaseUrl),
+			Timeout = TimeSpan.FromSeconds(10)
+		};
+		builder.Services.AddSingleton(httpClient);
+		builder.Services.AddSingleton<SyncApiClient>();
+		
 		builder.Services.AddScoped<IPosSyncService, PosSyncService>();
 		builder.Services.AddSingleton<PosSyncBackgroundWorker>();
 
@@ -118,6 +125,8 @@ public static class MauiProgram
 		builder.Logging.AddDebug();
 #endif
 
-		return builder.Build();
+		var app = builder.Build();
+		ServiceProvider = app.Services;
+		return app;
 	}
 }

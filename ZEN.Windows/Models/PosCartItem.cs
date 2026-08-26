@@ -9,5 +9,11 @@ public class PosCartItem
     public decimal Discount { get; set; }
     public decimal TaxRate { get; set; }
 
-    public decimal LineTotal => (Quantity * UnitPrice - Quantity * Discount) * (1 + TaxRate / 100m);
+    public decimal LineTotal => Math.Round(Quantity * UnitPrice - Quantity * Discount, 2);
+    
+    public decimal LineTaxAmount => TaxRate > 0 
+        ? Math.Round(LineTotal * TaxRate / (100m + TaxRate), 2) 
+        : 0m;
+    
+    public decimal LineNetAmount => Math.Round(LineTotal - LineTaxAmount, 2);
 }

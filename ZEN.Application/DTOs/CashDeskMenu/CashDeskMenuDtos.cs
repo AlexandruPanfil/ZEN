@@ -44,7 +44,8 @@ public record FlatMenuItemDto(
     string Name,
     decimal SalePrice,
     Guid? GroupId,
-    string? GroupName);
+    string? GroupName,
+    decimal TaxRate);
 
 public record CreateMenuRequest(
     string Name,

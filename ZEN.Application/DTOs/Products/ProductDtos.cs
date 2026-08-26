@@ -14,6 +14,7 @@ public record ProductDto(
     string? BrandName,
     Guid? TaxId,
     string? TaxName,
+    decimal TaxRate,
     bool IsActive);
 
 public record CreateProductRequest(

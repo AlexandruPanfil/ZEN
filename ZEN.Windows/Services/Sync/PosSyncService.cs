@@ -164,6 +164,7 @@ public class PosSyncService : IPosSyncService
             existing.IsActive = item.IsActive;
             existing.IsDeleted = item.IsDeleted;
             existing.UpdatedAt = item.UpdatedAt;
+            existing.TaxId = item.TaxId;
         }
 
         syncState.LastProductsSyncUtc = response.ServerTimeUtc;

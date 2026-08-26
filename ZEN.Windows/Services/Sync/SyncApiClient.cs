@@ -98,6 +98,12 @@ public class SyncApiClient
         return await _httpClient.GetFromJsonAsync<IEnumerable<PaymentTerminalDto>>(uri, cancellationToken) ?? [];
     }
 
+    public async Task<IEnumerable<PaymentTerminalDto>> GetPaymentTerminalsAsync(Guid cashDeskId, CancellationToken cancellationToken = default)
+    {
+        var uri = $"api/equipments/payment-terminals?cashDeskId={cashDeskId}";
+        return await _httpClient.GetFromJsonAsync<IEnumerable<PaymentTerminalDto>>(uri, cancellationToken) ?? [];
+    }
+
     public async Task<IEnumerable<ScannerDto>> GetScannersAsync(Guid? storeId = null, CancellationToken cancellationToken = default)
     {
         var uri = storeId.HasValue

@@ -34,7 +34,10 @@ public class SalesMappingProfile : Profile
             .ForMember(d => d.SaleId, opt => opt.Ignore())
             .ForMember(d => d.CreatedAt, opt => opt.Ignore())
             .ForMember(d => d.UpdatedAt, opt => opt.Ignore())
-            .ForMember(d => d.IsDeleted, opt => opt.Ignore());
+            .ForMember(d => d.IsDeleted, opt => opt.Ignore())
+            .ForMember(d => d.TaxRate, opt => opt.Ignore())
+            .ForMember(d => d.TaxAmount, opt => opt.Ignore())
+            .ForMember(d => d.TotalPrice, opt => opt.Ignore());
 
         CreateMap<CreateSalePaymentRequest, SalePayment>()
             .ForMember(d => d.Id, opt => opt.Ignore())

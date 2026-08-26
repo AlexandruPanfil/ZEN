@@ -11,7 +11,9 @@ public record ProductSyncItemDto(
     decimal SalePrice,
     bool IsActive,
     bool IsDeleted,
-    DateTime UpdatedAt);
+    DateTime UpdatedAt,
+    Guid? TaxId,
+    decimal TaxRate);
 
 public record ProductsDeltaResponse(
     DateTime ServerTimeUtc,

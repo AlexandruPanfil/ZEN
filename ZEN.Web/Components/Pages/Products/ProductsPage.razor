@@ -6,6 +6,7 @@
 @inject IProductService ProductService
 @inject ICategoryService CategoryService
 @inject IBrandService BrandService
+@inject ITaxService TaxService
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
 @attribute [Authorize(Roles = "Administrator,Manager,InventoryManager")]
@@ -53,6 +54,7 @@
                     <MudTh Style="text-align: right; font-size: 0.77rem; font-weight: 700;"><MudTableSortLabel SortBy="new Func<ProductDto, object>(x => x.SalePrice)">Retail Price</MudTableSortLabel></MudTh>
                     <MudTh Style="font-size: 0.77rem; font-weight: 700;">Category</MudTh>
                     <MudTh Style="font-size: 0.77rem; font-weight: 700;">Brand Axis</MudTh>
+                    <MudTh Style="font-size: 0.77rem; font-weight: 700;">Tax (TVA)</MudTh>
                     <MudTh Style="font-size: 0.77rem; font-weight: 700;">Status</MudTh>
                     <MudTh Style="text-align: right; min-width: 90px; font-size: 0.77rem; font-weight: 700;">Actions</MudTh>
                 </HeaderContent>
@@ -66,6 +68,7 @@
                     <MudTd DataLabel="Sale Price" Style="text-align: right; font-size: 0.75rem; padding: 4px 8px;" Class="font-weight-bold text-success">@product.SalePrice.ToString("C")</MudTd>
                     <MudTd DataLabel="Category" Style="font-size: 0.75rem; padding: 4px 8px;">@product.CategoryName</MudTd>
                     <MudTd DataLabel="Brand" Style="font-size: 0.75rem; padding: 4px 8px;">@product.BrandName</MudTd>
+                    <MudTd DataLabel="Tax" Style="font-size: 0.75rem; padding: 4px 8px;">@(product.TaxName != null ? $"{product.TaxName} ({product.TaxRate}%)" : "—")</MudTd>
                     <MudTd DataLabel="Status" Style="padding: 2px 8px;">
                         <MudChip T="string" Color="@(product.IsActive ? Color.Success : Color.Error)" Variant="Variant.Text" Size="Size.Small" Class="font-weight-bold pa-0" Style="font-size: 0.72rem; margin: 0;">
                             @(product.IsActive ? "Active" : "Inactive")
@@ -175,6 +178,15 @@
                         @foreach (var cat in _categories)
                         {
                             <MudSelectItem T="Guid?" Value="@cat.Id">@cat.Name</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudSelect T="Guid?" Label="Tax Rate (TVA)" Variant="Variant.Outlined" @bind-Value="_editingProduct.TaxId" AnchorOrigin="Origin.BottomLeft" Margin="Margin.Dense" Style="font-size: 0.8rem;">
+                        <MudSelectItem T="Guid?" Value="@(null)">No Tax / Exempt</MudSelectItem>
+                        @foreach (var tax in _taxes.Where(t => t.IsActive))
+                        {
+                            <MudSelectItem T="Guid?" Value="@tax.Id">@tax.Name (@tax.Rate%)</MudSelectItem>
                         }
                     </MudSelect>
                 </MudItem>
@@ -294,6 +306,7 @@
     private IEnumerable<ProductDto> _products = new List<ProductDto>();
     private IEnumerable<CategoryDto> _categories = new List<CategoryDto>();
     private IEnumerable<BrandDto> _brands = new List<BrandDto>();
+    private IEnumerable<TaxDto> _taxes = new List<TaxDto>();
 
     private string _searchTerm = string.Empty;
     private string _activeLookupTab = "categories";
@@ -332,6 +345,7 @@
         {
             _categories = await ProductService.GetCategoriesAsync();
             _brands = await ProductService.GetBrandsAsync();
+            _taxes = await TaxService.GetAllAsync();
         }
         catch (Exception ex)
         {
@@ -401,6 +415,7 @@
             SalePrice = product.SalePrice,
             CategoryId = product.CategoryId,
             BrandId = product.BrandId,
+            TaxId = product.TaxId,
             IsActive = product.IsActive
         };
         _isDialogOpen = true;
@@ -551,13 +566,13 @@
         {
             if (_isEditMode)
             {
-                var updateRequest = new UpdateProductRequest(_editingProduct.Id, _editingProduct.Name, _editingProduct.Description, _editingProduct.Barcode, _editingProduct.SKU, _editingProduct.CostPrice, _editingProduct.SalePrice, _editingProduct.CategoryId, _editingProduct.BrandId, null, _editingProduct.IsActive);
+                var updateRequest = new UpdateProductRequest(_editingProduct.Id, _editingProduct.Name, _editingProduct.Description, _editingProduct.Barcode, _editingProduct.SKU, _editingProduct.CostPrice, _editingProduct.SalePrice, _editingProduct.CategoryId, _editingProduct.BrandId, _editingProduct.TaxId, _editingProduct.IsActive);
                 await ProductService.UpdateAsync(updateRequest);
                 Snackbar.Add("Product node configured.", Severity.Success);
             }
             else
             {
-                var createRequest = new CreateProductRequest(_editingProduct.Name, _editingProduct.Description, _editingProduct.Barcode, _editingProduct.SKU, _editingProduct.CostPrice, _editingProduct.SalePrice, _editingProduct.CategoryId, _editingProduct.BrandId, null, null, true, _editingProduct.IsActive);
+                var createRequest = new CreateProductRequest(_editingProduct.Name, _editingProduct.Description, _editingProduct.Barcode, _editingProduct.SKU, _editingProduct.CostPrice, _editingProduct.SalePrice, _editingProduct.CategoryId, _editingProduct.BrandId, _editingProduct.TaxId, null, true, _editingProduct.IsActive);
                 await ProductService.CreateAsync(createRequest);
                 Snackbar.Add("Product listing recorded.", Severity.Success);
             }
@@ -606,6 +621,7 @@
         public decimal SalePrice { get; set; }
         public Guid? CategoryId { get; set; }
         public Guid? BrandId { get; set; }
+        public Guid? TaxId { get; set; }
         public bool IsActive { get; set; } = true;
     }
 

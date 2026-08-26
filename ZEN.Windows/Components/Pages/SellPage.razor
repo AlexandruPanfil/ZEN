@@ -3,6 +3,7 @@
 @inject ZEN.Windows.Services.PosAuthState PosAuthState
 @inject ISnackbar Snackbar
 @inject ZEN.Windows.Services.Sync.SyncApiClient ApiClient
+@using ZEN.Windows.Components.POS
 
 <PageTitle>Point of Sale - ZEN POS</PageTitle>
 
@@ -41,6 +42,13 @@ else
         </FooterContent>
     </SellPageLayout>
 }
+
+<PaymentModal Visible="@ShowPaymentModal" 
+              TotalAmount="@TotalAmount" 
+              AvailableMethods="@AvailableModalMethods" 
+              Terminals="@ModalTerminals" 
+              OnConfirmed="@OnPaymentModalConfirmed" 
+              OnCancelled="@OnPaymentModalCancelled" />
 
 @code {
     private List<ProductDto> AllProducts = new();
@@ -86,6 +94,7 @@ private async Task LoadProductsAsync()
                             null,
                             null,
                             null,
+                            10m,
                             true))
                         .ToList();
                 }
@@ -165,6 +174,11 @@ private async Task LoadProductsAsync()
         Snackbar.Add("Demo mode: Resume sale not available without database connection", Severity.Info);
     }
 
+    // Payment Modal State
+    private bool ShowPaymentModal = false;
+    private List<Domain.Enums.PaymentMethod> AvailableModalMethods = new();
+    private List<ZEN.Application.DTOs.Admin.PaymentTerminalDto> ModalTerminals = new();
+
     private async Task ProcessPayment()
     {
         Console.WriteLine("=== ProcessPayment START ===");
@@ -204,7 +218,43 @@ private async Task LoadProductsAsync()
             Snackbar.Add("Processing payment...", Severity.Info);
             Console.WriteLine($"Creating sale request for StoreId: {PosAuthState.StoreId}, CashDeskId: {PosAuthState.CashDeskId}");
 
-            // Build sale request
+            // Load available payment terminals for current cash desk
+            var terminals = await ApiClient.GetPaymentTerminalsAsync(PosAuthState.CashDeskId.Value);
+            var activeTerminals = terminals.Where(t => t.IsActive).ToList();
+            
+            Console.WriteLine($"Found {terminals.Count()} total terminals, {activeTerminals.Count} active");
+            foreach (var t in terminals)
+            {
+                Console.WriteLine($"Terminal: {t.Name}, Type: {t.TerminalType}, Active: {t.IsActive}, CashDeskId: {t.CashDeskId}");
+            }
+
+            // Determine available payment methods based on terminal configuration
+            var availableMethods = DetermineAvailablePaymentMethods(activeTerminals);
+            Console.WriteLine($"Available methods: {string.Join(", ", availableMethods)}");
+
+            // Show payment modal for payment selection (supports split payments)
+            Console.WriteLine("About to show payment modal...");
+            var paymentSelections = await ShowPaymentModalAsync(availableMethods, activeTerminals);
+            Console.WriteLine($"Modal returned: {paymentSelections?.Count ?? 0} payments");
+            
+            if (paymentSelections == null || !paymentSelections.Any())
+            {
+                Snackbar.Add("Payment cancelled", Severity.Info);
+                return;
+            }
+
+            // Validate total payments >= TotalAmount
+            var totalPayments = paymentSelections.Sum(p => p.Amount);
+            if (totalPayments < TotalAmount)
+            {
+                Snackbar.Add($"Total payments ({totalPayments:C}) must be at least the amount due ({TotalAmount:C})", Severity.Error);
+                return;
+            }
+
+            // Build sale request with multiple payments
+            var paymentRequests = paymentSelections.Select(p => 
+                new Application.DTOs.Sales.CreateSalePaymentRequest(p.Method, p.Amount)).ToList();
+
             var request = new Application.DTOs.Sales.CreateSaleRequest(
                 CustomerId: null,
                 StoreId: PosAuthState.StoreId.Value,
@@ -217,17 +267,11 @@ private async Task LoadProductsAsync()
                     item.Discount,
                     item.TaxRate
                 )),
-                Payments: new[]
-                {
-                    new Application.DTOs.Sales.CreateSalePaymentRequest(
-                        Domain.Enums.PaymentMethod.Cash,
-                        TotalAmount
-                    )
-                },
+                Payments: paymentRequests,
                 LoyaltyPointsRedeemed: null
             );
 
-            Console.WriteLine($"Request built. Total amount: {TotalAmount}, Items: {Cart.Count}");
+            Console.WriteLine($"Request built. Total amount: {TotalAmount}, Items: {Cart.Count}, Payments: {paymentRequests.Count}");
             Console.WriteLine($"Calling ApiClient.CreateSaleWithResultAsync...");
 
             var (sale, error) = await ApiClient.CreateSaleWithResultAsync(request);
@@ -310,10 +354,18 @@ private async Task LoadProductsAsync()
                     {
                         Snackbar.Add("FiscalCloud agent not found. Ensure agent is running on http://localhost:50700", Severity.Warning);
                     }
+                    else
+                    {
+                        Snackbar.Add("Sale completed. Fiscal receipt status unknown.", Severity.Info);
+                    }
                 }
-                else
+
+                // Calculate change due for cash overpayment
+                var cashPayments = paymentSelections.Where(p => p.Method == Domain.Enums.PaymentMethod.Cash).Sum(p => p.Amount);
+                var changeDue = cashPayments - TotalAmount;
+                if (changeDue > 0)
                 {
-                    Snackbar.Add("Sale completed. Fiscal receipt status unknown.", Severity.Info);
+                    Snackbar.Add($"Change due: {changeDue:C}", Severity.Info);
                 }
 
                 ClearCart();
@@ -337,6 +389,73 @@ private async Task LoadProductsAsync()
         }
     }
 
+    private List<Domain.Enums.PaymentMethod> DetermineAvailablePaymentMethods(List<ZEN.Application.DTOs.Admin.PaymentTerminalDto> terminals)
+    {
+        var methods = new List<Domain.Enums.PaymentMethod> { Domain.Enums.PaymentMethod.Cash };
+
+        if (terminals.Any(t => t.TerminalType.Equals("Card", StringComparison.OrdinalIgnoreCase) || 
+                               t.TerminalType.Equals("POS", StringComparison.OrdinalIgnoreCase)))
+        {
+            methods.Add(Domain.Enums.PaymentMethod.CreditCard);
+            methods.Add(Domain.Enums.PaymentMethod.DebitCard);
+        }
+        if (terminals.Any(t => t.TerminalType.Equals("Mobile", StringComparison.OrdinalIgnoreCase)))
+        {
+            methods.Add(Domain.Enums.PaymentMethod.Mobile);
+        }
+        if (terminals.Any(t => t.TerminalType.Equals("QRCode", StringComparison.OrdinalIgnoreCase) || 
+                               t.TerminalType.Equals("QR", StringComparison.OrdinalIgnoreCase)))
+        {
+            methods.Add(Domain.Enums.PaymentMethod.QRCode);
+        }
+
+        // These methods don't require specific terminals
+        methods.Add(Domain.Enums.PaymentMethod.GiftCard);
+        methods.Add(Domain.Enums.PaymentMethod.StoreCredit);
+        methods.Add(Domain.Enums.PaymentMethod.BankTransfer);
+
+        return methods;
+    }
+
+    private record PaymentDialogSelection(Domain.Enums.PaymentMethod Method, decimal Amount, Guid? TerminalId = null);
+
+    private TaskCompletionSource<List<PaymentDialogSelection>?>? _paymentModalTcs;
+
+    private async Task<List<PaymentDialogSelection>?> ShowPaymentModalAsync(
+        List<Domain.Enums.PaymentMethod> availableMethods, 
+        List<ZEN.Application.DTOs.Admin.PaymentTerminalDto> terminals)
+    {
+        Console.WriteLine("ShowPaymentModalAsync: Showing modal...");
+        
+        // Initialize modal state
+        AvailableModalMethods = availableMethods;
+        ModalTerminals = terminals;
+        ShowPaymentModal = true;
+
+        // Wait for user to confirm or cancel
+        var tcs = new TaskCompletionSource<List<PaymentDialogSelection>?>();
+        
+        // Store the completion source so we can complete it from the modal callbacks
+        _paymentModalTcs = tcs;
+        
+        var result = await tcs.Task;
+        Console.WriteLine($"ShowPaymentModalAsync: Modal closed. Result: {result?.Count ?? 0} payments");
+        return result;
+    }
+
+    private void OnPaymentModalConfirmed(List<PaymentModal.PaymentSelection> selections)
+    {
+        var result = selections.Select(s => new PaymentDialogSelection(s.Method, s.Amount, s.TerminalId)).ToList();
+        _paymentModalTcs?.TrySetResult(result);
+        _paymentModalTcs = null;
+    }
+
+    private void OnPaymentModalCancelled()
+    {
+        _paymentModalTcs?.TrySetResult(null);
+        _paymentModalTcs = null;
+    }
+
     private void HandleExit()
     {
         Navigation.NavigateTo("/");
@@ -350,22 +469,22 @@ private async Task LoadProductsAsync()
         }
     }
 
-    private List<ProductDto> GenerateDemoProducts()
+private List<ProductDto> GenerateDemoProducts()
     {
         return new List<ProductDto>
         {
-            new(Guid.NewGuid(), "Coffee", "Fresh coffee", "1001", "SKU001", 2.50m, 3.50m, null, null, null, null, null, null, true),
-            new(Guid.NewGuid(), "Tea", "Hot tea", "1002", "SKU002", 2.00m, 3.00m, null, null, null, null, null, null, true),
-            new(Guid.NewGuid(), "Sandwich", "Chicken sandwich", "1003", "SKU003", 5.00m, 8.00m, null, null, null, null, null, null, true),
-            new(Guid.NewGuid(), "Salad", "Garden salad", "1004", "SKU004", 4.00m, 7.00m, null, null, null, null, null, null, true),
-            new(Guid.NewGuid(), "Cake", "Chocolate cake", "1005", "SKU005", 3.00m, 5.00m, null, null, null, null, null, null, true),
-            new(Guid.NewGuid(), "Water", "Bottled water", "1006", "SKU006", 1.00m, 2.00m, null, null, null, null, null, null, true),
-            new(Guid.NewGuid(), "Soda", "Canned soda", "1007", "SKU007", 1.50m, 2.50m, null, null, null, null, null, null, true),
-            new(Guid.NewGuid(), "Chips", "Potato chips", "1008", "SKU008", 2.00m, 3.50m, null, null, null, null, null, null, true),
-            new(Guid.NewGuid(), "Pizza", "Whole pizza", "1009", "SKU009", 12.00m, 15.00m, null, null, null, null, null, null, true),
-            new(Guid.NewGuid(), "Burger", "Beef burger", "1010", "SKU010", 8.00m, 10.00m, null, null, null, null, null, null, true),
-            new(Guid.NewGuid(), "Fries", "French fries", "1011", "SKU011", 3.00m, 4.50m, null, null, null, null, null, null, true),
-            new(Guid.NewGuid(), "Ice Cream", "Vanilla ice cream", "1012", "SKU012", 4.00m, 6.00m, null, null, null, null, null, null, true)
+            new(Guid.NewGuid(), "Coffee", "Fresh coffee", "1001", "SKU001", 2.50m, 3.50m, null, null, null, null, null, null, 10m, true),
+            new(Guid.NewGuid(), "Tea", "Hot tea", "1002", "SKU002", 2.00m, 3.00m, null, null, null, null, null, null, 10m, true),
+            new(Guid.NewGuid(), "Sandwich", "Chicken sandwich", "1003", "SKU003", 5.00m, 8.00m, null, null, null, null, null, null, 10m, true),
+            new(Guid.NewGuid(), "Salad", "Garden salad", "1004", "SKU004", 4.00m, 7.00m, null, null, null, null, null, null, 10m, true),
+            new(Guid.NewGuid(), "Cake", "Chocolate cake", "1005", "SKU005", 3.00m, 5.00m, null, null, null, null, null, null, 10m, true),
+            new(Guid.NewGuid(), "Water", "Bottled water", "1006", "SKU006", 1.00m, 2.00m, null, null, null, null, null, null, 0m, true),
+            new(Guid.NewGuid(), "Soda", "Canned soda", "1007", "SKU007", 1.50m, 2.50m, null, null, null, null, null, null, 20m, true),
+            new(Guid.NewGuid(), "Chips", "Potato chips", "1008", "SKU008", 2.00m, 3.50m, null, null, null, null, null, null, 20m, true),
+            new(Guid.NewGuid(), "Pizza", "Whole pizza", "1009", "SKU009", 12.00m, 15.00m, null, null, null, null, null, null, 10m, true),
+            new(Guid.NewGuid(), "Burger", "Beef burger", "1010", "SKU010", 8.00m, 10.00m, null, null, null, null, null, null, 10m, true),
+            new(Guid.NewGuid(), "Fries", "French fries", "1011", "SKU011", 3.00m, 4.50m, null, null, null, null, null, null, 10m, true),
+            new(Guid.NewGuid(), "Ice Cream", "Vanilla ice cream", "1012", "SKU012", 4.00m, 6.00m, null, null, null, null, null, null, 10m, true)
         };
     }
 }

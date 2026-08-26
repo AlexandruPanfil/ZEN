@@ -144,7 +144,6 @@ private async Task SubmitPin()
                     var loginResponse = await ApiClient.LoginWithPinAsync(trimmedPin);
                     if (loginResponse != null)
                     {
-                        ApiClient.SetBearerToken(loginResponse.Token);
                         // Prefer the real CashDeskId returned by the API; fall back to the demo value
                         var cashDeskId = loginResponse.CashDeskId ?? demoCashDeskId;
                         var storeId = loginResponse.StoreId;
@@ -183,7 +182,6 @@ private async Task SubmitPin()
                     }
 
                     role = loginResponse.Roles.FirstOrDefault() ?? "Guest";
-                    ApiClient.SetBearerToken(loginResponse.Token);
                     
                     // Validate cashier has cash desk assigned
                     if (string.Equals(role, PosRoles.Cashier, StringComparison.OrdinalIgnoreCase) && !loginResponse.CashDeskId.HasValue)
