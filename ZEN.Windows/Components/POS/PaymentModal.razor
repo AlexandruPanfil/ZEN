@@ -14,13 +14,15 @@
                 {
                     var isAvailable = IsMethodAvailable(method);
                     var capturedMethod = method;
-                    var buttonStyle = $"background: {GetMethodColor(method)}; color: white; border: none; padding: 12px; border-radius: 4px; cursor: {(isAvailable ? "pointer" : "not-allowed")}; opacity: {(isAvailable ? "1" : "0.5")}; text-shadow: 0 1px 2px rgba(0,0,0,0.3); font-weight: 600;";
-                    <button class="mud-button mud-button-filled" 
-                            style="@buttonStyle"
-                            @onclick="() => SelectPaymentMethod(capturedMethod)"
-                            disabled="@(!isAvailable)">
+                    var color = GetMethodMudColor(method);
+                    <MudButton Variant="Variant.Filled" 
+                               Color="color"
+                               Class="payment-method-btn"
+                               OnClick="() => SelectPaymentMethod(capturedMethod)"
+                               Disabled="@(!isAvailable)"
+                               Style="min-height: 50px; font-weight: 600;">
                         @GetMethodDisplayName(method)
-                    </button>
+                    </MudButton>
                 }
             </div>
             
@@ -29,15 +31,17 @@
                 <div style="margin: 16px 0;">
                     <h4>Selected: @GetMethodDisplayName(SelectedMethod.Value)</h4>
                     <label style="display: block; margin-bottom: 8px;">Payment Amount</label>
-                    <input type="number" step="0.01" min="0.01" max="@RemainingAmount" 
-                           style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;"
-                           @bind-value="PaymentAmount" @bind-value:event="oninput" />
-                    <br><br>
-                    <button class="mud-button mud-button-filled" 
-                            style="background: var(--mud-palette-success); color: white; border: none; padding: 12px 24px; border-radius: 4px; cursor: pointer; font-weight: 600; text-shadow: 0 1px 2px rgba(0,0,0,0.3);"
-                            @onclick="AddPayment">
+                    <MudNumericField T="decimal" @bind-Value="PaymentAmount" 
+                                 Step="0.01m" Min="0.01m" Max="@RemainingAmount"
+                                 Style="width: 100%;"
+                                 Label="Payment Amount" />
+                    <br>
+                    <MudButton Variant="Variant.Filled" 
+                               Color="Color.Success"
+                               Class="mt-2"
+                               OnClick="AddPayment">
                         @(Payments.Count > 0 ? "Add Another Payment" : "Add Payment")
-                    </button>
+                    </MudButton>
                 </div>
                 
                 @if (Payments.Count > 0)
@@ -64,18 +68,18 @@
             }
             
             <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px;">
-                <button class="mud-button" 
-                        style="background: transparent; color: var(--mud-palette-primary); border: 1px solid var(--mud-palette-primary); padding: 12px 24px; border-radius: 4px; cursor: pointer; font-weight: 600;"
-                        @onclick="OnCancel">
+                <MudButton Variant="Variant.Outlined" 
+                           Color="Color.Primary"
+                           OnClick="OnCancel">
                     Cancel
-                </button>
+                </MudButton>
                 @if (Payments.Count > 0 && RemainingAmount <= 0.005m)
                 {
-                    <button class="mud-button mud-button-filled" 
-                            style="background: var(--mud-palette-success); color: white; border: none; padding: 12px 24px; border-radius: 4px; cursor: pointer; font-weight: 600; text-shadow: 0 1px 2px rgba(0,0,0,0.3);"
-                            @onclick="OnConfirm">
+                    <MudButton Variant="Variant.Filled" 
+                               Color="Color.Success"
+                               OnClick="OnConfirm">
                         Confirm Payments
-                    </button>
+                    </MudButton>
                 }
             </div>
         </div>
@@ -141,18 +145,18 @@
         };
     }
 
-    private string GetMethodColor(Domain.Enums.PaymentMethod method)
+    private Color GetMethodMudColor(Domain.Enums.PaymentMethod method)
     {
         return method switch
         {
-            Domain.Enums.PaymentMethod.Cash => "#8b5cf6",
-            Domain.Enums.PaymentMethod.CreditCard or Domain.Enums.PaymentMethod.DebitCard => "#a78bfa",
-            Domain.Enums.PaymentMethod.Mobile => "#3b82f6",
-            Domain.Enums.PaymentMethod.QRCode => "#7c3aed",
-            Domain.Enums.PaymentMethod.GiftCard => "#f59e0b",
-            Domain.Enums.PaymentMethod.StoreCredit => "#10b981",
-            Domain.Enums.PaymentMethod.BankTransfer => "#1f2937",
-            _ => "#6b7280"
+            Domain.Enums.PaymentMethod.Cash => Color.Secondary,
+            Domain.Enums.PaymentMethod.CreditCard or Domain.Enums.PaymentMethod.DebitCard => Color.Info,
+            Domain.Enums.PaymentMethod.Mobile => Color.Primary,
+            Domain.Enums.PaymentMethod.QRCode => Color.Secondary,
+            Domain.Enums.PaymentMethod.GiftCard => Color.Warning,
+            Domain.Enums.PaymentMethod.StoreCredit => Color.Success,
+            Domain.Enums.PaymentMethod.BankTransfer => Color.Dark,
+            _ => Color.Default
         };
     }
 
