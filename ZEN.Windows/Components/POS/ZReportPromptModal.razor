@@ -1,0 +1,107 @@
+@using ZEN.Domain.Enums
+@using MudBlazor
+@inject IDialogService DialogService
+
+<MudDialog>
+    <DialogContent>
+        <MudText Typo="Typo.h6" Class="mb-4">Z Report - Enter Closing Cash</MudText>
+        
+        <MudAlert Severity="Severity.Info" Class="mb-4">
+            <MudText Typo="Typo.body1">Please count the cash in the drawer and enter the total amount.</MudText>
+            <MudText Typo="Typo.caption">This will close the current shift and generate a fiscal Z report.</MudText>
+        </MudAlert>
+
+        <MudGrid>
+            <MudItem xs="12" sm="6">
+                <MudText Typo="Typo.caption" Class="mud-text-secondary">Shift Number</MudText>
+                <MudText Typo="Typo.h6">@ShiftNumber</MudText>
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudText Typo="Typo.caption" Class="mud-text-secondary">Opened At</MudText>
+                <MudText Typo="Typo.h6">@OpenedAt.ToLocalTime():g</MudText>
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudText Typo="Typo.caption" Class="mud-text-secondary">Opening Cash</MudText>
+                <MudText Typo="Typo.h6">@OpeningCash:C</MudText>
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudText Typo="Typo.caption" Class="mud-text-secondary">Expected Cash (Calculated)</MudText>
+                <MudText Typo="Typo.h6" Class="mud-warning-text">@ExpectedCash:C</MudText>
+            </MudItem>
+        </MudGrid>
+
+        <MudDivider Class="my-4" />
+
+        <MudNumericField 
+            @bind-Value="ClosingCash" 
+            Label="Closing Cash Amount"
+            HelperText="Enter the total cash counted in the drawer"
+            Step=@(0.01m)
+            Min=@(0m)
+            Class="w-100 mt-2"
+            Variant="Variant.Outlined" 
+            T="decimal" />
+
+        <MudTextField 
+            @bind-Value="Notes" 
+            Label="Notes (Optional)"
+            HelperText="e.g., reason for variance"
+            Lines="2"
+            Class="w-100 mt-2"
+            Variant="Variant.Outlined" />
+
+        @if (Variance != 0)
+        {
+            <MudAlert Severity="@(Variance >= 0 ? Severity.Success : Severity.Warning)" Class="mt-4">
+                <MudText Typo="Typo.body1">Variance: @(Variance >= 0 ? "+" : "")@Variance:C</MudText>
+                <MudText Typo="Typo.caption">@(Variance >= 0 ? "Cash over" : "Cash short") by @Math.Abs(Variance):C</MudText>
+            </MudAlert>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@CloseDialog" Variant="Variant.Text" Color="Color.Secondary">Cancel</MudButton>
+        <MudButton OnClick="ConfirmZReport" Variant="Variant.Filled" Color="Color.Primary" Disabled="@(ClosingCash < 0)">Confirm Z Report</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance? MudDialog { get; set; }
+    [Parameter] public string ShiftNumber { get; set; } = "";
+    [Parameter] public DateTime OpenedAt { get; set; }
+    [Parameter] public decimal OpeningCash { get; set; }
+    [Parameter] public decimal ExpectedCash { get; set; }
+
+    private decimal ClosingCash { get; set; }
+    private string? Notes { get; set; }
+    private decimal Variance => ClosingCash - ExpectedCash;
+
+    public static async Task<ZReportPromptResult?> ShowAsync(IDialogService dialogService, string shiftNumber, DateTime openedAt, decimal openingCash, decimal expectedCash)
+    {
+        var parameters = new DialogParameters();
+        parameters.Add(nameof(ShiftNumber), shiftNumber);
+        parameters.Add(nameof(OpenedAt), openedAt);
+        parameters.Add(nameof(OpeningCash), openingCash);
+        parameters.Add(nameof(ExpectedCash), expectedCash);
+        
+        var dialog = await dialogService.ShowAsync<ZReportPromptModal>("Z Report - Closing Cash", parameters);
+        var result = await dialog.Result;
+        
+        if (result != null && !result.Canceled && result.Data is ZReportPromptResult promptResult)
+        {
+            return promptResult;
+        }
+        
+        return null;
+    }
+
+    private void CloseDialog()
+    {
+        MudDialog?.Close();
+    }
+
+    private void ConfirmZReport()
+    {
+        var result = new ZReportPromptResult(ClosingCash, Notes);
+        MudDialog?.Close(DialogResult.Ok(result));
+    }
+}

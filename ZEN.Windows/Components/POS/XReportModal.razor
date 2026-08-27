@@ -1,0 +1,104 @@
+@using ZEN.Application.DTOs.Reports
+@using ZEN.Domain.Enums
+@using MudBlazor
+@inject IDialogService DialogService
+
+<MudDialog>
+    <DialogContent>
+        <MudText Typo="Typo.h6" Class="mb-4">X Report - Mid-Shift Summary</MudText>
+        
+        @if (Report == null)
+        {
+            <MudText Typo="Typo.body1">Loading report...</MudText>
+        }
+        else
+        {
+            <MudPaper Class="pa-4 mb-4" Elevation="1">
+                <MudGrid>
+                    <MudItem xs="12" sm="6">
+                        <MudText Typo="Typo.caption" Class="mud-text-secondary">Shift Number</MudText>
+                        <MudText Typo="Typo.subtitle1">@Report.ShiftNumber</MudText>
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudText Typo="Typo.caption" Class="mud-text-secondary">Opened At</MudText>
+                        <MudText Typo="Typo.subtitle1">@Report.OpenedAt.ToLocalTime():g</MudText>
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudText Typo="Typo.caption" Class="mud-text-secondary">Cashier</MudText>
+                        <MudText Typo="Typo.subtitle1">@Report.Cashier</MudText>
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudText Typo="Typo.caption" Class="mud-text-secondary">Opening Cash</MudText>
+                        <MudText Typo="Typo.subtitle1">@Report.OpeningCash:C</MudText>
+                    </MudItem>
+                </MudGrid>
+            </MudPaper>
+
+            <MudPaper Class="pa-4 mb-4" Elevation="1">
+                <MudText Typo="Typo.h6" Class="mb-3">Sales Summary</MudText>
+                <MudGrid>
+                    <MudItem xs="12" sm="4">
+                        <MudText Typo="Typo.caption" Class="mud-text-secondary">Total Sales</MudText>
+                        <MudText Typo="Typo.h6" Class="mud-success-text">@Report.TotalSales:C</MudText>
+                    </MudItem>
+                    <MudItem xs="12" sm="4">
+                        <MudText Typo="Typo.caption" Class="mud-text-secondary">Total Tax</MudText>
+                        <MudText Typo="Typo.h6">@Report.TotalTax:C</MudText>
+                    </MudItem>
+                    <MudItem xs="12" sm="4">
+                        <MudText Typo="Typo.caption" Class="mud-text-secondary">Total Discount</MudText>
+                        <MudText Typo="Typo.h6" Class="mud-error-text">@Report.TotalDiscount:C</MudText>
+                    </MudItem>
+                    <MudItem xs="12" sm="4">
+                        <MudText Typo="Typo.caption" Class="mud-text-secondary">Net Sales</MudText>
+                        <MudText Typo="Typo.h6" Class="mud-primary-text">@Report.NetSales:C</MudText>
+                    </MudItem>
+                    <MudItem xs="12" sm="4">
+                        <MudText Typo="Typo.caption" Class="mud-text-secondary">Transactions</MudText>
+                        <MudText Typo="Typo.h6">@Report.TransactionCount</MudText>
+                    </MudItem>
+                    <MudItem xs="12" sm="4">
+                        <MudText Typo="Typo.caption" Class="mud-text-secondary">Expected Cash</MudText>
+                        <MudText Typo="Typo.h6" Class="mud-warning-text">@Report.ExpectedCash:C</MudText>
+                    </MudItem>
+                </MudGrid>
+            </MudPaper>
+
+            <MudPaper Class="pa-4 mb-4" Elevation="1">
+                <MudText Typo="Typo.h6" Class="mb-3">Payment Breakdown</MudText>
+                <MudTable Items="Report.Payments" Dense="true" Hover="true" Striped="true">
+                    <HeaderContent>
+                        <MudTh>Method</MudTh>
+                        <MudTh Align="Align.Right">Count</MudTh>
+                        <MudTh Align="Align.Right">Amount</MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd>@context.Method</MudTd>
+                        <MudTd Align="Align.Right">@context.Count</MudTd>
+                        <MudTd Align="Align.Right">@context.Amount:C</MudTd>
+                    </RowTemplate>
+                </MudTable>
+            </MudPaper>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@CloseDialog" Variant="Variant.Filled" Color="Color.Primary">Close</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance? MudDialog { get; set; }
+    [Parameter] public XReportDto? Report { get; set; }
+
+    public static async Task ShowAsync(IDialogService dialogService, XReportDto report)
+    {
+        var parameters = new DialogParameters();
+        parameters.Add(nameof(Report), report);
+        await dialogService.ShowAsync<XReportModal>("X Report", parameters);
+    }
+
+    private void CloseDialog()
+    {
+        MudDialog?.Close();
+    }
+}

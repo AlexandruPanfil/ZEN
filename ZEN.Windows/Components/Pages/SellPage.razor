@@ -28,6 +28,7 @@ else
         </SidebarContent>
         
         <ChildContent>
+            <ShiftStatusBar />
             <ProductGrid Products="AllProducts" OnProductSelected="AddToCart" />
         </ChildContent>
         
@@ -216,10 +217,41 @@ private async Task LoadProductsAsync()
             return;
         }
 
+        // Auto-shift logic: Check for open shift on server, create one if needed
+        Guid? shiftId = PosAuthState.ShiftId;
+        if (!shiftId.HasValue && PosAuthState.StoreId.HasValue)
+        {
+            Console.WriteLine("No active shift in local state, checking server for open shift...");
+            var existingShift = await ApiClient.GetCurrentShiftAsync(PosAuthState.StoreId.Value);
+            if (existingShift != null)
+            {
+                shiftId = existingShift.Id;
+                PosAuthState.SetShift(shiftId.Value);
+                Console.WriteLine($"Found existing open shift on server: {existingShift.Number}");
+            }
+        }
+        
+        if (!shiftId.HasValue)
+        {
+            Console.WriteLine("No active shift found on server, attempting to auto-open shift...");
+            Snackbar.Add("Opening shift...", Severity.Info);
+            
+            var newShift = await ApiClient.OpenShiftAsync(PosAuthState.CashDeskId.Value, 0);
+            if (newShift == null)
+            {
+                Snackbar.Add("Failed to open shift. Please check store/cash desk configuration.", Severity.Error);
+                return;
+            }
+            
+            shiftId = newShift.Id;
+            PosAuthState.SetShift(shiftId.Value);
+            Snackbar.Add($"Shift opened: {newShift.Number}", Severity.Success);
+        }
+
         try
         {
             Snackbar.Add("Processing payment...", Severity.Info);
-            Console.WriteLine($"Creating sale request for StoreId: {PosAuthState.StoreId}, CashDeskId: {PosAuthState.CashDeskId}");
+            Console.WriteLine($"Creating sale request for StoreId: {PosAuthState.StoreId}, CashDeskId: {PosAuthState.CashDeskId}, ShiftId: {shiftId}");
 
             // Load available payment terminals for current cash desk
             var terminals = await ApiClient.GetPaymentTerminalsAsync(PosAuthState.CashDeskId.Value);
@@ -261,7 +293,7 @@ private async Task LoadProductsAsync()
             var request = new Application.DTOs.Sales.CreateSaleRequest(
                 CustomerId: null,
                 StoreId: PosAuthState.StoreId.Value,
-                ShiftId: null,
+                ShiftId: shiftId,
                 CashDeskId: PosAuthState.CashDeskId,
                 Items: Cart.Select(item => new Application.DTOs.Sales.CreateSaleItemRequest(
                     item.ProductId,

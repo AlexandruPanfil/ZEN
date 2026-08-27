@@ -10,6 +10,7 @@ public class ShiftService : IShiftService
 {
     private readonly IRepository<Shift> _shiftRepository;
     private readonly IRepository<CashMovement> _cashMovementRepository;
+    private readonly IRepository<CashDesk> _cashDeskRepository;
     private readonly IStoreContext _storeContext;
     private readonly ICurrentUserService _currentUserService;
     private readonly IUnitOfWork _unitOfWork;
@@ -17,12 +18,14 @@ public class ShiftService : IShiftService
     public ShiftService(
         IRepository<Shift> shiftRepository,
         IRepository<CashMovement> cashMovementRepository,
+        IRepository<CashDesk> cashDeskRepository,
         IStoreContext storeContext,
         ICurrentUserService currentUserService,
         IUnitOfWork unitOfWork)
     {
         _shiftRepository = shiftRepository;
         _cashMovementRepository = cashMovementRepository;
+        _cashDeskRepository = cashDeskRepository;
         _storeContext = storeContext;
         _currentUserService = currentUserService;
         _unitOfWork = unitOfWork;
@@ -55,6 +58,37 @@ public class ShiftService : IShiftService
             StoreId = storeId,
             OpenTime = DateTime.UtcNow,
             OpeningCash = request.OpeningCash,
+            ClosingCash = 0,
+            Status = ShiftStatus.Open,
+            Notes = null
+        };
+
+        await _shiftRepository.AddAsync(shift, cancellationToken);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        return MapToDto(shift);
+    }
+
+    public async Task<ShiftDto> OpenShiftForCashDeskAsync(Guid cashDeskId, decimal openingCash, CancellationToken cancellationToken = default)
+    {
+        var cashDesk = await _cashDeskRepository.GetByIdAsync(cashDeskId, cancellationToken);
+        if (cashDesk == null)
+            throw new KeyNotFoundException($"Cash desk {cashDeskId} not found");
+
+        if (!cashDesk.StoreId.HasValue)
+            throw new InvalidOperationException($"Cash desk {cashDeskId} is not assigned to a store");
+
+        var storeId = cashDesk.StoreId.Value;
+
+        var existing = await _shiftRepository.FindFirstAsync(s => s.StoreId == storeId && s.Status == ShiftStatus.Open, cancellationToken);
+        if (existing != null)
+            throw new InvalidOperationException("A shift is already open for this store");
+
+        var shift = new Shift
+        {
+            UserId = _currentUserService.UserId ?? "system",
+            StoreId = storeId,
+            OpenTime = DateTime.UtcNow,
+            OpeningCash = openingCash,
             ClosingCash = 0,
             Status = ShiftStatus.Open,
             Notes = null

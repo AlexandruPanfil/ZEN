@@ -1,3 +1,4 @@
+using ZEN.Application.DTOs.FiscalCloud;
 using ZEN.Application.DTOs.Reports;
 using ZEN.Application.Services.Interfaces;
 using ZEN.Domain.Entities;
@@ -13,7 +14,11 @@ public class ReportService : IReportService
     private readonly IRepository<Shift> _shiftRepository;
     private readonly IRepository<Sale> _saleRepository;
     private readonly IRepository<SaleItem> _saleItemRepository;
+    private readonly IRepository<SalePayment> _salePaymentRepository;
+    private readonly IRepository<Printer> _printerRepository;
+    private readonly IRepository<CashDesk> _cashDeskRepository;
     private readonly IStoreContext _storeContext;
+    private readonly IFiscalCloudService _fiscalCloudService;
 
     public ReportService(
         IRepository<InventoryItem> inventoryRepository,
@@ -21,14 +26,22 @@ public class ReportService : IReportService
         IRepository<Shift> shiftRepository,
         IRepository<Sale> saleRepository,
         IRepository<SaleItem> saleItemRepository,
-        IStoreContext storeContext)
+        IRepository<SalePayment> salePaymentRepository,
+        IRepository<Printer> printerRepository,
+        IRepository<CashDesk> cashDeskRepository,
+        IStoreContext storeContext,
+        IFiscalCloudService fiscalCloudService)
     {
         _inventoryRepository = inventoryRepository;
         _productRepository = productRepository;
         _shiftRepository = shiftRepository;
         _saleRepository = saleRepository;
         _saleItemRepository = saleItemRepository;
+        _salePaymentRepository = salePaymentRepository;
+        _printerRepository = printerRepository;
+        _cashDeskRepository = cashDeskRepository;
         _storeContext = storeContext;
+        _fiscalCloudService = fiscalCloudService;
     }
 
     public async Task<SalesReportDto> GetSalesReportAsync(DateTime startDate, DateTime endDate, Guid? storeId = null, CancellationToken cancellationToken = default)
@@ -163,5 +176,226 @@ public class ReportService : IReportService
         });
 
         return result;
+    }
+
+public async Task<XReportDto?> GetXReportAsync(Guid storeId, CancellationToken cancellationToken = default)
+        {
+            var shift = await _shiftRepository.FindFirstAsync(
+                s => s.StoreId == storeId && s.Status == ShiftStatus.Open,
+                cancellationToken);
+            
+            if (shift == null)
+                return null;
+
+            var sales = await _saleRepository.FindAsync(
+                s => s.ShiftId.HasValue && s.ShiftId.Value == shift.Id,
+                cancellationToken);
+
+            var totalSales = sales.Sum(s => s.TotalAmount);
+            var totalTax = sales.Sum(s => s.TaxAmount);
+            var totalDiscount = sales.Sum(s => s.DiscountAmount);
+            var netSales = totalSales - totalDiscount;
+            var transactionCount = sales.Count();
+
+            var payments = await _salePaymentRepository.FindAsync(
+                sp => sp.Sale.ShiftId.HasValue && sp.Sale.ShiftId.Value == shift.Id,
+                cancellationToken);
+
+            var paymentSummary = payments
+                .GroupBy(p => p.Method.ToString())
+                .Select(g => new PaymentSummaryDto(
+                    g.Key,
+                    g.Sum(p => p.Amount),
+                    g.Count()))
+                .ToList();
+
+            var expectedCash = shift.OpeningCash + totalSales;
+
+            var xReport = new XReportDto(
+                shift.Id,
+                $"SHIFT-{shift.Id.ToString("N")[..6].ToUpperInvariant()}",
+                shift.OpenTime,
+                shift.UserId,
+                shift.OpeningCash,
+                totalSales,
+                totalTax,
+                totalDiscount,
+                netSales,
+                transactionCount,
+                paymentSummary,
+                expectedCash);
+
+            // Send intermediate totals to FiscalCloud for compliance
+            var cashDesk = await _cashDeskRepository.FindFirstAsync(
+                cd => cd.StoreId == storeId && cd.IsActive && cd.FiscalPrinterId.HasValue,
+                cancellationToken);
+
+            Printer? printer = null;
+            if (cashDesk != null)
+            {
+                printer = await _printerRepository.GetByIdAsync(cashDesk.FiscalPrinterId.Value, cancellationToken);
+            }
+
+            if (printer != null && printer.IsActive && printer.Type == PrinterType.Fiscal)
+            {
+                try
+                {
+                    var intermediateRequest = new FiscalCloudIntermediateTotalsRequestDto(
+                        Id: Guid.NewGuid().ToString(),
+                        PrintOnServer: true,
+                        PrintFormMediaType: null);
+
+                    var fiscalSuccess = await _fiscalCloudService.SendIntermediateTotalsAsync(printer, intermediateRequest, cancellationToken);
+                    
+                    // X Report is non-fiscal, so we don't fail if FiscalCloud fails
+                    // Just log the result
+                    if (!fiscalSuccess)
+                    {
+                        // Could log warning here, but don't fail the X report
+                    }
+                }
+                catch
+                {
+                    // X Report is non-fiscal, so we don't fail if FiscalCloud fails
+                    // Just continue without fiscal integration
+                }
+            }
+
+            return xReport;
+        }
+
+    public async Task<ZReportDto?> GetZReportAsync(Guid shiftId, decimal closingCash, string? notes = null, CancellationToken cancellationToken = default)
+    {
+        var shift = await _shiftRepository.GetByIdAsync(shiftId, cancellationToken);
+        if (shift == null || shift.Status != ShiftStatus.Open)
+            return null;
+
+        // Get X report data first (but don't send to FiscalCloud again - we'll do it in Z report)
+        var xReport = await GetXReportDataAsync(shift.StoreId, cancellationToken);
+        if (xReport == null)
+            return null;
+
+        var expectedCash = xReport.ExpectedCash;
+        var variance = closingCash - expectedCash;
+
+        // Find fiscal printer through CashDesk for this store
+        var cashDesk = await _cashDeskRepository.FindFirstAsync(
+            cd => cd.StoreId == shift.StoreId && cd.IsActive && cd.FiscalPrinterId.HasValue,
+            cancellationToken);
+
+        Printer? printer = null;
+        if (cashDesk != null)
+        {
+            printer = await _printerRepository.GetByIdAsync(cashDesk.FiscalPrinterId.Value, cancellationToken);
+        }
+
+        FiscalReceiptInfo fiscalReceipt;
+
+        if (printer != null && printer.IsActive && printer.Type == PrinterType.Fiscal)
+        {
+            try
+            {
+                // Create Z report request for FiscalCloud
+                var zRequest = new FiscalCloudCloseDayRequestDto(
+                    Id: Guid.NewGuid().ToString(),
+                    PrintOnServer: true,
+                    PrintFormMediaType: null,
+                    PdfPrintFormSettings: null,
+                    ImagePrintFormSettings: null,
+                    Print: true,
+                    SendToEmail: false,
+                    EmailAddress: null,
+                    SendToPhone: false,
+                    PhoneNumber: null,
+                    AdditionalHeaderText: "",
+                    AdditionalFooterText: $"Z Report - Shift: {shift.Id.ToString("N")[..8].ToUpperInvariant()}, Cashier: {shift.UserId}");
+
+                var fiscalSuccess = await _fiscalCloudService.SendCloseDayAsync(printer, zRequest, cancellationToken);
+
+                if (fiscalSuccess)
+                {
+                    var fiscalReceiptNumber = $"Z-{shift.Id.ToString("N")[..8].ToUpperInvariant()}-{DateTime.UtcNow:yyyyMMddHHmmss}";
+                    fiscalReceipt = new FiscalReceiptInfo(
+                        fiscalReceiptNumber,
+                        DateTime.UtcNow,
+                        true,
+                        null);
+                }
+                else
+                {
+                    fiscalReceipt = new FiscalReceiptInfo(
+                        $"Z-{shift.Id.ToString("N")[..8].ToUpperInvariant()}",
+                        DateTime.UtcNow,
+                        false,
+                        "FiscalCloud close day operation failed");
+                }
+            }
+            catch (Exception ex)
+            {
+                fiscalReceipt = new FiscalReceiptInfo(
+                    $"Z-{shift.Id.ToString("N")[..8].ToUpperInvariant()}",
+                    DateTime.UtcNow,
+                    false,
+                    ex.Message);
+            }
+        }
+        else
+        {
+            fiscalReceipt = new FiscalReceiptInfo(
+                $"Z-{shift.Id.ToString("N")[..8].ToUpperInvariant()}",
+                DateTime.UtcNow,
+                false,
+                "No fiscal printer configured");
+        }
+
+        return new ZReportDto(xReport, closingCash, variance, fiscalReceipt);
+    }
+
+    public async Task<XReportDto?> GetXReportDataAsync(Guid storeId, CancellationToken cancellationToken = default)
+    {
+        var shift = await _shiftRepository.FindFirstAsync(
+            s => s.StoreId == storeId && s.Status == ShiftStatus.Open,
+            cancellationToken);
+        
+        if (shift == null)
+            return null;
+
+        var sales = await _saleRepository.FindAsync(
+            s => s.ShiftId.HasValue && s.ShiftId.Value == shift.Id,
+            cancellationToken);
+
+        var totalSales = sales.Sum(s => s.TotalAmount);
+        var totalTax = sales.Sum(s => s.TaxAmount);
+        var totalDiscount = sales.Sum(s => s.DiscountAmount);
+        var netSales = totalSales - totalDiscount;
+        var transactionCount = sales.Count();
+
+        var payments = await _salePaymentRepository.FindAsync(
+            sp => sp.Sale.ShiftId.HasValue && sp.Sale.ShiftId.Value == shift.Id,
+            cancellationToken);
+
+        var paymentSummary = payments
+            .GroupBy(p => p.Method.ToString())
+            .Select(g => new PaymentSummaryDto(
+                g.Key,
+                g.Sum(p => p.Amount),
+                g.Count()))
+            .ToList();
+
+        var expectedCash = shift.OpeningCash + totalSales;
+
+        return new XReportDto(
+            shift.Id,
+            $"SHIFT-{shift.Id.ToString("N")[..6].ToUpperInvariant()}",
+            shift.OpenTime,
+            shift.UserId,
+            shift.OpeningCash,
+            totalSales,
+            totalTax,
+            totalDiscount,
+            netSales,
+            transactionCount,
+            paymentSummary,
+            expectedCash);
     }
 }

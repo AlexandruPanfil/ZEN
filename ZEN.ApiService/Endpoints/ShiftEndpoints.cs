@@ -17,6 +17,15 @@ public static class ShiftEndpoints
         .WithOpenApi()
         .RequireAuthorization();
 
+        group.MapPost("/open-for-cashdesk", async ([FromBody] OpenShiftForCashDeskRequest request, IShiftService shiftService, CancellationToken ct) =>
+        {
+            var shift = await shiftService.OpenShiftForCashDeskAsync(request.CashDeskId, request.OpeningCash, ct);
+            return Results.Created($"/api/shifts/{shift.Id}", shift);
+        })
+        .WithName("OpenShiftForCashDesk")
+        .WithOpenApi()
+        .RequireAuthorization();
+
         group.MapPost("/close", async ([FromBody] CloseShiftRequest request, IShiftService shiftService, CancellationToken ct) =>
         {
             var shift = await shiftService.CloseShiftAsync(request, ct);
@@ -56,3 +65,5 @@ public static class ShiftEndpoints
         return group;
     }
 }
+
+public record OpenShiftForCashDeskRequest(Guid CashDeskId, decimal OpeningCash);

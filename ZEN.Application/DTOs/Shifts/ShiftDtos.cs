@@ -23,6 +23,10 @@ public record OpenShiftRequest(
     Guid StoreId,
     decimal OpeningCash);
 
+public record OpenShiftForCashDeskRequest(
+    Guid CashDeskId,
+    decimal OpeningCash);
+
 public record CloseShiftRequest(
     Guid ShiftId,
     decimal ClosingCash);

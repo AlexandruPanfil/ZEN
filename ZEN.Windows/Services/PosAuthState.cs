@@ -15,6 +15,7 @@ public sealed class PosAuthState
     public string? Token { get; private set; }
     public Guid? StoreId { get; private set; }
     public Guid? CashDeskId { get; private set; }
+    public Guid? ShiftId { get; private set; }
 
     public bool IsAdmin => string.Equals(Role, PosRoles.Administrator, StringComparison.OrdinalIgnoreCase);
     public bool IsCashier => string.Equals(Role, PosRoles.Cashier, StringComparison.OrdinalIgnoreCase);
@@ -30,6 +31,19 @@ public sealed class PosAuthState
         Token = token;
         StoreId = storeId;
         CashDeskId = cashDeskId;
+        ShiftId = null; // Reset shift on new login
+        Changed?.Invoke();
+    }
+
+    public void SetShift(Guid shiftId)
+    {
+        ShiftId = shiftId;
+        Changed?.Invoke();
+    }
+
+    public void ClearShift()
+    {
+        ShiftId = null;
         Changed?.Invoke();
     }
 
@@ -41,6 +55,7 @@ public sealed class PosAuthState
         Token = null;
         StoreId = null;
         CashDeskId = null;
+        ShiftId = null;
         Changed?.Invoke();
     }
 }

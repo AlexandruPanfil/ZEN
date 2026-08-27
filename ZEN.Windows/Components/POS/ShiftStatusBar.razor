@@ -1,0 +1,136 @@
+@using ZEN.Application.DTOs.Shifts
+@using ZEN.Windows.Services
+@using ZEN.Application.DTOs.Reports
+@inject PosAuthState PosAuthState
+@inject ZEN.Windows.Services.Sync.SyncApiClient ApiClient
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+@if (PosAuthState.IsAuthenticated && PosAuthState.StoreId.HasValue)
+{
+    <MudPaper Class="pa-3 d-flex align-items-center justify-space-between" Elevation="1" Style="min-height: 60px;">
+        <div class="d-flex align-items-center gap-3">
+            <MudIcon Icon="@Icons.Material.Filled.AccessTime" Size="Size.Large" Color="Color.Primary" />
+            <div>
+                @if (CurrentShift == null)
+                {
+                    <MudText Typo="Typo.h6" Class="mb-0">No Open Shift</MudText>
+                    <MudText Typo="Typo.caption" Class="mud-text-secondary">Shift will auto-open on first sale</MudText>
+                }
+                else
+                {
+                    <MudText Typo="Typo.h6" Class="mb-0">@CurrentShift.Number</MudText>
+                    <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                        Opened: @CurrentShift.OpenedAt.ToLocalTime():g | Cashier: @CurrentShift.UserName | Opening Cash: @CurrentShift.OpeningCash:C
+                    </MudText>
+                }
+            </div>
+        </div>
+        
+        <div class="d-flex align-items-center gap-2">
+            @if (CurrentShift != null)
+            {
+                <MudButton Variant="Variant.Outlined" Color="Color.Secondary" OnClick="ShowXReport" Size="Size.Small" StartIcon="@Icons.Material.Filled.Visibility">X Report</MudButton>
+                <MudButton Variant="Variant.Filled" Color="Color.Warning" OnClick="ShowZReport" Size="Size.Small" StartIcon="@Icons.Material.Filled.PointOfSale">Z Report</MudButton>
+            }
+        </div>
+    </MudPaper>
+}
+
+@code {
+    private ShiftDto? CurrentShift;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Snackbar.Add("ShiftStatusBar initialized", Severity.Info);
+        await LoadCurrentShift();
+        PosAuthState.Changed += OnAuthStateChanged;
+    }
+
+    private async void OnAuthStateChanged()
+    {
+        await LoadCurrentShift();
+        StateHasChanged();
+    }
+
+    private async Task LoadCurrentShift()
+    {
+        if (PosAuthState.StoreId.HasValue)
+        {
+            CurrentShift = await ApiClient.GetCurrentShiftAsync(PosAuthState.StoreId.Value);
+        }
+        else
+        {
+            CurrentShift = null;
+        }
+    }
+
+    private async Task ShowXReport()
+    {
+        if (!PosAuthState.StoreId.HasValue) return;
+
+        var report = await ApiClient.GetXReportAsync(PosAuthState.StoreId.Value);
+        if (report != null)
+        {
+            await XReportModal.ShowAsync(DialogService, report);
+        }
+    }
+
+    private async Task ShowZReport()
+    {
+        if (CurrentShift == null) return;
+
+        try
+        {
+            Snackbar.Add("ShowZReport: Starting...", Severity.Info);
+            StateHasChanged(); // Force render to show snackbar
+            
+            // Get X report data WITHOUT sending to FiscalCloud (for prompt only)
+            var xReport = await ApiClient.GetXReportDataAsync(PosAuthState.StoreId!.Value);
+            if (xReport == null)
+            {
+                Snackbar.Add("ShowZReport: X report data is null", Severity.Warning);
+                return;
+            }
+            
+            Snackbar.Add($"ShowZReport: Got X report for shift {xReport.ShiftNumber}, showing prompt...", Severity.Info);
+            StateHasChanged();
+
+            var promptResult = await ZReportPromptModal.ShowAsync(DialogService, xReport.ShiftNumber, xReport.OpenedAt, xReport.OpeningCash, xReport.ExpectedCash);
+            Snackbar.Add($"ShowZReport: Prompt result: {(promptResult == null ? "null/cancelled" : $"ClosingCash={promptResult.ClosingCash}")}", Severity.Info);
+            StateHasChanged();
+            
+            if (promptResult == null) return;
+
+            Snackbar.Add("ShowZReport: Calling GetZReportAsync...", Severity.Info);
+            StateHasChanged();
+            var result = await ApiClient.GetZReportAsync(xReport.ShiftId, promptResult.ClosingCash, promptResult.Notes);
+            Snackbar.Add($"ShowZReport: Z Report result: {(result.ZReport != null ? "success" : $"error={result.Error}")}", Severity.Info);
+            StateHasChanged();
+            
+            if (result.ZReport != null)
+            {
+                await ZReportModal.ShowAsync(DialogService, result.ZReport);
+                
+                // After Z report, clear shift
+                PosAuthState.ClearShift();
+                await LoadCurrentShift();
+            }
+            else if (!string.IsNullOrEmpty(result.Error))
+            {
+                // Show error to user via snackbar
+                Snackbar.Add($"Z Report failed: {result.Error} - {result.Details}", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"ShowZReport ERROR: {ex.Message}", Severity.Error);
+            StateHasChanged();
+        }
+    }
+
+    public void Dispose()
+    {
+        PosAuthState.Changed -= OnAuthStateChanged;
+    }
+}

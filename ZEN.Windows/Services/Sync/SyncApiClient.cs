@@ -3,7 +3,9 @@ using System.Net.Http.Json;
 using ZEN.Application.DTOs.Admin;
 using ZEN.Application.DTOs.Auth;
 using ZEN.Application.DTOs.CashDeskMenu;
+using ZEN.Application.DTOs.Reports;
 using ZEN.Application.DTOs.Sales;
+using ZEN.Application.DTOs.Shifts;
 using ZEN.Application.DTOs.Sync;
 
 namespace ZEN.Windows.Services.Sync;
@@ -208,6 +210,106 @@ public class SyncApiClient
             Console.WriteLine($"[SyncApiClient] Message: {ex.Message}");
             Console.WriteLine($"[SyncApiClient] Stack trace: {ex.StackTrace}");
             return (null, ex.Message);
+        }
+    }
+
+    public async Task<ShiftDto?> GetCurrentShiftAsync(Guid storeId, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var uri = $"api/shifts/current/{storeId}";
+            return await _httpClient.GetFromJsonAsync<ShiftDto>(uri, cancellationToken);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    public async Task<ShiftDto?> OpenShiftAsync(Guid cashDeskId, decimal openingCash, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var request = new OpenShiftForCashDeskRequest(cashDeskId, openingCash);
+            var response = await _httpClient.PostAsJsonAsync("api/shifts/open-for-cashdesk", request, cancellationToken);
+            if (response.IsSuccessStatusCode)
+            {
+                return await response.Content.ReadFromJsonAsync<ShiftDto>(cancellationToken);
+            }
+            return null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    public async Task<XReportDto?> GetXReportAsync(Guid storeId, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var uri = $"api/reports/x/{storeId}";
+            return await _httpClient.GetFromJsonAsync<XReportDto>(uri, cancellationToken);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    public async Task<XReportDto?> GetXReportDataAsync(Guid storeId, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var uri = $"api/reports/x-data/{storeId}";
+            return await _httpClient.GetFromJsonAsync<XReportDto>(uri, cancellationToken);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    // Result class for Z Report API calls
+    public record ZReportApiResult(ZReportDto? ZReport, string? Error, string? Details);
+
+    public async Task<ZReportApiResult> GetZReportAsync(Guid shiftId, decimal closingCash, string? notes = null, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var request = new CloseShiftWithReportRequest(shiftId, closingCash, notes);
+            var response = await _httpClient.PostAsJsonAsync("api/reports/z", request, cancellationToken);
+            
+            if (response.IsSuccessStatusCode)
+            {
+                var zReport = await response.Content.ReadFromJsonAsync<ZReportDto>(cancellationToken);
+                return new ZReportApiResult(zReport, null, null);
+            }
+            
+            // Try to read error details from response
+            var errorContent = await response.Content.ReadAsStringAsync(cancellationToken);
+            string? error = null;
+            string? details = null;
+            
+            try
+            {
+                using var doc = System.Text.Json.JsonDocument.Parse(errorContent);
+                if (doc.RootElement.TryGetProperty("error", out var errorProp))
+                    error = errorProp.GetString();
+                if (doc.RootElement.TryGetProperty("details", out var detailsProp))
+                    details = detailsProp.GetString();
+            }
+            catch
+            {
+                error = $"HTTP {(int)response.StatusCode}";
+                details = errorContent.Length > 500 ? errorContent[..500] : errorContent;
+            }
+            
+            return new ZReportApiResult(null, error, details);
+        }
+        catch (Exception ex)
+        {
+            return new ZReportApiResult(null, ex.Message, ex.GetType().Name);
         }
     }
 

@@ -1,0 +1,168 @@
+@using ZEN.Application.DTOs.Reports
+@using ZEN.Domain.Enums
+@using MudBlazor
+@inject IDialogService DialogService
+
+<MudDialog>
+    <DialogContent>
+        <MudText Typo="Typo.h6" Class="mb-4">Z Report - End of Shift</MudText>
+        
+        @if (Report == null)
+        {
+            <MudText Typo="Typo.body1">Loading report...</MudText>
+        }
+        else if (WaitingForFiscal)
+        {
+            <MudText Typo="Typo.body1" Class="mud-primary-text">Sending Z Report to FiscalCloud...</MudText>
+            <MudProgressCircular Indeterminate="true" Size="Size.Large" Class="my-4" />
+        }
+        else if (FiscalError != null)
+        {
+            <MudAlert Severity="Severity.Error" Class="mb-4">
+                <MudText Typo="Typo.body1">Fiscal Receipt Failed</MudText>
+                <MudText Typo="Typo.body2">@FiscalError</MudText>
+                <MudText Typo="Typo.caption">The shift remains open. Please resolve the issue and try again.</MudText>
+            </MudAlert>
+        }
+        else
+        {
+            <MudPaper Class="pa-4 mb-4" Elevation="1">
+                <MudGrid>
+                    <MudItem xs="12" sm="6">
+                        <MudText Typo="Typo.caption" Class="mud-text-secondary">Shift Number</MudText>
+                        <MudText Typo="Typo.subtitle1">@Report.XReportData.ShiftNumber</MudText>
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudText Typo="Typo.caption" Class="mud-text-secondary">Opened At</MudText>
+                        <MudText Typo="Typo.subtitle1">@Report.XReportData.OpenedAt.ToLocalTime():g</MudText>
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudText Typo="Typo.caption" Class="mud-text-secondary">Cashier</MudText>
+                        <MudText Typo="Typo.subtitle1">@Report.XReportData.Cashier</MudText>
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudText Typo="Typo.caption" Class="mud-text-secondary">Opening Cash</MudText>
+                        <MudText Typo="Typo.subtitle1">@Report.XReportData.OpeningCash:C</MudText>
+                    </MudItem>
+                </MudGrid>
+            </MudPaper>
+
+            <MudPaper Class="pa-4 mb-4" Elevation="1">
+                <MudText Typo="Typo.h6" Class="mb-3">Sales Summary</MudText>
+                <MudGrid>
+                    <MudItem xs="12" sm="4">
+                        <MudText Typo="Typo.caption" Class="mud-text-secondary">Total Sales</MudText>
+                        <MudText Typo="Typo.h6" Class="mud-success-text">@Report.XReportData.TotalSales:C</MudText>
+                    </MudItem>
+                    <MudItem xs="12" sm="4">
+                        <MudText Typo="Typo.caption" Class="mud-text-secondary">Total Tax</MudText>
+                        <MudText Typo="Typo.h6">@Report.XReportData.TotalTax:C</MudText>
+                    </MudItem>
+                    <MudItem xs="12" sm="4">
+                        <MudText Typo="Typo.caption" Class="mud-text-secondary">Total Discount</MudText>
+                        <MudText Typo="Typo.h6" Class="mud-error-text">@Report.XReportData.TotalDiscount:C</MudText>
+                    </MudItem>
+                    <MudItem xs="12" sm="4">
+                        <MudText Typo="Typo.caption" Class="mud-text-secondary">Net Sales</MudText>
+                        <MudText Typo="Typo.h6" Class="mud-primary-text">@Report.XReportData.NetSales:C</MudText>
+                    </MudItem>
+                    <MudItem xs="12" sm="4">
+                        <MudText Typo="Typo.caption" Class="mud-text-secondary">Transactions</MudText>
+                        <MudText Typo="Typo.h6">@Report.XReportData.TransactionCount</MudText>
+                    </MudItem>
+                    <MudItem xs="12" sm="4">
+                        <MudText Typo="Typo.caption" Class="mud-text-secondary">Expected Cash</MudText>
+                        <MudText Typo="Typo.h6" Class="mud-warning-text">@Report.XReportData.ExpectedCash:C</MudText>
+                    </MudItem>
+                </MudGrid>
+            </MudPaper>
+
+            <MudPaper Class="pa-4 mb-4" Elevation="1">
+                <MudText Typo="Typo.h6" Class="mb-3">Payment Breakdown</MudText>
+                <MudTable Items="Report.XReportData.Payments" Dense="true" Hover="true" Striped="true">
+                    <HeaderContent>
+                        <MudTh>Method</MudTh>
+                        <MudTh Align="Align.Right">Count</MudTh>
+                        <MudTh Align="Align.Right">Amount</MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd>@context.Method</MudTd>
+                        <MudTd Align="Align.Right">@context.Count</MudTd>
+                        <MudTd Align="Align.Right">@context.Amount:C</MudTd>
+                    </RowTemplate>
+                </MudTable>
+            </MudPaper>
+
+            <MudPaper Class="pa-4 mb-4" Elevation="1">
+                <MudText Typo="Typo.h6" Class="mb-3">Cash Reconciliation</MudText>
+                <MudGrid>
+                    <MudItem xs="12" sm="4">
+                        <MudText Typo="Typo.caption" Class="mud-text-secondary">Expected Cash</MudText>
+                        <MudText Typo="Typo.subtitle1">@Report.XReportData.ExpectedCash:C</MudText>
+                    </MudItem>
+                    <MudItem xs="12" sm="4">
+                        <MudText Typo="Typo.caption" Class="mud-text-secondary">Closing Cash (Counted)</MudText>
+                        <MudText Typo="Typo.subtitle1">@Report.ClosingCash:C</MudText>
+                    </MudItem>
+                    <MudItem xs="12" sm="4">
+                        <MudText Typo="Typo.caption" Class="mud-text-secondary">Variance</MudText>
+                        <MudText Typo="Typo.h6" Class="@(Report.Variance >= 0 ? "mud-success-text" : "mud-error-text")">
+                            @(Report.Variance >= 0 ? "+" : "")@Report.Variance:C
+                        </MudText>
+                    </MudItem>
+                </MudGrid>
+            </MudPaper>
+
+            @if (Report.FiscalReceipt != null && Report.FiscalReceipt.Success)
+            {
+                <MudPaper Class="pa-4 mb-4" Elevation="1" Style="background-color: #e8f5e9;">
+                    <MudText Typo="Typo.h6" Class="mb-2 mud-success-text">Fiscal Receipt Printed Successfully</MudText>
+                    <MudGrid>
+                        <MudItem xs="12" sm="6">
+                            <MudText Typo="Typo.caption" Class="mud-text-secondary">Receipt Number</MudText>
+                            <MudText Typo="Typo.subtitle1">@Report.FiscalReceipt.Number</MudText>
+                        </MudItem>
+                        <MudItem xs="12" sm="6">
+                            <MudText Typo="Typo.caption" Class="mud-text-secondary">Date</MudText>
+                            <MudText Typo="Typo.subtitle1">@Report.FiscalReceipt.Date.ToLocalTime():g</MudText>
+                        </MudItem>
+                    </MudGrid>
+                </MudPaper>
+            }
+        }
+    </DialogContent>
+    <DialogActions>
+        @if (Report == null || WaitingForFiscal)
+        {
+            <MudButton OnClick="@CloseDialog" Variant="Variant.Text" Color="Color.Secondary">Cancel</MudButton>
+        }
+        else if (FiscalError != null)
+        {
+            <MudButton OnClick="@CloseDialog" Variant="Variant.Filled" Color="Color.Primary">OK</MudButton>
+        }
+        else
+        {
+            <MudButton OnClick="@CloseDialog" Variant="Variant.Filled" Color="Color.Primary">Finish</MudButton>
+        }
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance? MudDialog { get; set; }
+    [Parameter] public ZReportDto? Report { get; set; }
+
+    private bool WaitingForFiscal { get; set; } = false;
+    private string? FiscalError { get; set; }
+
+    public static async Task ShowAsync(IDialogService dialogService, ZReportDto report)
+    {
+        var parameters = new DialogParameters();
+        parameters.Add(nameof(Report), report);
+        await dialogService.ShowAsync<ZReportModal>("Z Report", parameters);
+    }
+
+    private void CloseDialog()
+    {
+        MudDialog?.Close();
+    }
+}

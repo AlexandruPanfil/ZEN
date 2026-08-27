@@ -5,6 +5,7 @@ namespace ZEN.Application.Services.Interfaces;
 public interface IShiftService
 {
     Task<ShiftDto> OpenShiftAsync(OpenShiftRequest request, CancellationToken cancellationToken = default);
+    Task<ShiftDto> OpenShiftForCashDeskAsync(Guid cashDeskId, decimal openingCash, CancellationToken cancellationToken = default);
     Task<ShiftDto> CloseShiftAsync(CloseShiftRequest request, CancellationToken cancellationToken = default);
     Task<ShiftDto?> GetCurrentShiftAsync(Guid storeId, CancellationToken cancellationToken = default);
     Task<ShiftDto?> GetByIdAsync(Guid shiftId, CancellationToken cancellationToken = default);
