@@ -31,20 +31,24 @@ a, .btn-link {
 .sell-page-layout {
     display: flex;
     flex-direction: column;
-    height: 100vh;
+    height: 100%;
+    min-height: 100%;
     width: 100%;
     box-sizing: border-box;
 }
 
-.sell-header {
-    flex-shrink: 0;
-    height: 48px;
+.sell-page-full-height {
+    height: calc(100dvh - 100px); /* 100% dynamic viewport height minus MainLayout's MudAppBar + margins */
+    min-height: calc(100dvh - 100px);
+    margin: 0 !important;
+    padding: 0 !important;
 }
 
 .sell-main-content {
     display: flex;
     flex: 1;
     overflow: hidden;
+    min-height: 0; /* Critical for flex child to allow shrinking */
 }
 
 .sell-sidebar {

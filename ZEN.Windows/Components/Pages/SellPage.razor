@@ -8,41 +8,42 @@
 <PageTitle>Point of Sale - ZEN POS</PageTitle>
 
 @if (!PosAuthState.IsAuthenticated)
-{
-    <MudText Typo="Typo.h5" Class="ma-4">Not authenticated. Redirecting to login...</MudText>
-}
-else
-{
-    <SellPageLayout UserName="@PosAuthState.UserName"
-                    OnExit="HandleExit"
-                    OnSwitchToManager="HandleSwitchToManager">
-        <SidebarContent>
-            <SellCartSidebar CartItems="Cart"
-                            Subtotal="Subtotal"
-                            DiscountAmount="DiscountAmount"
-                            TaxAmount="TaxAmount"
-                            TotalAmount="TotalAmount"
-                            OnIncrement="IncrementCartItem"
-                            OnDecrement="DecrementCartItem"
-                            OnRemove="RemoveCartItem" />
-        </SidebarContent>
-        
-        <ChildContent>
-            <ShiftStatusBar />
-            <ProductGrid Products="AllProducts" OnProductSelected="AddToCart" />
-        </ChildContent>
-        
-        <FooterContent>
-            <SellActionBar CartEmpty="Cart.Count == 0"
-                          CanProcessPayment="true"
-                          ChangeDue="0"
-                          OnNewSale="ClearCart"
-                          OnHoldSale="HoldSale"
-                          OnResumeSale="ResumeSale"
-                          OnProcessPayment="ProcessPayment" />
-        </FooterContent>
-    </SellPageLayout>
-}
+    {
+        <MudText Typo="Typo.h5" Class="ma-4">Not authenticated. Redirecting to login...</MudText>
+    }
+    else
+    {
+        <SellPageLayout UserName="@PosAuthState.UserName"
+                        OnExit="HandleExit"
+                        OnSwitchToManager="HandleSwitchToManager"
+                        Class="sell-page-full-height">
+            <SidebarContent>
+                <SellCartSidebar CartItems="Cart"
+                                Subtotal="Subtotal"
+                                DiscountAmount="DiscountAmount"
+                                TaxAmount="TaxAmount"
+                                TotalAmount="TotalAmount"
+                                OnIncrement="IncrementCartItem"
+                                OnDecrement="DecrementCartItem"
+                                OnRemove="RemoveCartItem" />
+            </SidebarContent>
+            
+            <ChildContent>
+                <ShiftStatusBar />
+                <ProductGrid Products="AllProducts" OnProductSelected="AddToCart" />
+            </ChildContent>
+            
+            <FooterContent>
+                <SellActionBar CartEmpty="Cart.Count == 0"
+                              CanProcessPayment="true"
+                              ChangeDue="0"
+                              OnNewSale="ClearCart"
+                              OnHoldSale="HoldSale"
+                              OnResumeSale="ResumeSale"
+                              OnProcessPayment="ProcessPayment" />
+            </FooterContent>
+        </SellPageLayout>
+    }
 
 <PaymentModal @bind-Visible="@ShowPaymentModal" 
               TotalAmount="@TotalAmount" 

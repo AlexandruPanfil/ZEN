@@ -1,16 +1,6 @@
 @using MudBlazor
 
-<div class="sell-page-layout">
-    <MudAppBar Color="Color.Primary" Fixed="false" Dense="true" Class="sell-header">
-        <MudText Typo="Typo.h6" Class="ml-2">ZEN POS</MudText>
-        <MudSpacer />
-        @if (!string.IsNullOrEmpty(UserName))
-        {
-            <MudText Typo="Typo.body2" Class="mr-2">@UserName</MudText>
-        }
-        <MudIconButton Icon="@Icons.Material.Filled.SwitchAccount" Color="Color.Inherit" OnClick="OnSwitchToManager" />
-    </MudAppBar>
-
+<div class="sell-page-layout @Class">
     <div class="sell-main-content">
         <MudPaper Elevation="2" Class="sell-sidebar">
             @SidebarContent
@@ -32,4 +22,5 @@
     [Parameter] public RenderFragment? FooterContent { get; set; }
     [Parameter] public EventCallback OnExit { get; set; }
     [Parameter] public EventCallback OnSwitchToManager { get; set; }
+    [Parameter] public string? Class { get; set; }
 }
