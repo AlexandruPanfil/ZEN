@@ -12,6 +12,7 @@ using ZEN.Infrastructure.Persistence;
 using ZEN.Infrastructure.Persistence.Seeders;
 using ZEN.Shared;
 using ZEN.Web.Components;
+using ZEN.Web.Services;
 using System.Globalization;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -107,6 +108,23 @@ builder.Services.ConfigureApplicationCookie(options =>
 builder.Services.AddAuthorization();
 
 builder.Services.AddCascadingAuthenticationState();
+
+// Add SignalR service
+builder.Services.AddScoped<SignalRService>(sp =>
+{
+    var logger = sp.GetRequiredService<ILogger<SignalRService>>();
+    var configuration = sp.GetRequiredService<IConfiguration>();
+    
+    // In Aspire, the API service URL is provided via service discovery
+    // The environment variable format is: services__<service-name>__<protocol>__<port-index>
+    var apiBaseUrl = configuration["services__apiservice__https__0"] 
+                  ?? configuration["services__apiservice__http__0"]
+                  ?? configuration["ApiService:BaseUrl"] 
+                  ?? configuration["ApiService__BaseUrl"] 
+                  ?? "https://localhost:7000";
+    
+    return new SignalRService(apiBaseUrl, logger);
+});
 
 builder.Services.AddRazorPages()
     .AddRazorPagesOptions(options =>

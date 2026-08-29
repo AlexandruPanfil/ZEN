@@ -61,7 +61,9 @@ public class CashDeskService : ICashDeskService
                 s.ConnectionType,
                 s.ConnectionString,
                 s.CashDeskId,
-                s.IsActive)));
+                s.IsActive)),
+            cashDesk.LastActivityUtc,
+            cashDesk.IsOnline);
     }
 
     public async Task<IEnumerable<CashDeskDto>> GetAllAsync(Guid? storeId = null, CancellationToken cancellationToken = default)
@@ -211,6 +213,43 @@ public class CashDeskService : ICashDeskService
         return true;
     }
 
+    public async Task<CashDeskDto?> HeartbeatAsync(Guid cashDeskId, CancellationToken cancellationToken = default)
+    {
+        var cashDesk = await _dbContext.CashDesks.FindAsync([cashDeskId], cancellationToken);
+        if (cashDesk == null)
+        {
+            return null;
+        }
+
+        cashDesk.LastActivityUtc = DateTime.UtcNow;
+        cashDesk.IsOnline = true;
+        await _dbContext.SaveChangesAsync(cancellationToken);
+        return ToDto(cashDesk);
+    }
+
+    public async Task<IEnumerable<CashDeskDto>> GetAllWithStatusAsync(Guid? storeId = null, CancellationToken cancellationToken = default)
+    {
+        var query = _dbContext.CashDesks.AsQueryable();
+
+        if (storeId.HasValue)
+        {
+            query = query.Where(cd => cd.StoreId == storeId.Value);
+        }
+
+        // Consider a cash desk offline if no heartbeat for 2 minutes
+        var offlineThreshold = DateTime.UtcNow.AddMinutes(-2);
+        var cashDesks = await query.ToListAsync(cancellationToken);
+        
+        // Update IsOnline status based on last activity
+        foreach (var cd in cashDesks)
+        {
+            cd.IsOnline = cd.LastActivityUtc.HasValue && cd.LastActivityUtc.Value > offlineThreshold;
+        }
+        
+        await _dbContext.SaveChangesAsync(cancellationToken);
+        return cashDesks.Select(ToDto);
+    }
+
     public async Task<CashDeskDto> AssignMenuAsync(AssignMenuToCashDeskRequest request, CancellationToken cancellationToken = default)
     {
         var cashDesk = await _dbContext.CashDesks.FindAsync([request.CashDeskId], cancellationToken);
@@ -236,5 +275,7 @@ public class CashDeskService : ICashDeskService
         cashDesk.IsActive,
         cashDesk.FiscalPrinterId,
         cashDesk.CustomerDisplayId,
-        cashDesk.MenuId);
+        cashDesk.MenuId,
+        cashDesk.LastActivityUtc,
+        cashDesk.IsOnline);
 }

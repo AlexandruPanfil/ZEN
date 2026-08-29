@@ -184,6 +184,15 @@ var validPassword = await _userManager.CheckPasswordAsync(user, request.Password
 
         claims.AddRange(roles.Select(role => new Claim(ClaimTypes.Role, role)));
 
+        if (user.CashDeskId.HasValue)
+        {
+            claims.Add(new Claim("cash_desk_id", user.CashDeskId.Value.ToString()));
+            if (user.CashDesk?.StoreId != null)
+            {
+                claims.Add(new Claim("store_id", user.CashDesk.StoreId.Value.ToString()));
+            }
+        }
+
         //var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_jwtSettings.Key));
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(keyString));
         //var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["Jwt:Key"] ?? throw new InvalidOperationException("JWT key not configured")));

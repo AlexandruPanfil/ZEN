@@ -1,7 +1,9 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.SignalR;
 using ZEN.Application.DTOs.Admin;
 using ZEN.Application.DTOs.CashDeskMenu;
 using ZEN.Application.Services.Interfaces;
+using ZEN.ApiService.Hubs;
 
 namespace ZEN.ApiService.Endpoints;
 
@@ -318,6 +320,46 @@ public static class EquipmentEndpoints
             return Results.Ok(cashDesks);
         })
         .WithName("GetCashDesks")
+        .WithOpenApi()
+        .RequireAuthorization();
+
+        // Cash Desks with Status (for POS monitoring)
+        group.MapGet("/cash-desks/status", async (
+            [FromQuery] Guid? storeId,
+            ICashDeskService cashDeskService,
+            CancellationToken ct) =>
+        {
+            var cashDesks = await cashDeskService.GetAllWithStatusAsync(storeId, ct);
+            return Results.Ok(cashDesks);
+        })
+        .WithName("GetCashDesksWithStatus")
+        .WithOpenApi()
+        .RequireAuthorization();
+
+        // Cash Desk Heartbeat
+        group.MapPost("/cash-desks/{id:guid}/heartbeat", async (
+            Guid id,
+            ICashDeskService cashDeskService,
+            IHubContext<CashDeskHub> hubContext,
+            CancellationToken ct) =>
+        {
+            var cashDesk = await cashDeskService.HeartbeatAsync(id, ct);
+            if (cashDesk is not null)
+            {
+                // Broadcast cash desk status to store group
+                await hubContext.Clients.Group($"store_{cashDesk.StoreId}").SendAsync("CashDeskStatusChanged", new
+                {
+                    CashDeskId = cashDesk.Id,
+                    CashDeskName = cashDesk.Name,
+                    StoreId = cashDesk.StoreId,
+                    IsOnline = true,
+                    LastActivityUtc = cashDesk.LastActivityUtc
+                }, ct);
+                return Results.Ok(cashDesk);
+            }
+            return Results.NotFound();
+        })
+        .WithName("CashDeskHeartbeat")
         .WithOpenApi()
         .RequireAuthorization();
 

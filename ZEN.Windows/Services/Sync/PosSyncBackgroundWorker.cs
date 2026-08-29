@@ -26,25 +26,25 @@ public sealed class PosSyncBackgroundWorker
         _runTask = Task.Run(() => RunAsync(_cts.Token), _cts.Token);
     }
 
-    private async Task RunAsync(CancellationToken cancellationToken)
-    {
-        try
+private async Task RunAsync(CancellationToken cancellationToken)
         {
-            await Task.Delay(TimeSpan.FromSeconds(30), cancellationToken);
-
-            while (!cancellationToken.IsCancellationRequested)
+            try
             {
-                await _syncService.RunSyncAsync(cancellationToken);
-                await Task.Delay(TimeSpan.FromHours(1), cancellationToken);
+                await Task.Delay(TimeSpan.FromSeconds(30), cancellationToken);
+
+                while (!cancellationToken.IsCancellationRequested)
+                {
+                    await _syncService.RunSyncAsync(cancellationToken);
+                    await Task.Delay(TimeSpan.FromMinutes(5), cancellationToken);
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                // normal shutdown
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "POS background sync worker crashed.");
             }
         }
-        catch (OperationCanceledException)
-        {
-            // normal shutdown
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "POS background sync worker crashed.");
-        }
-    }
 }

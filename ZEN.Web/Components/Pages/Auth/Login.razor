@@ -81,6 +81,8 @@
                 ["userName"] = response.UserName,
                 ["email"] = response.Email,
                 ["roles"] = string.Join(",", response.Roles),
+                ["cashDeskId"] = response.CashDeskId?.ToString(),
+                ["storeId"] = response.StoreId?.ToString(),
                 ["returnUrl"] = "/"
             };
 

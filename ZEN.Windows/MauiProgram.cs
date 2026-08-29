@@ -63,6 +63,14 @@ public static class MauiProgram
 		
 		builder.Services.AddScoped<IPosSyncService, PosSyncService>();
 		builder.Services.AddSingleton<PosSyncBackgroundWorker>();
+        builder.Services.AddSingleton<CashDeskHeartbeatService>();
+        builder.Services.AddSingleton<SignalRService>(sp =>
+        {
+            var logger = sp.GetRequiredService<ILogger<SignalRService>>();
+            var serverSettings = sp.GetRequiredService<ServerSettingsService>();
+            var authState = sp.GetRequiredService<PosAuthState>();
+            return new SignalRService(serverSettings.ApiBaseUrl, authState.Token ?? "", logger);
+        });
 
 		// Configure custom violet theme
 		var violetTheme = new MudTheme()
@@ -106,7 +114,7 @@ public static class MauiProgram
 				Warning = "#f59e0b",
 				Error = "#ef4444",
 				Dark = "#0f172a",
-				TextPrimary = "#f3f4f6",
+				TextPrimary = "#f3f46f",
 				TextSecondary = "#d1d5db",
 				Background = "#0f172a",
 				BackgroundGray = "#1f2937",

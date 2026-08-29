@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.SignalR;
 using ZEN.Application.DTOs.Sales;
 using ZEN.Application.Services.Interfaces;
+using ZEN.ApiService.Hubs;
 
 namespace ZEN.ApiService.Endpoints;
 
@@ -60,9 +62,21 @@ public static class SaleEndpoints
         .WithOpenApi()
         .RequireAuthorization();
 
-        group.MapPost("/hold", async ([FromBody] HoldSaleRequest request, ISaleService saleService, CancellationToken ct) =>
+        group.MapPost("/hold", async ([FromBody] HoldSaleRequest request, ISaleService saleService, IHubContext<CashDeskHub> hubContext, CancellationToken ct) =>
         {
             var heldSale = await saleService.HoldSaleAsync(request, ct);
+            
+            // Broadcast held sale created
+            await hubContext.Clients.Group($"store_{request.StoreId}").SendAsync("HeldSaleCreated", new
+            {
+                HeldSaleId = heldSale.Id,
+                StoreId = request.StoreId,
+                CustomerName = heldSale.CustomerName,
+                SerializedItems = heldSale.SerializedItems,
+                ItemCount = heldSale.SerializedItems != null ? System.Text.Json.JsonSerializer.Deserialize<List<object>>(heldSale.SerializedItems)?.Count ?? 0 : 0,
+                HeldAt = heldSale.HeldAt
+            }, ct);
+            
             return Results.Created($"/api/sales/held/{heldSale.Id}", heldSale);
         })
         .WithName("HoldSale")
@@ -84,6 +98,42 @@ public static class SaleEndpoints
             return resumed ? Results.Ok() : Results.NotFound();
         })
         .WithName("ResumeSale")
+        .WithOpenApi()
+        .RequireAuthorization();
+
+        group.MapPost("/held/{heldSaleId:guid}/complete", async (Guid heldSaleId, [FromBody] string completedBy, ISaleService saleService, IHubContext<CashDeskHub> hubContext, CancellationToken ct) =>
+        {
+            // First get the held sale to know the store ID
+            var heldSales = await saleService.GetHeldSalesAsync(Guid.Empty, ct);
+            var heldSale = heldSales.FirstOrDefault(h => h.Id == heldSaleId);
+            
+            var completed = await saleService.CompleteHeldSaleAsync(heldSaleId, completedBy, ct);
+            
+            if (completed && heldSale != null)
+            {
+                // Broadcast held sale completed with store ID
+                await hubContext.Clients.Group($"store_{heldSale.StoreId}").SendAsync("HeldSaleCompleted", new
+                {
+                    HeldSaleId = heldSaleId,
+                    StoreId = heldSale.StoreId,
+                    CompletedBy = completedBy,
+                    CompletedAt = DateTime.UtcNow
+                }, ct);
+            }
+            else if (completed)
+            {
+                // Fallback: broadcast to all stores
+                await hubContext.Clients.All.SendAsync("HeldSaleCompleted", new
+                {
+                    HeldSaleId = heldSaleId,
+                    CompletedBy = completedBy,
+                    CompletedAt = DateTime.UtcNow
+                }, ct);
+            }
+            
+            return completed ? Results.Ok() : Results.NotFound();
+        })
+        .WithName("CompleteHeldSale")
         .WithOpenApi()
         .RequireAuthorization();
 

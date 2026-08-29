@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Http;
 using ZEN.Application.Services.Interfaces;
 using ZEN.Domain.Entities;
 using ZEN.Domain.Interfaces;
@@ -9,24 +10,44 @@ public class StoreContextService : IStoreContext
     private readonly IRepository<Store> _storeRepository;
     private readonly IRepository<Warehouse> _warehouseRepository;
     private readonly ICurrentUserService _currentUserService;
+    private readonly IHttpContextAccessor _httpContextAccessor;
+
+    private const string StoreIdCookieKey = "zen_current_store_id";
+    private const string WarehouseIdCookieKey = "zen_current_warehouse_id";
 
     public StoreContextService(
         IRepository<Store> storeRepository,
         IRepository<Warehouse> warehouseRepository,
-        ICurrentUserService currentUserService)
+        ICurrentUserService currentUserService,
+        IHttpContextAccessor httpContextAccessor)
     {
         _storeRepository = storeRepository;
         _warehouseRepository = warehouseRepository;
         _currentUserService = currentUserService;
+        _httpContextAccessor = httpContextAccessor;
     }
 
     public Guid? GetCurrentStoreId()
     {
+        // First check cookie for user-selected store
+        var cookie = GetCookie(StoreIdCookieKey);
+        if (cookie != null && Guid.TryParse(cookie, out var storeId))
+        {
+            return storeId;
+        }
+
+        // Fall back to user's JWT store ID (for cashiers with CashDesk)
         return _currentUserService.StoreId;
     }
 
     public Guid? GetCurrentWarehouseId()
     {
+        var cookie = GetCookie(WarehouseIdCookieKey);
+        if (cookie != null && Guid.TryParse(cookie, out var warehouseId))
+        {
+            return warehouseId;
+        }
+
         return null;
     }
 
@@ -36,6 +57,9 @@ public class StoreContextService : IStoreContext
         {
             throw new UnauthorizedAccessException($"User does not have access to store {storeId}");
         }
+
+        SetCookie(StoreIdCookieKey, storeId.ToString());
+        RemoveCookie(WarehouseIdCookieKey); // Clear warehouse when store changes
     }
 
     public async Task SetCurrentWarehouseAsync(Guid warehouseId, CancellationToken cancellationToken = default)
@@ -43,6 +67,59 @@ public class StoreContextService : IStoreContext
         if (!await CanAccessWarehouseAsync(warehouseId, cancellationToken))
         {
             throw new UnauthorizedAccessException($"User does not have access to warehouse {warehouseId}");
+        }
+
+        SetCookie(WarehouseIdCookieKey, warehouseId.ToString());
+    }
+
+    private string? GetCookie(string key)
+    {
+        try
+        {
+            return _httpContextAccessor.HttpContext?.Request.Cookies[key];
+        }
+        catch (InvalidOperationException)
+        {
+            return null;
+        }
+    }
+
+    private void SetCookie(string key, string value)
+    {
+        try
+        {
+            var context = _httpContextAccessor.HttpContext;
+            if (context != null)
+            {
+                context.Response.Cookies.Append(key, value, new CookieOptions
+                {
+                    HttpOnly = true,
+                    Secure = context.Request.IsHttps,
+                    SameSite = SameSiteMode.Lax,
+                    Expires = DateTimeOffset.UtcNow.AddDays(30),
+                    IsEssential = true
+                });
+            }
+        }
+        catch (InvalidOperationException)
+        {
+            // Response may have started, ignore
+        }
+    }
+
+    private void RemoveCookie(string key)
+    {
+        try
+        {
+            var context = _httpContextAccessor.HttpContext;
+            if (context != null)
+            {
+                context.Response.Cookies.Delete(key);
+            }
+        }
+        catch (InvalidOperationException)
+        {
+            // Response may have started, ignore
         }
     }
 

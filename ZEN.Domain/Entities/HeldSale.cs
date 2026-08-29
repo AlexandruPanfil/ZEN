@@ -8,6 +8,8 @@ public class HeldSale : BaseEntity
     public string SerializedItems { get; set; } = "[]";
     public string? Notes { get; set; }
     public DateTime HeldAt { get; set; } = DateTime.UtcNow;
+    public DateTime? CompletedAt { get; set; }
+    public string? CompletedBy { get; set; }
 
     public Store Store { get; set; } = null!;
     public Customer? Customer { get; set; }

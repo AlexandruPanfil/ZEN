@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using ZEN.ApiService.Endpoints;
+using ZEN.ApiService.Hubs;
 using ZEN.Application;
 using ZEN.Infrastructure;
 using ZEN.Infrastructure.Services;
@@ -29,10 +30,15 @@ if (string.IsNullOrEmpty(jwtSettings?.Key))
 }
 
 
-
 // Add Infrastructure and Application layers
 builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddApplication();
+
+// Add HttpContextAccessor for StoreContextService
+builder.Services.AddHttpContextAccessor();
+
+// Add SignalR
+builder.Services.AddSignalR();
 
 // JWT Authentication
 var jwtKey = builder.Configuration["Jwt:Key"] ?? throw new InvalidOperationException("JWT Key not configured");
@@ -90,7 +96,9 @@ app.MapGroup("/api/reports").MapReportEndpoints();
 app.MapGroup("/api/sync").MapSyncEndpoints();
 app.MapGroup("/api/equipments").MapEquipmentEndpoints();
 
+// Map SignalR hub
+app.MapHub<CashDeskHub>("/hubs/cashdesk");
+
 app.MapDefaultEndpoints();
 
 app.Run();
-

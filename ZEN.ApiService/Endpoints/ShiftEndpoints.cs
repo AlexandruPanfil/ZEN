@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.SignalR;
 using ZEN.Application.DTOs.Shifts;
 using ZEN.Application.Services.Interfaces;
+using ZEN.ApiService.Hubs;
 
 namespace ZEN.ApiService.Endpoints;
 
@@ -17,18 +19,45 @@ public static class ShiftEndpoints
         .WithOpenApi()
         .RequireAuthorization();
 
-        group.MapPost("/open-for-cashdesk", async ([FromBody] OpenShiftForCashDeskRequest request, IShiftService shiftService, CancellationToken ct) =>
+        group.MapPost("/open-for-cashdesk", async ([FromBody] OpenShiftForCashDeskRequest request, IShiftService shiftService, IHubContext<CashDeskHub> hubContext, CancellationToken ct) =>
         {
             var shift = await shiftService.OpenShiftForCashDeskAsync(request.CashDeskId, request.OpeningCash, ct);
+            
+            // Broadcast shift opened
+            await hubContext.Clients.Group($"store_{shift.StoreId}").SendAsync("ShiftOpened", new
+            {
+                ShiftId = shift.Id,
+                ShiftNumber = shift.Number,
+                StoreId = shift.StoreId,
+                CashDeskId = request.CashDeskId,
+                UserName = shift.UserName,
+                OpeningCash = shift.OpeningCash,
+                OpenedAt = shift.OpenedAt
+            }, ct);
+            
             return Results.Created($"/api/shifts/{shift.Id}", shift);
         })
         .WithName("OpenShiftForCashDesk")
         .WithOpenApi()
         .RequireAuthorization();
 
-        group.MapPost("/close", async ([FromBody] CloseShiftRequest request, IShiftService shiftService, CancellationToken ct) =>
+        group.MapPost("/close", async ([FromBody] CloseShiftRequest request, IShiftService shiftService, IHubContext<CashDeskHub> hubContext, CancellationToken ct) =>
         {
             var shift = await shiftService.CloseShiftAsync(request, ct);
+            
+            // Broadcast shift closed
+            await hubContext.Clients.Group($"store_{shift.StoreId}").SendAsync("ShiftClosed", new
+            {
+                ShiftId = shift.Id,
+                ShiftNumber = shift.Number,
+                StoreId = shift.StoreId,
+                UserName = shift.UserName,
+                ClosingCash = shift.ClosingCash,
+                TotalSales = shift.TotalSales,
+                SalesCount = shift.SalesCount,
+                ClosedAt = shift.ClosedAt
+            }, ct);
+            
             return Results.Ok(shift);
         })
         .WithName("CloseShift")

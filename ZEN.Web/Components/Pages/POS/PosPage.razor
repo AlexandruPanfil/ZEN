@@ -1,11 +1,671 @@
 @page "/pos"
 @using Microsoft.AspNetCore.Authorization
-@attribute [Authorize(Roles = "Administrator,Cashier,Manager")]
+@using ZEN.Application.DTOs.Admin
+@using ZEN.Application.DTOs.Shifts
+@using ZEN.Application.Services.Interfaces
+@using ZEN.Web.Components.Dialogs
+@using ZEN.Shared.Components.Common
+@using ZEN.Web.Services
+@using ZEN.Domain.Interfaces
+@using ZEN.Infrastructure.Persistence
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.Extensions.DependencyInjection
+@using MudBlazor
+@attribute [Authorize(Roles = "Administrator,Manager")]
+@inject ICashDeskService CashDeskService
+@inject IShiftService ShiftService
+@inject IStoreContext StoreContext
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+@inject SignalRService SignalRService
+@inject IServiceScopeFactory ScopeFactory
+@implements IAsyncDisposable
 
-<PageTitle>Point of Sale - ZEN POS</PageTitle>
+<Microsoft.AspNetCore.Components.Web.PageTitle>POS Cash Desk Monitor - ZEN POS</Microsoft.AspNetCore.Components.Web.PageTitle>
 
-<MudText Typo="Typo.h3" GutterBottom="true">Point of Sale</MudText>
+<MudContainer MaxWidth="MaxWidth.Large" Class="py-4">
+    <MudStack Spacing="4">
+        <MudStack Row="true" Class="justify-between align-center">
+            <MudText Typo="Typo.h4">POS Cash Desk Monitor</MudText>
+            <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center">
+                <StoreContextSelector OnStoreChanged="OnStoreChanged" />
+                <MudSelect T="PosFilter" Value="_filter" ValueChanged="@(async (v) => { _filter = v; await FilterCashDesks(); })" Variant="Variant.Outlined" Style="min-width: 180px;" Margin="Margin.Dense">
+                    <MudSelectItem T="PosFilter" Value="@PosFilter.All">All POS</MudSelectItem>
+                    <MudSelectItem T="PosFilter" Value="@PosFilter.Online">Online Only</MudSelectItem>
+                    <MudSelectItem T="PosFilter" Value="@PosFilter.Offline">Offline Only</MudSelectItem>
+                    <MudSelectItem T="PosFilter" Value="@PosFilter.WithActiveShift">With Active Shift</MudSelectItem>
+                </MudSelect>
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="RefreshCashDesks">
+                    <MudIcon Icon="@Icons.Material.Filled.Refresh" Class="mr-2" />
+                    Refresh
+                </MudButton>
+            </MudStack>
+        </MudStack>
 
-<MudPaper Class="pa-4">
-    <MudText>TODO: Implement POS interface with product search, cart, payment processing, receipt printing</MudText>
-</MudPaper>
+        @if (_isLoading)
+        {
+            <MudProgressCircular Color="Color.Primary" Indeterminate="true" />
+        }
+        else if (!_currentStoreId.HasValue)
+        {
+            <MudPaper Class="pa-8" Elevation="0">
+                <MudStack Spacing="2" AlignItems="AlignItems.Center">
+                    <MudIcon Icon="@Icons.Material.Filled.Store" Style="font-size: 48px;" Color="Color.Default" />
+                    <MudText Typo="Typo.subtitle1">Please select a store to view POS cash desks</MudText>
+                    <MudText Typo="Typo.body2" Class="mud-text-secondary">Use the store selector above to choose a store</MudText>
+                </MudStack>
+            </MudPaper>
+        }
+        else if (_cashDesks == null || !_cashDesks.Any())
+        {
+            <MudPaper Class="pa-8" Elevation="0">
+                <MudStack Spacing="2" AlignItems="AlignItems.Center">
+                    <MudIcon Icon="@Icons.Material.Filled.PointOfSale" Style="font-size: 48px;" Color="Color.Default" />
+                    <MudText Typo="Typo.subtitle1">No cash desks configured</MudText>
+                    <MudText Typo="Typo.body2" Class="mud-text-secondary">
+                        Go to Equipment > Cash Desks to configure POS terminals
+                    </MudText>
+                </MudStack>
+            </MudPaper>
+        }
+        else
+        {
+            <MudPaper Class="pa-4" Elevation="0">
+                <MudStack Row="true" Spacing="4" Class="justify-between align-center">
+                    <MudStack Row="true" Spacing="3">
+                        <MudChip T="string" Color="Color.Success" Size="Size.Small">
+                            <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Size="Size.Small" Class="mr-1" />
+                            @_onlineCount Online
+                        </MudChip>
+                        <MudChip T="string" Color="Color.Error" Size="Size.Small">
+                            <MudIcon Icon="@Icons.Material.Filled.Error" Size="Size.Small" Class="mr-1" />
+                            @_offlineCount Offline
+                        </MudChip>
+                        <MudChip T="string" Color="Color.Primary" Size="Size.Small">
+                            <MudIcon Icon="@Icons.Material.Filled.Schedule" Size="Size.Small" Class="mr-1" />
+                            @_activeShiftCount Active Shifts
+                        </MudChip>
+                    </MudStack>
+                    <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                        Showing @_filteredCashDesks.Count of @_cashDesks.Count cash desks
+                    </MudText>
+                </MudStack>
+            </MudPaper>
+
+            <MudGrid>
+                @foreach (var cashDesk in _filteredCashDesks)
+                {
+                    <MudItem xs="12" sm="6" md="4" lg="3">
+                        <MudCard Elevation="2" Class="h-100">
+                            <MudCardHeader>
+                                <CardHeaderAvatar>
+                                    <MudAvatar Color="@(cashDesk.IsOnline ? Color.Success : Color.Error)" 
+                                             Size="Size.Medium">
+                                        @(cashDesk.IsOnline ? Icons.Material.Filled.CheckCircle : Icons.Material.Filled.Error)
+                                    </MudAvatar>
+                                </CardHeaderAvatar>
+                                <CardHeaderContent>
+                                    <MudText Typo="Typo.h6">@cashDesk.Name</MudText>
+                                    <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                                        @(cashDesk.IsOnline ? "Online" : "Offline")
+                                    </MudText>
+                                </CardHeaderContent>
+                            </MudCardHeader>
+                            <MudCardContent>
+                                <MudStack Spacing="1">
+                                    @if (cashDesk.LastActivityUtc.HasValue)
+                                    {
+                                        <MudText Typo="Typo.body2">
+                                            <MudIcon Icon="@Icons.Material.Filled.AccessTime" Class="mr-1" Size="Size.Small" />
+                                            Last Activity: @cashDesk.LastActivityUtc.Value.ToLocalTime():g
+                                        </MudText>
+                                    }
+                                    else
+                                    {
+                                        <MudText Typo="Typo.body2" Class="mud-text-secondary">
+                                            <MudIcon Icon="@Icons.Material.Filled.History" Class="mr-1" Size="Size.Small" />
+                                            No activity recorded
+                                        </MudText>
+                                    }
+                                    
+                                    @if (_currentShifts.TryGetValue(cashDesk.Id, out var shift))
+                                    {
+                                        <MudDivider />
+                                        <MudText Typo="Typo.subtitle2" Color="Color.Success">
+                                            <MudIcon Icon="@Icons.Material.Filled.Schedule" Class="mr-1" Size="Size.Small" />
+                                            Active Shift
+                                        </MudText>
+                                        <MudText Typo="Typo.body2">Shift: #@shift.Number</MudText>
+                                        <MudText Typo="Typo.body2">Opened: @shift.OpenedAt.ToLocalTime():g</MudText>
+                                        <MudText Typo="Typo.body2">Cashier: @shift.UserName</MudText>
+                                        <MudText Typo="Typo.body2">Opening Cash: @shift.OpeningCash.ToString("C")</MudText>
+                                        <MudText Typo="Typo.body2">Total Sales: @shift.TotalSales.ToString("C")</MudText>
+                                    }
+                                    else
+                                    {
+                                        <MudDivider />
+                                        <MudText Typo="Typo.body2" Class="mud-text-secondary">
+                                            <MudIcon Icon="@Icons.Material.Filled.Schedule" Class="mr-1" Size="Size.Small" />
+                                            No active shift
+                                        </MudText>
+                                    }
+                                </MudStack>
+                            </MudCardContent>
+                            <MudCardActions>
+                                @if (_currentShifts.TryGetValue(cashDesk.Id, out var activeShift))
+                                {
+                                    <MudButton Variant="Variant.Text" Color="Color.Primary" 
+                                              OnClick="@(() => ViewShiftDetails(activeShift.Id))"
+                                              Size="Size.Small">
+                                        View Shift
+                                    </MudButton>
+                                    <MudButton Variant="Variant.Text" Color="Color.Secondary" 
+                                              OnClick="@(() => ShowXReport(cashDesk))"
+                                              Size="Size.Small">
+                                        X Report
+                                    </MudButton>
+                                    <MudButton Variant="Variant.Text" Color="Color.Warning" 
+                                              OnClick="@(() => ShowZReport(activeShift))"
+                                              Size="Size.Small">
+                                        Z Report
+                                    </MudButton>
+                                }
+                                else
+                                {
+                                    <MudButton Variant="Variant.Text" Color="Color.Primary" 
+                                              OnClick="@(() => OpenShiftForCashDesk(cashDesk))"
+                                              Size="Size.Small"
+                                              Disabled="!cashDesk.IsOnline">
+                                        Open Shift
+                                    </MudButton>
+                                }
+                            </MudCardActions>
+                        </MudCard>
+                    </MudItem>
+                }
+            </MudGrid>
+        }
+    </MudStack>
+</MudContainer>
+
+@code {
+    private enum PosFilter
+    {
+        All,
+        Online,
+        Offline,
+        WithActiveShift
+    }
+
+    private List<CashDeskDto> _cashDesks = new();
+    private List<CashDeskDto> _filteredCashDesks = new();
+    private Dictionary<Guid, ShiftDto> _currentShifts = new();
+    private bool _isLoading = true;
+    private Guid? _currentStoreId;
+    private PosFilter _filter = PosFilter.All;
+    private int _onlineCount;
+    private int _offlineCount;
+    private int _activeShiftCount;
+    private PeriodicTimer? _refreshTimer;
+    private bool _isRefreshing = false;
+    private bool _initialized = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        SignalRService.CashDeskStatusChanged += OnCashDeskStatusChanged;
+        SignalRService.ShiftOpened += OnShiftOpened;
+        SignalRService.ShiftClosed += OnShiftClosed;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && !_initialized)
+        {
+            _initialized = true;
+            
+            try
+            {
+                // Check if a store is already selected in context
+                var storeId = StoreContext.GetCurrentStoreId();
+                if (storeId.HasValue)
+                {
+                    await LoadCashDesksAsync(storeId);
+                }
+                else
+                {
+                    // Auto-select first active store
+                    await AutoSelectDefaultStoreAsync();
+                }
+            }
+            catch (Exception ex)
+            {
+                _isLoading = false;
+                Snackbar.Add($"Error initializing POS page: {ex.Message}", Severity.Error);
+            }
+        }
+    }
+
+    private async Task AutoSelectDefaultStoreAsync()
+    {
+        _isLoading = true;
+        StateHasChanged();
+        
+        try
+        {
+            // Use a separate scope to avoid concurrency issues with StoreContextSelector
+            using var scope = ScopeFactory.CreateScope();
+            var context = scope.ServiceProvider.GetRequiredService<ZenDbContext>();
+            var firstActiveStore = await context.Stores
+                .Where(s => s.IsActive && !s.IsDeleted)
+                .OrderBy(s => s.Name)
+                .FirstOrDefaultAsync();
+            
+            if (firstActiveStore != null)
+            {
+                await LoadCashDesksAsync(firstActiveStore.Id);
+                await StoreContext.SetCurrentStoreAsync(firstActiveStore.Id);
+            }
+            else
+            {
+                // No active stores found - stop loading
+                _isLoading = false;
+                StateHasChanged();
+                Snackbar.Add("No active stores configured", Severity.Warning);
+            }
+        }
+        catch (Exception ex)
+        {
+            _isLoading = false;
+            StateHasChanged();
+            Snackbar.Add($"Error auto-selecting store: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task LoadCashDesksAsync(Guid? storeId = null, bool showSnackbar = true)
+    {
+        try
+        {
+            _isLoading = true;
+            StateHasChanged();
+
+            storeId ??= StoreContext.GetCurrentStoreId();
+            if (storeId.HasValue)
+            {
+                _currentStoreId = storeId.Value;
+                
+                // Use a separate scope to avoid concurrency issues with StoreContextSelector
+                using var scope = ScopeFactory.CreateScope();
+                var cashDeskService = scope.ServiceProvider.GetRequiredService<ICashDeskService>();
+                var shiftService = scope.ServiceProvider.GetRequiredService<IShiftService>();
+                
+                _cashDesks = (await cashDeskService.GetAllWithStatusAsync(storeId.Value)).ToList();
+                
+                // Start SignalR connection
+                await SignalRService.StartAsync(storeId.Value);
+                
+                // Load current shifts for each cash desk's store
+                foreach (var cashDesk in _cashDesks.Where(cd => cd.StoreId.HasValue))
+                {
+                    var shift = await shiftService.GetCurrentShiftAsync(cashDesk.StoreId.Value);
+                    if (shift != null)
+                    {
+                        _currentShifts[cashDesk.Id] = shift;
+                    }
+                }
+                
+                ApplyFilter();
+
+                // Start periodic refresh timer
+                if (!_isRefreshing)
+                {
+                    _isRefreshing = true;
+                    _ = StartPeriodicRefreshAsync();
+                }
+            }
+            else
+            {
+                _currentStoreId = null;
+                _cashDesks.Clear();
+                _filteredCashDesks.Clear();
+                _currentShifts.Clear();
+                
+                // Stop SignalR connection if no store
+                await SignalRService.StopAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            if (showSnackbar)
+            {
+                Snackbar.Add($"Error loading cash desks: {ex.Message}", Severity.Error);
+            }
+            _currentStoreId = null;
+            _cashDesks.Clear();
+            _filteredCashDesks.Clear();
+            _currentShifts.Clear();
+        }
+        finally
+        {
+            _isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task StartPeriodicRefreshAsync()
+    {
+        _refreshTimer = new PeriodicTimer(TimeSpan.FromSeconds(30));
+        
+        try
+        {
+            while (await _refreshTimer.WaitForNextTickAsync())
+            {
+                if (_currentStoreId.HasValue)
+                {
+                    await RefreshCashDesksSilentAsync(_currentStoreId.Value);
+                }
+                else
+                {
+                    break;
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Timer was stopped
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Periodic refresh error: {ex.Message}");
+        }
+        finally
+        {
+            _isRefreshing = false;
+        }
+    }
+
+    private async Task RefreshCashDesksSilentAsync(Guid storeId)
+    {
+        try
+        {
+            // Use a separate scope to avoid concurrency issues
+            using var scope = ScopeFactory.CreateScope();
+            var cashDeskService = scope.ServiceProvider.GetRequiredService<ICashDeskService>();
+            var shiftService = scope.ServiceProvider.GetRequiredService<IShiftService>();
+            
+            // Fetch updated cash desks without showing loading spinner
+            var cashDesks = (await cashDeskService.GetAllWithStatusAsync(storeId)).ToList();
+            
+            // Update existing cash desks preserving UI state
+            foreach (var updatedDesk in cashDesks)
+            {
+                var index = _cashDesks.FindIndex(cd => cd.Id == updatedDesk.Id);
+                if (index >= 0)
+                {
+                    _cashDesks[index] = updatedDesk;
+                }
+                else
+                {
+                    _cashDesks.Add(updatedDesk);
+                }
+            }
+            
+            // Remove cash desks that no longer exist
+            _cashDesks.RemoveAll(cd => !cashDesks.Any(c => c.Id == cd.Id));
+            
+            // Refresh shifts
+            foreach (var cashDesk in _cashDesks.Where(cd => cd.StoreId.HasValue))
+            {
+                var shift = await shiftService.GetCurrentShiftAsync(cashDesk.StoreId.Value);
+                if (shift != null)
+                {
+                    _currentShifts[cashDesk.Id] = shift;
+                }
+                else
+                {
+                    _currentShifts.Remove(cashDesk.Id);
+                }
+            }
+            
+            ApplyFilter();
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Silent refresh error: {ex.Message}");
+        }
+    }
+
+    private void ApplyFilter()
+    {
+        if (_cashDesks == null)
+        {
+            _filteredCashDesks.Clear();
+            _onlineCount = _offlineCount = _activeShiftCount = 0;
+            return;
+        }
+
+        _onlineCount = _cashDesks.Count(c => c.IsOnline);
+        _offlineCount = _cashDesks.Count(c => !c.IsOnline);
+        _activeShiftCount = _cashDesks.Count(c => _currentShifts.ContainsKey(c.Id));
+
+        _filteredCashDesks = _filter switch
+        {
+            PosFilter.Online => _cashDesks.Where(c => c.IsOnline).ToList(),
+            PosFilter.Offline => _cashDesks.Where(c => !c.IsOnline).ToList(),
+            PosFilter.WithActiveShift => _cashDesks.Where(c => _currentShifts.ContainsKey(c.Id)).ToList(),
+            _ => _cashDesks.ToList()
+        };
+    }
+
+    private async Task FilterCashDesks()
+    {
+        ApplyFilter();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void OnCashDeskStatusChanged(object data)
+    {
+        try
+        {
+            // Parse the JSON data
+            var json = System.Text.Json.JsonSerializer.Serialize(data);
+            using var doc = System.Text.Json.JsonDocument.Parse(json);
+            var root = doc.RootElement;
+            
+            var cashDeskId = root.GetProperty("CashDeskId").GetGuid();
+            var isOnline = root.GetProperty("IsOnline").GetBoolean();
+            var lastActivityUtc = root.GetProperty("LastActivityUtc").GetDateTime();
+            
+            var cashDesk = _cashDesks?.FirstOrDefault(cd => cd.Id == cashDeskId);
+            if (cashDesk != null)
+            {
+                // Create new instance with updated values (records are immutable)
+                var updatedCashDesk = cashDesk with
+                {
+                    IsOnline = isOnline,
+                    LastActivityUtc = lastActivityUtc
+                };
+                
+                var index = _cashDesks.IndexOf(cashDesk);
+                if (index >= 0)
+                {
+                    _cashDesks[index] = updatedCashDesk;
+                }
+                
+                ApplyFilter();
+                InvokeAsync(StateHasChanged);
+            }
+        }
+        catch (Exception ex)
+        {
+            // Log error but don't crash UI
+            Console.WriteLine($"Error parsing CashDeskStatusChanged: {ex.Message}");
+        }
+    }
+
+    private void OnShiftOpened(object data)
+    {
+        try
+        {
+            var json = System.Text.Json.JsonSerializer.Serialize(data);
+            using var doc = System.Text.Json.JsonDocument.Parse(json);
+            var root = doc.RootElement;
+            
+            var shiftId = root.GetProperty("ShiftId").GetGuid();
+            var cashDeskId = root.GetProperty("CashDeskId").GetGuid();
+            var shiftNumber = root.GetProperty("ShiftNumber").GetInt32();
+            var userName = root.GetProperty("UserName").GetString();
+            var openingCash = root.GetProperty("OpeningCash").GetDecimal();
+            var openedAt = root.GetProperty("OpenedAt").GetDateTime();
+            
+            // Get the full shift object
+            var shift = new ZEN.Application.DTOs.Shifts.ShiftDto(
+                shiftId, 
+                shiftNumber.ToString(), 
+                openedAt, 
+                null, 
+                "", 
+                userName ?? "", 
+                _currentStoreId ?? Guid.Empty, 
+                "", 
+                openingCash, 
+                null, 
+                0, 
+                null, 
+                ZEN.Domain.Enums.ShiftStatus.Open, 
+                0, 
+                0);
+            
+            _currentShifts[cashDeskId] = shift;
+            ApplyFilter();
+            InvokeAsync(StateHasChanged);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error parsing ShiftOpened: {ex.Message}");
+        }
+    }
+
+    private void OnShiftClosed(object data)
+    {
+        try
+        {
+            var json = System.Text.Json.JsonSerializer.Serialize(data);
+            using var doc = System.Text.Json.JsonDocument.Parse(json);
+            var root = doc.RootElement;
+            
+            var shiftId = root.GetProperty("ShiftId").GetGuid();
+            
+            // Find and remove the shift
+            var entry = _currentShifts.FirstOrDefault(kvp => kvp.Value.Id == shiftId);
+            if (!entry.Equals(default(KeyValuePair<Guid, ShiftDto>)))
+            {
+                _currentShifts.Remove(entry.Key);
+                ApplyFilter();
+                InvokeAsync(StateHasChanged);
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error parsing ShiftClosed: {ex.Message}");
+        }
+    }
+
+    private async Task RefreshCashDesks()
+    {
+        if (!_currentStoreId.HasValue)
+        {
+            Snackbar.Add("Please select a store first", Severity.Warning);
+            return;
+        }
+        
+        await LoadCashDesksAsync(_currentStoreId);
+        Snackbar.Add("Cash desks refreshed", Severity.Info);
+    }
+
+    private async Task OpenShiftForCashDesk(CashDeskDto cashDesk)
+    {
+        if (!cashDesk.StoreId.HasValue)
+        {
+            Snackbar.Add("Cash desk not assigned to a store", Severity.Error);
+            return;
+        }
+
+        var parameters = new DialogParameters<ShiftOpenDialog>
+        {
+            { x => x.StoreId, cashDesk.StoreId.Value }
+        };
+
+        var dialog = await DialogService.ShowAsync<ShiftOpenDialog>("Open New Shift", parameters);
+        var result = await dialog.Result;
+
+        if (!result.Canceled && result.Data is ShiftDto newShift)
+        {
+            _currentShifts[cashDesk.Id] = newShift;
+            Snackbar.Add($"Shift opened for {cashDesk.Name}", Severity.Success);
+        }
+    }
+
+    private async Task ViewShiftDetails(Guid shiftId)
+    {
+        var parameters = new DialogParameters<ShiftDetailsDialog>
+        {
+            { "Shift", await ShiftService.GetByIdAsync(shiftId) }
+        };
+        await DialogService.ShowAsync<ShiftDetailsDialog>("Shift Details", parameters);
+    }
+
+    private async Task ShowXReport(CashDeskDto cashDesk)
+    {
+        if (!cashDesk.StoreId.HasValue) return;
+
+        try
+        {
+            // This would call an API to get X report
+            // For now, show a placeholder
+            Snackbar.Add("X Report functionality coming soon", Severity.Info);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error generating X Report: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task ShowZReport(ShiftDto shift)
+    {
+        var parameters = new DialogParameters<ShiftCloseDialog>
+        {
+            { "Shift", shift }
+        };
+        var dialog = await DialogService.ShowAsync<ShiftCloseDialog>("Close Shift & Z Report", parameters);
+        var result = await dialog.Result;
+
+        if (!result.Canceled && result.Data is ShiftDto closedShift)
+        {
+            _currentShifts.Remove(closedShift.Id);
+            Snackbar.Add("Shift closed and Z Report generated", Severity.Success);
+        }
+    }
+
+    private async Task OnStoreChanged(Guid? storeId)
+    {
+        if (storeId != _currentStoreId)
+        {
+            await SignalRService.StopAsync();
+            await LoadCashDesksAsync(storeId);
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        SignalRService.CashDeskStatusChanged -= OnCashDeskStatusChanged;
+        SignalRService.ShiftOpened -= OnShiftOpened;
+        SignalRService.ShiftClosed -= OnShiftClosed;
+        
+        // Stop the periodic refresh timer
+        _refreshTimer?.Dispose();
+        _refreshTimer = null;
+        
+        await SignalRService.StopAsync();
+    }
+}

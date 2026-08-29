@@ -333,4 +333,81 @@ public class SyncApiClient
 
         return content.Length > 500 ? content[..500] : content;
     }
+
+    // Cash Desk Status and Heartbeat
+    public async Task<IEnumerable<CashDeskDto>> GetCashDesksWithStatusAsync(Guid? storeId = null, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var uri = storeId.HasValue
+                ? $"api/equipments/cash-desks/status?storeId={storeId.Value}"
+                : "api/equipments/cash-desks/status";
+            return await _httpClient.GetFromJsonAsync<IEnumerable<CashDeskDto>>(uri, cancellationToken) ?? [];
+        }
+        catch
+        {
+            return [];
+        }
+    }
+
+    public async Task<CashDeskDto?> SendHeartbeatAsync(Guid cashDeskId, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var response = await _httpClient.PostAsync($"api/equipments/cash-desks/{cashDeskId}/heartbeat", null, cancellationToken);
+            if (response.IsSuccessStatusCode)
+            {
+                return await response.Content.ReadFromJsonAsync<CashDeskDto>(cancellationToken);
+            }
+            return null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    // Held Sale Completion
+    public async Task<bool> CompleteHeldSaleAsync(Guid heldSaleId, string completedBy, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var response = await _httpClient.PostAsJsonAsync($"api/sales/held/{heldSaleId}/complete", completedBy, cancellationToken);
+            return response.IsSuccessStatusCode;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    public async Task<HeldSaleDto?> HoldSaleAsync(HoldSaleRequest request, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var response = await _httpClient.PostAsJsonAsync("api/sales/hold", request, cancellationToken);
+            if (response.IsSuccessStatusCode)
+            {
+                return await response.Content.ReadFromJsonAsync<HeldSaleDto>(cancellationToken);
+            }
+            return null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    public async Task<IEnumerable<HeldSaleDto>> GetHeldSalesAsync(Guid storeId, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var uri = $"api/sales/held/{storeId}";
+            return await _httpClient.GetFromJsonAsync<IEnumerable<HeldSaleDto>>(uri, cancellationToken) ?? [];
+        }
+        catch
+        {
+            return [];
+        }
+    }
 }

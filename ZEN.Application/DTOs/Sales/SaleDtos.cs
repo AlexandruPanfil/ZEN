@@ -61,6 +61,9 @@ public record HoldSaleRequest(
 
 public record HeldSaleDto(
     Guid Id,
+    Guid StoreId,
     DateTime HeldAt,
     string? CustomerName,
-    string SerializedItems);
+    string SerializedItems,
+    DateTime? CompletedAt,
+    string? CompletedBy);

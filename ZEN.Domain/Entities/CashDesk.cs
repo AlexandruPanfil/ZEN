@@ -7,6 +7,8 @@ public class CashDesk : BaseEntity
     public bool IsActive { get; set; } = true;
     public Guid? FiscalPrinterId { get; set; }
     public Guid? CustomerDisplayId { get; set; }
+    public DateTime? LastActivityUtc { get; set; }
+    public bool IsOnline { get; set; } = false;
 
     public Store? Store { get; set; }
     public Printer? FiscalPrinter { get; set; }

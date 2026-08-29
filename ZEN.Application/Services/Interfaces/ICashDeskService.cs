@@ -13,6 +13,10 @@ public interface ICashDeskService
     Task<bool> DeleteAsync(Guid id, CancellationToken cancellationToken = default);
 
     Task<CashDeskDto> AssignMenuAsync(AssignMenuToCashDeskRequest request, CancellationToken cancellationToken = default);
+    
+    // New methods for POS integration
+    Task<CashDeskDto?> HeartbeatAsync(Guid cashDeskId, CancellationToken cancellationToken = default);
+    Task<IEnumerable<CashDeskDto>> GetAllWithStatusAsync(Guid? storeId = null, CancellationToken cancellationToken = default);
 }
 
 public record CreateCashDeskRequest(

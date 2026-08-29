@@ -112,7 +112,9 @@ public record CashDeskDto(
     bool IsActive,
     Guid? FiscalPrinterId,
     Guid? CustomerDisplayId,
-    Guid? MenuId);
+    Guid? MenuId,
+    DateTime? LastActivityUtc,
+    bool IsOnline);
 
 public record CashDeskDetailDto(
     Guid Id,
@@ -125,4 +127,6 @@ public record CashDeskDetailDto(
     string CustomerDisplayName,
     Guid? MenuId,
     IEnumerable<PaymentTerminalDto> PaymentTerminals,
-    IEnumerable<ScannerDto> Scanners);
+    IEnumerable<ScannerDto> Scanners,
+    DateTime? LastActivityUtc,
+    bool IsOnline);

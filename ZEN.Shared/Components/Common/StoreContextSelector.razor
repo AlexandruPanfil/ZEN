@@ -150,13 +150,13 @@
         await OnWarehouseChanged.InvokeAsync(warehouseId);
     }
 
-    private async Task HandleSelectedStoreChanged()
+    private async Task HandleSelectedStoreChanged(Guid? storeId)
     {
-        await OnStoreSelectionChanged(_selectedStoreId);
+        await OnStoreSelectionChanged(storeId);
     }
 
-    private async Task HandleSelectedWarehouseChanged()
+    private async Task HandleSelectedWarehouseChanged(Guid? warehouseId)
     {
-        await OnWarehouseSelectionChanged(_selectedWarehouseId);
+        await OnWarehouseSelectionChanged(warehouseId);
     }
 }

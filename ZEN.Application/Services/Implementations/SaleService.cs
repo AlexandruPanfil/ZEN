@@ -613,7 +613,14 @@ private async Task<(bool Attempted, bool Success, string? ErrorMessage)> SendToF
 
     public async Task<HeldSaleDto> HoldSaleAsync(HoldSaleRequest request, CancellationToken cancellationToken = default)
     {
-        if (_storeContext.GetCurrentStoreId() != request.StoreId)
+        // Validate that the store exists
+        var store = await _storeRepository.GetByIdAsync(request.StoreId, cancellationToken);
+        if (store == null)
+            throw new InvalidOperationException($"Store {request.StoreId} not found");
+
+        // If there's a store context, validate it matches (for Web sessions)
+        var contextStoreId = _storeContext.GetCurrentStoreId();
+        if (contextStoreId.HasValue && contextStoreId.Value != request.StoreId)
             throw new InvalidOperationException("Store context mismatch");
 
         var heldSale = new HeldSale
@@ -629,13 +636,13 @@ private async Task<(bool Attempted, bool Success, string? ErrorMessage)> SendToF
         await _heldSaleRepository.AddAsync(heldSale, cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-        return new HeldSaleDto(heldSale.Id, heldSale.HeldAt, heldSale.CustomerId?.ToString(), heldSale.SerializedItems);
+        return new HeldSaleDto(heldSale.Id, heldSale.StoreId, heldSale.HeldAt, heldSale.CustomerId?.ToString(), heldSale.SerializedItems, heldSale.CompletedAt, heldSale.CompletedBy);
     }
 
     public async Task<IEnumerable<HeldSaleDto>> GetHeldSalesAsync(Guid storeId, CancellationToken cancellationToken = default)
     {
         var heldSales = await _heldSaleRepository.FindAsync(h => h.StoreId == storeId, cancellationToken);
-        return heldSales.Select(h => new HeldSaleDto(h.Id, h.HeldAt, h.CustomerId?.ToString(), h.SerializedItems));
+        return heldSales.Select(h => new HeldSaleDto(h.Id, h.StoreId, h.HeldAt, h.CustomerId?.ToString(), h.SerializedItems, h.CompletedAt, h.CompletedBy));
     }
 
     public async Task<bool> ResumeHeldSaleAsync(Guid heldSaleId, CancellationToken cancellationToken = default)
@@ -645,6 +652,19 @@ private async Task<(bool Attempted, bool Success, string? ErrorMessage)> SendToF
             return false;
 
         _heldSaleRepository.Remove(heldSale);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        return true;
+    }
+
+    public async Task<bool> CompleteHeldSaleAsync(Guid heldSaleId, string completedBy, CancellationToken cancellationToken = default)
+    {
+        var heldSale = await _heldSaleRepository.GetByIdAsync(heldSaleId, cancellationToken);
+        if (heldSale == null)
+            return false;
+
+        heldSale.CompletedAt = DateTime.UtcNow;
+        heldSale.CompletedBy = completedBy;
+        _heldSaleRepository.Update(heldSale);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
         return true;
     }

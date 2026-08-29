@@ -10,6 +10,7 @@ public interface ISaleService
     Task<HeldSaleDto> HoldSaleAsync(HoldSaleRequest request, CancellationToken cancellationToken = default);
     Task<IEnumerable<HeldSaleDto>> GetHeldSalesAsync(Guid storeId, CancellationToken cancellationToken = default);
     Task<bool> ResumeHeldSaleAsync(Guid heldSaleId, CancellationToken cancellationToken = default);
+    Task<bool> CompleteHeldSaleAsync(Guid heldSaleId, string completedBy, CancellationToken cancellationToken = default);
     Task<bool> VoidSaleAsync(Guid saleId, string reason, CancellationToken cancellationToken = default);
     Task<bool> RefundSaleAsync(Guid saleId, string reason, CancellationToken cancellationToken = default);
 }

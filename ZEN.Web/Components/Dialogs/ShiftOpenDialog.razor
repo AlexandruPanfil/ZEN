@@ -1,6 +1,9 @@
+@using ZEN.Application.DTOs.Shifts
+@using ZEN.Application.Services.Interfaces
 @using ZEN.Domain.Entities
 @using MudBlazor
 @inject ISnackbar Snackbar
+@inject IShiftService ShiftService
 
 <MudDialog>
     <DialogContent>
@@ -16,17 +19,17 @@
 
                 <MudStack Spacing="2">
                     <MudNumericField T="int?" Label="$100 Bills" @bind-Value="bills100"
-                                    Min="0" Variant="Variant.Outlined" Dense="true" />
+                                     Min="0" Variant="Variant.Outlined" Dense="true" />
                     <MudNumericField T="int?" Label="$50 Bills" @bind-Value="bills50"
-                                    Min="0" Variant="Variant.Outlined" Dense="true" />
+                                     Min="0" Variant="Variant.Outlined" Dense="true" />
                     <MudNumericField T="int?" Label="$20 Bills" @bind-Value="bills20"
-                                    Min="0" Variant="Variant.Outlined" Dense="true" />
+                                     Min="0" Variant="Variant.Outlined" Dense="true" />
                     <MudNumericField T="int?" Label="$10 Bills" @bind-Value="bills10"
-                                    Min="0" Variant="Variant.Outlined" Dense="true" />
+                                     Min="0" Variant="Variant.Outlined" Dense="true" />
                     <MudNumericField T="int?" Label="$5 Bills" @bind-Value="bills5"
-                                    Min="0" Variant="Variant.Outlined" Dense="true" />
+                                     Min="0" Variant="Variant.Outlined" Dense="true" />
                     <MudNumericField T="int?" Label="$1 Bills" @bind-Value="bills1"
-                                    Min="0" Variant="Variant.Outlined" Dense="true" />
+                                     Min="0" Variant="Variant.Outlined" Dense="true" />
                 </MudStack>
 
                 <MudText Typo="Typo.caption">Calculated Total: $@CalculatedTotal.ToString("F2")</MudText>
@@ -35,19 +38,29 @@
     </DialogContent>
     <DialogActions>
         <MudButton OnClick="Cancel">Cancel</MudButton>
-        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="OpenShift" Disabled="!isFormValid">
-            Open Shift
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="OpenShift" Disabled="!isFormValid || _isProcessing">
+            @if (_isProcessing)
+            {
+                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                <span>Opening...</span>
+            }
+            else
+            {
+                <span>Open Shift</span>
+            }
         </MudButton>
     </DialogActions>
 </MudDialog>
 
 @code {
     [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
+    [Parameter] public Guid StoreId { get; set; }
 
     private MudForm form = null!;
     private bool isFormValid = false;
     private decimal openingCash = 0m;
     private int? bills100, bills50, bills20, bills10, bills5, bills1;
+    private bool _isProcessing = false;
 
     private decimal CalculatedTotal =>
         (bills100 ?? 0) * 100 + (bills50 ?? 0) * 50 + (bills20 ?? 0) * 20 +
@@ -58,22 +71,24 @@
         if (!isFormValid)
             return;
 
+        _isProcessing = true;
+        StateHasChanged();
+
         try
         {
-            var shift = new Shift
-            {
-                Id = Guid.NewGuid(),
-                OpenTime = DateTime.UtcNow,
-                OpeningCash = openingCash,
-                Status = ZEN.Domain.Enums.ShiftStatus.Open,
-                ClosingCash = 0
-            };
+            var request = new OpenShiftRequest(StoreId, openingCash);
+            var shift = await ShiftService.OpenShiftAsync(request);
 
             MudDialog.Close(DialogResult.Ok(shift));
         }
         catch (Exception ex)
         {
             Snackbar.Add($"Error opening shift: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isProcessing = false;
+            StateHasChanged();
         }
     }
 

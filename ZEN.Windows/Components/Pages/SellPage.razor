@@ -3,7 +3,10 @@
 @inject ZEN.Windows.Services.PosAuthState PosAuthState
 @inject ISnackbar Snackbar
 @inject ZEN.Windows.Services.Sync.SyncApiClient ApiClient
+@inject ZEN.Windows.Services.CashDeskHeartbeatService HeartbeatService
+@inject IDialogService DialogService
 @using ZEN.Windows.Components.POS
+@using ZEN.Application.DTOs.Sales
 
 <PageTitle>Point of Sale - ZEN POS</PageTitle>
 
@@ -56,6 +59,7 @@
     private List<ProductDto> AllProducts = new();
     private List<PosCartItem> Cart = new();
     private bool IsDemoCatalog = false;
+    private HeldSaleDto? _resumingHeldSale = null;
 
     private decimal Subtotal => Cart.Sum(item => item.Quantity * item.UnitPrice);
     private decimal DiscountAmount => Cart.Sum(item => item.Quantity * item.Discount);
@@ -67,6 +71,10 @@
 
     protected override async Task OnInitializedAsync()
     {
+        if (PosAuthState.IsAuthenticated && PosAuthState.CashDeskId.HasValue)
+        {
+            HeartbeatService.Start(PosAuthState.CashDeskId.Value);
+        }
         await LoadProductsAsync();
     }
 
@@ -169,14 +177,130 @@ private async Task LoadProductsAsync()
         Snackbar.Add("Cart cleared", Severity.Info);
     }
 
-    private void HoldSale()
+    private async Task HoldSale()
     {
-        Snackbar.Add("Demo mode: Hold sale not available without database connection", Severity.Info);
+        if (Cart.Count == 0)
+        {
+            Snackbar.Add("Cart is empty, nothing to hold", Severity.Warning);
+            return;
+        }
+
+        if (!PosAuthState.StoreId.HasValue)
+        {
+            Snackbar.Add("No store assigned", Severity.Error);
+            return;
+        }
+
+        try
+        {
+            // Serialize cart items
+            var itemsJson = System.Text.Json.JsonSerializer.Serialize(Cart.Select(item => new
+            {
+                item.ProductId,
+                item.Quantity,
+                item.UnitPrice,
+                item.Discount,
+                item.TaxRate
+            }));
+
+            var request = new Application.DTOs.Sales.HoldSaleRequest(
+                StoreId: PosAuthState.StoreId.Value,
+                CustomerId: null,
+                SerializedItems: itemsJson
+            );
+
+            var heldSale = await ApiClient.HoldSaleAsync(request);
+            
+            if (heldSale != null)
+            {
+                ClearCart();
+                Snackbar.Add($"Sale held successfully (ID: {heldSale.Id})", Severity.Success);
+            }
+            else
+            {
+                Snackbar.Add("Failed to hold sale", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error holding sale: {ex.Message}", Severity.Error);
+        }
     }
 
-    private void ResumeSale()
+    private async Task ResumeSale()
     {
-        Snackbar.Add("Demo mode: Resume sale not available without database connection", Severity.Info);
+        if (!PosAuthState.StoreId.HasValue)
+        {
+            Snackbar.Add("No store assigned", Severity.Error);
+            return;
+        }
+
+        try
+        {
+            var heldSales = await ApiClient.GetHeldSalesAsync(PosAuthState.StoreId.Value);
+            var activeHeldSales = heldSales.Where(h => h.CompletedAt == null).ToList();
+            
+            if (!activeHeldSales.Any())
+            {
+                Snackbar.Add("No held sales to resume", Severity.Info);
+                return;
+            }
+
+            var parameters = new DialogParameters<SelectHeldSaleDialog>
+            {
+                { x => x.HeldSales, activeHeldSales }
+            };
+
+            var dialog = await DialogService.ShowAsync<SelectHeldSaleDialog>("Select Held Sale to Resume", parameters);
+            var result = await dialog.Result;
+
+            if (!result.Canceled && result.Data is HeldSaleDto selectedHeldSale)
+            {
+                if (!string.IsNullOrEmpty(selectedHeldSale.SerializedItems))
+                {
+                    try
+                    {
+                        var items = System.Text.Json.JsonSerializer.Deserialize<List<HeldSaleItem>>(selectedHeldSale.SerializedItems);
+                        if (items != null && items.Any())
+                        {
+                            Cart.Clear();
+                            foreach (var item in items)
+                            {
+                                Cart.Add(new PosCartItem
+                                {
+                                    ProductId = item.ProductId,
+                                    Quantity = item.Quantity,
+                                    UnitPrice = item.UnitPrice,
+                                    Discount = item.Discount,
+                                    TaxRate = item.TaxRate
+                                });
+                            }
+                            
+                            _resumingHeldSale = selectedHeldSale;
+                            Snackbar.Add($"Resumed held sale from {selectedHeldSale.HeldAt:g}", Severity.Success);
+                            StateHasChanged();
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Snackbar.Add($"Error resuming sale: {ex.Message}", Severity.Error);
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error loading held sales: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private class HeldSaleItem
+    {
+        public Guid ProductId { get; set; }
+        public decimal Quantity { get; set; }
+        public decimal UnitPrice { get; set; }
+        public decimal Discount { get; set; }
+        public decimal TaxRate { get; set; }
     }
 
     // Payment Modal State
@@ -404,6 +528,24 @@ private async Task LoadProductsAsync()
                     Snackbar.Add($"Change due: {changeDue:C}", Severity.Info);
                 }
 
+                // Complete held sale if we were resuming one
+                if (_resumingHeldSale != null)
+                {
+                    try
+                    {
+                        var completed = await ApiClient.CompleteHeldSaleAsync(_resumingHeldSale.Id, PosAuthState.UserName ?? "POS");
+                        if (completed)
+                        {
+                            Snackbar.Add("Held sale completed and removed from pending list", Severity.Success);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"Error completing held sale: {ex.Message}");
+                    }
+                    _resumingHeldSale = null;
+                }
+
                 ClearCart();
             }
             else
@@ -504,6 +646,11 @@ private async Task LoadProductsAsync()
         {
             Navigation.NavigateTo("/manager");
         }
+    }
+
+    public void Dispose()
+    {
+        HeartbeatService.Stop();
     }
 
 private List<ProductDto> GenerateDemoProducts()

@@ -1,27 +1,38 @@
 @page "/shifts"
+@using ZEN.Application.DTOs.Shifts
 @using ZEN.Application.Services.Interfaces
-@using ZEN.Domain.Entities
 @using ZEN.Domain.Enums
 @using ZEN.Web.Components.Dialogs
+@using ZEN.Shared.Components.Common
+@using ZEN.Web.Services
+@using ZEN.Infrastructure.Persistence
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.Extensions.DependencyInjection
 @using MudBlazor
 @inject IShiftService ShiftService
 @inject IStoreContext StoreContext
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
+@inject SignalRService SignalRService
+@inject IServiceScopeFactory ScopeFactory
+@implements IAsyncDisposable
 
-<PageTitle>Shifts Management</PageTitle>
+<Microsoft.AspNetCore.Components.Web.PageTitle>Shifts Management</Microsoft.AspNetCore.Components.Web.PageTitle>
 
 <MudContainer MaxWidth="MaxWidth.Large" Class="py-8">
     <MudStack Spacing="4">
         <MudStack Row="true" Class="justify-between align-center">
             <MudText Typo="Typo.h4">Shifts</MudText>
-            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="OpenShiftDialog" Disabled="currentShift != null">
-                <MudIcon Icon="@Icons.Material.Filled.Add" Class="mr-2" />
-                Open New Shift
-            </MudButton>
+            <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center">
+                <StoreContextSelector OnStoreChanged="OnStoreChanged" />
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="OpenShiftDialog" Disabled="_currentShift != null">
+                    <MudIcon Icon="@Icons.Material.Filled.Add" Class="mr-2" />
+                    Open New Shift
+                </MudButton>
+            </MudStack>
         </MudStack>
 
-        @if (currentShift != null)
+        @if (_currentShift != null)
         {
             <MudPaper Class="pa-4" Elevation="2">
                 <MudStack Spacing="3">
@@ -31,19 +42,27 @@
                     </MudText>
                     <MudGrid>
                         <MudItem xs="12" sm="6">
-                            <MudText Typo="Typo.body2"><strong>Opened:</strong> @currentShift.OpenTime.ToString("g")</MudText>
+                            <MudText Typo="Typo.body2"><strong>Opened:</strong> @_currentShift.OpenedAt.ToString("g")</MudText>
                         </MudItem>
                         <MudItem xs="12" sm="6">
-                            <MudText Typo="Typo.body2"><strong>Opened By:</strong> @currentShift.UserId</MudText>
+                            <MudText Typo="Typo.body2"><strong>Opened By:</strong> @_currentShift.UserName</MudText>
                         </MudItem>
                         <MudItem xs="12" sm="6">
-                            <MudText Typo="Typo.body2"><strong>Opening Cash:</strong> $@currentShift.OpeningCash.ToString("F2")</MudText>
+                            <MudText Typo="Typo.body2"><strong>Opening Cash:</strong> @_currentShift.OpeningCash.ToString("C")</MudText>
                         </MudItem>
                         <MudItem xs="12" sm="6">
-                            <MudText Typo="Typo.body2"><strong>Status:</strong> @currentShift.Status</MudText>
+                            <MudText Typo="Typo.body2"><strong>Status:</strong> 
+                                <MudChip T="string" Size="Size.Small" Color="Color.Success">@_currentShift.Status</MudChip>
+                            </MudText>
+                        </MudItem>
+                        <MudItem xs="12" sm="6">
+                            <MudText Typo="Typo.body2"><strong>Total Sales:</strong> @_currentShift.TotalSales.ToString("C")</MudText>
+                        </MudItem>
+                        <MudItem xs="12" sm="6">
+                            <MudText Typo="Typo.body2"><strong>Sales Count:</strong> @_currentShift.SalesCount</MudText>
                         </MudItem>
                     </MudGrid>
-                    <MudButton Variant="Variant.Filled" Color="Color.Warning" OnClick="@(() => CloseShift(currentShift))">
+                    <MudButton Variant="Variant.Filled" Color="Color.Warning" OnClick="@(() => CloseShift(_currentShift))">
                         Close Shift & Reconcile
                     </MudButton>
                 </MudStack>
@@ -60,117 +79,382 @@
                         <MudSelectItem Value="@ShiftStatus.Open">Open</MudSelectItem>
                         <MudSelectItem Value="@ShiftStatus.Closed">Closed</MudSelectItem>
                     </MudSelect>
+                    <MudButton Variant="Variant.Filled" Color="Color.Secondary" OnClick="RefreshShifts">
+                        <MudIcon Icon="@Icons.Material.Filled.Refresh" Class="mr-2" />
+                        Refresh
+                    </MudButton>
                 </MudStack>
             </MudStack>
         </MudPaper>
 
-        <MudTable T="Shift" Items="FilteredShifts" Hover="true" Striped="true" Dense="false">
-            <HeaderContent>
-                <MudTh>Opened At</MudTh>
-                <MudTh>Operator</MudTh>
-                <MudTh>Opening Cash</MudTh>
-                <MudTh>Closing Cash</MudTh>
-                <MudTh>Total Sales</MudTh>
-                <MudTh>Status</MudTh>
-                <MudTh Style="text-align:right">Actions</MudTh>
-            </HeaderContent>
-            <RowTemplate>
-                <MudTd DataLabel="Opened At">@context.OpenTime.ToString("MMM dd, yyyy HH:mm")</MudTd>
-                <MudTd DataLabel="Operator">@context.UserId</MudTd>
-                <MudTd DataLabel="Opening Cash">$@context.OpeningCash.ToString("F2")</MudTd>
-                <MudTd DataLabel="Closing Cash">$@context.ClosingCash.ToString("F2") @if (context.CloseTime.HasValue) { <text>(Closed @context.CloseTime.Value.ToString("HH:mm"))</text> }</MudTd>
-                <MudTd DataLabel="Total Sales">$@context.OpeningCash.ToString("F2")</MudTd>
-                <MudTd DataLabel="Status">
-                    <MudChip T="string" Size="Size.Small" Color="@(context.Status == ShiftStatus.Closed ? Color.Success : Color.Warning)">
-                        @context.Status
-                    </MudChip>
-                </MudTd>
-                <MudTd Style="text-align:right">
-                    <MudIconButton Icon="@Icons.Material.Filled.Details" 
-                                  Size="Size.Small"
-                                  OnClick="@(() => ViewShiftDetails(context))" />
-                    @if (context.Status == ShiftStatus.Open)
-                    {
-                        <MudIconButton Icon="@Icons.Material.Filled.Edit" 
+        @if (_isLoading)
+        {
+            <MudProgressCircular Color="Color.Primary" Indeterminate="true" />
+        }
+        else if (!_currentStoreId.HasValue)
+        {
+            <MudPaper Class="pa-8" Elevation="0">
+                <MudStack Spacing="2" AlignItems="AlignItems.Center">
+                    <MudIcon Icon="@Icons.Material.Filled.Store" Style="font-size: 48px;" Color="Color.Default" />
+                    <MudText Typo="Typo.subtitle1">Please select a store to view shifts</MudText>
+                    <MudText Typo="Typo.body2" Class="mud-text-secondary">Use the store selector above to choose a store</MudText>
+                </MudStack>
+            </MudPaper>
+        }
+        else
+        {
+            <MudTable T="ShiftDto" Items="FilteredShifts" Hover="true" Striped="true" Dense="false">
+                <HeaderContent>
+                    <MudTh>Shift #</MudTh>
+                    <MudTh>Opened At</MudTh>
+                    <MudTh>Cashier</MudTh>
+                    <MudTh>Opening Cash</MudTh>
+                    <MudTh>Closing Cash</MudTh>
+                    <MudTh>Total Sales</MudTh>
+                    <MudTh>Status</MudTh>
+                    <MudTh Style="text-align:right">Actions</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="Shift #">@context.Number</MudTd>
+                    <MudTd DataLabel="Opened At">@context.OpenedAt.ToString("MMM dd, yyyy HH:mm")</MudTd>
+                    <MudTd DataLabel="Cashier">@context.UserName</MudTd>
+                    <MudTd DataLabel="Opening Cash">@context.OpeningCash.ToString("C")</MudTd>
+                    <MudTd DataLabel="Closing Cash">@(context.ClosingCash?.ToString("C") ?? "—") @if (context.ClosedAt.HasValue) { <text>(Closed @context.ClosedAt.Value.ToString("HH:mm"))</text> }</MudTd>
+                    <MudTd DataLabel="Total Sales">@context.TotalSales.ToString("C")</MudTd>
+                    <MudTd DataLabel="Status">
+                        <MudChip T="string" Size="Size.Small" Color="@(context.Status == ShiftStatus.Closed ? Color.Success : Color.Warning)">
+                            @context.Status
+                        </MudChip>
+                    </MudTd>
+                    <MudTd Style="text-align:right">
+                        <MudIconButton Icon="@Icons.Material.Filled.Visibility" 
                                       Size="Size.Small"
-                                      OnClick="@(() => CloseShift(context))" />
-                    }
-                </MudTd>
-            </RowTemplate>
-        </MudTable>
+                                      OnClick="@(() => ViewShiftDetails(context.Id))" />
+                        @if (context.Status == ShiftStatus.Open)
+                        {
+                            <MudIconButton Icon="@Icons.Material.Filled.Edit" 
+                                          Size="Size.Small"
+                                          OnClick="@(() => CloseShift(context))" />
+                        }
+                    </MudTd>
+                </RowTemplate>
+            </MudTable>
+        }
     </MudStack>
 </MudContainer>
 
 @code {
-    private Shift? currentShift;
-    private List<Shift> shifts = [];
+    private ShiftDto? _currentShift;
+    private List<ShiftDto> _shifts = [];
     private ShiftStatus? filterStatus = null;
+    private bool _isLoading = true;
+    private Guid? _currentStoreId;
+    private bool _initialized = false;
 
     protected override async Task OnInitializedAsync()
     {
-        await LoadShiftsAsync();
+        SignalRService.ShiftOpened += OnShiftOpened;
+        SignalRService.ShiftClosed += OnShiftClosed;
     }
 
-    private async Task LoadShiftsAsync()
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && !_initialized)
+        {
+            _initialized = true;
+            
+            try
+            {
+                // Check if a store is already selected in context
+                var storeId = StoreContext.GetCurrentStoreId();
+                if (storeId.HasValue)
+                {
+                    await LoadShiftsAsync(storeId);
+                }
+            }
+            catch (Exception ex)
+            {
+                _isLoading = false;
+                StateHasChanged();
+                Snackbar.Add($"Error initializing Shifts page: {ex.Message}", Severity.Error);
+            }
+        }
+    }
+
+    private async Task AutoSelectDefaultStoreAsync()
+    {
+        _isLoading = true;
+        StateHasChanged();
+        
+        try
+        {
+            // Use a separate scope to avoid concurrency issues with StoreContextSelector
+            using var scope = ScopeFactory.CreateScope();
+            var context = scope.ServiceProvider.GetRequiredService<ZenDbContext>();
+            var firstActiveStore = await context.Stores
+                .Where(s => s.IsActive && !s.IsDeleted)
+                .OrderBy(s => s.Name)
+                .FirstOrDefaultAsync();
+            
+            if (firstActiveStore != null)
+            {
+                await LoadShiftsAsync(firstActiveStore.Id);
+                await StoreContext.SetCurrentStoreAsync(firstActiveStore.Id);
+            }
+            else
+            {
+                // No active stores found - stop loading
+                _isLoading = false;
+                StateHasChanged();
+                Snackbar.Add("No active stores configured", Severity.Warning);
+            }
+        }
+        catch (Exception ex)
+        {
+            _isLoading = false;
+            StateHasChanged();
+            Snackbar.Add($"Error auto-selecting store: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task LoadShiftsAsync(Guid? storeId = null)
     {
         try
         {
-            // In a real scenario, fetch shifts from service
-            // For now, simulate with empty list
-            shifts = [];
+            _isLoading = true;
+            StateHasChanged();
 
-            // Try to get current shift (if any)
-            // This would come from IShiftService
+            storeId ??= StoreContext.GetCurrentStoreId();
+            if (storeId.HasValue)
+            {
+                _currentStoreId = storeId.Value;
+                
+                // Use a separate scope to avoid concurrency issues with StoreContextSelector
+                using var scope = ScopeFactory.CreateScope();
+                var shiftService = scope.ServiceProvider.GetRequiredService<IShiftService>();
+                
+                var startDate = DateTime.Today.AddDays(-30);
+                var endDate = DateTime.Today;
+                _shifts = (await shiftService.GetShiftsByStoreAsync(storeId.Value, startDate, endDate)).ToList();
+                
+                // Get current shift
+                _currentShift = await shiftService.GetCurrentShiftAsync(storeId.Value);
+                
+                // Start SignalR connection
+                await SignalRService.StartAsync(storeId.Value);
+            }
+            else
+            {
+                _currentStoreId = null;
+                _shifts.Clear();
+                _currentShift = null;
+                
+                // Stop SignalR connection if no store
+                await SignalRService.StopAsync();
+            }
         }
         catch (Exception ex)
         {
             Snackbar.Add($"Error loading shifts: {ex.Message}", Severity.Error);
+            _currentStoreId = null;
+            _shifts.Clear();
+            _currentShift = null;
+        }
+        finally
+        {
+            _isLoading = false;
+            StateHasChanged();
         }
     }
 
-    private List<Shift> FilteredShifts =>
-        shifts
+    private void OnShiftOpened(object data)
+    {
+        try
+        {
+            var json = System.Text.Json.JsonSerializer.Serialize(data);
+            using var doc = System.Text.Json.JsonDocument.Parse(json);
+            var root = doc.RootElement;
+            
+            var shiftId = root.GetProperty("ShiftId").GetGuid();
+            var shiftNumber = root.GetProperty("ShiftNumber").GetInt32();
+            var storeId = root.GetProperty("StoreId").GetGuid();
+            var userName = root.GetProperty("UserName").GetString();
+            var openingCash = root.GetProperty("OpeningCash").GetDecimal();
+            var openedAt = root.GetProperty("OpenedAt").GetDateTime();
+            
+            var newShift = new ShiftDto(
+                shiftId, 
+                shiftNumber.ToString(), 
+                openedAt, 
+                null, 
+                "", 
+                userName ?? "", 
+                storeId, 
+                "", 
+                openingCash, 
+                null, 
+                0, 
+                null, 
+                ShiftStatus.Open, 
+                0, 
+                0);
+            
+            // Check if this shift is already in the list
+            if (!_shifts.Any(s => s.Id == shiftId))
+            {
+                _shifts.Insert(0, newShift);
+            }
+            
+            // Update current shift if it matches the store
+            if (_currentShift == null || _currentShift.StoreId == storeId)
+            {
+                _currentShift = newShift;
+            }
+            
+            InvokeAsync(StateHasChanged);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error parsing ShiftOpened: {ex.Message}");
+        }
+    }
+
+    private void OnShiftClosed(object data)
+    {
+        try
+        {
+            var json = System.Text.Json.JsonSerializer.Serialize(data);
+            using var doc = System.Text.Json.JsonDocument.Parse(json);
+            var root = doc.RootElement;
+            
+            var shiftId = root.GetProperty("ShiftId").GetGuid();
+            var closingCash = root.GetProperty("ClosingCash").GetDecimal();
+            var totalSales = root.GetProperty("TotalSales").GetDecimal();
+            var salesCount = root.GetProperty("SalesCount").GetInt32();
+            var closedAt = root.GetProperty("ClosedAt").GetDateTime();
+            
+            var index = _shifts.FindIndex(s => s.Id == shiftId);
+            if (index >= 0)
+            {
+                var closedShift = _shifts[index] with
+                {
+                    Status = ShiftStatus.Closed,
+                    ClosingCash = closingCash,
+                    TotalSales = totalSales,
+                    SalesCount = salesCount,
+                    ClosedAt = closedAt
+                };
+                
+                _shifts[index] = closedShift;
+            }
+            
+            if (_currentShift?.Id == shiftId)
+            {
+                _currentShift = null;
+            }
+            
+            InvokeAsync(StateHasChanged);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error parsing ShiftClosed: {ex.Message}");
+        }
+    }
+
+    private List<ShiftDto> FilteredShifts =>
+        _shifts
             .Where(s => filterStatus == null || s.Status == filterStatus)
-            .OrderByDescending(s => s.OpenTime)
+            .OrderByDescending(s => s.OpenedAt)
             .ToList();
+
+    private async Task RefreshShifts()
+    {
+        var storeId = StoreContext.GetCurrentStoreId();
+        if (!storeId.HasValue)
+        {
+            Snackbar.Add("Please select a store first", Severity.Warning);
+            return;
+        }
+        
+        await LoadShiftsAsync(storeId);
+        Snackbar.Add("Shifts refreshed", Severity.Info);
+    }
 
     private async Task OpenShiftDialog()
     {
-        var parameters = new DialogParameters { };
+        var storeId = StoreContext.GetCurrentStoreId();
+        if (!storeId.HasValue)
+        {
+            Snackbar.Add("No store context available", Severity.Error);
+            return;
+        }
+
+        var parameters = new DialogParameters<ShiftOpenDialog>
+        {
+            { x => x.StoreId, storeId.Value }
+        };
+
         var dialog = await DialogService.ShowAsync<ShiftOpenDialog>("Open New Shift", parameters);
         var result = await dialog.Result;
 
-        if (!result.Canceled && result.Data is Shift newShift)
+        if (!result.Canceled && result.Data is ShiftDto newShift)
         {
-            currentShift = newShift;
+            _currentShift = newShift;
+            _shifts.Insert(0, newShift);
             Snackbar.Add("Shift opened successfully", Severity.Success);
         }
     }
 
-    private async Task CloseShift(Shift shift)
+    private async Task CloseShift(ShiftDto shift)
     {
-        var parameters = new DialogParameters { { "Shift", shift } };
+        var parameters = new DialogParameters<ShiftCloseDialog>
+        {
+            { "Shift", shift }
+        };
         var dialog = await DialogService.ShowAsync<ShiftCloseDialog>("Close Shift & Reconcile", parameters);
         var result = await dialog.Result;
 
-        if (!result.Canceled && result.Data is Shift closedShift)
+        if (!result.Canceled && result.Data is ShiftDto closedShift)
         {
-            if (currentShift?.Id == closedShift.Id)
-                currentShift = null;
+            if (_currentShift?.Id == closedShift.Id)
+                _currentShift = null;
 
-            var index = shifts.FindIndex(s => s.Id == closedShift.Id);
+            var index = _shifts.FindIndex(s => s.Id == closedShift.Id);
             if (index >= 0)
-                shifts[index] = closedShift;
+                _shifts[index] = closedShift;
             else
-                shifts.Add(closedShift);
+                _shifts.Add(closedShift);
 
             Snackbar.Add("Shift closed and reconciled", Severity.Success);
         }
     }
 
-    private async Task ViewShiftDetails(Shift shift)
+    private async Task ViewShiftDetails(Guid shiftId)
     {
-        var parameters = new DialogParameters { { "Shift", shift } };
-        await DialogService.ShowAsync<ShiftDetailsDialog>("Shift Details", parameters);
+        var shift = await ShiftService.GetByIdAsync(shiftId);
+        if (shift != null)
+        {
+            var parameters = new DialogParameters<ShiftDetailsDialog>
+            {
+                { "Shift", shift }
+            };
+            await DialogService.ShowAsync<ShiftDetailsDialog>("Shift Details", parameters);
+        }
+    }
+
+    private async Task OnStoreChanged(Guid? storeId)
+    {
+        if (storeId != _currentStoreId)
+        {
+            await SignalRService.StopAsync();
+            await LoadShiftsAsync(storeId);
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        SignalRService.ShiftOpened -= OnShiftOpened;
+        SignalRService.ShiftClosed -= OnShiftClosed;
+        await SignalRService.StopAsync();
     }
 }
