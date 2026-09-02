@@ -9,7 +9,7 @@
     </MudNavLink>
 
     <AuthorizeView Roles="Administrator,Cashier,Manager">
-        <MudNavGroup Title="@L["Sales"]" Icon="@Icons.Material.Filled.PointOfSale" Expanded="false">
+        <MudNavGroup Title="@L["POS"]" Icon="@Icons.Material.Filled.PointOfSale" Expanded="false">
             <MudNavLink Href="/pos" Icon="@Icons.Material.Filled.ShoppingCart">@L["POS"]</MudNavLink>
             <MudNavLink Href="/shifts" Icon="@Icons.Material.Filled.Schedule">@L["Shifts"]</MudNavLink>
             <MudNavLink Href="/held-sales" Icon="@Icons.Material.Filled.Pause">@L["HeldSales"]</MudNavLink>
@@ -34,9 +34,15 @@
             <MudNavLink Href="/inventory" Icon="@Icons.Material.Filled.Inventory2">@L["Stock"]</MudNavLink>
             <MudNavLink Href="/stock-purchases" Icon="@Icons.Material.Filled.ReceiptLong">@L["Stock Purchase"]</MudNavLink>
             <MudNavLink Href="/warehouses" Icon="@Icons.Material.Filled.Store">@L["Warehouses"]</MudNavLink>
-            <MudNavLink Href="/purchase-orders" Icon="@Icons.Material.Filled.ShoppingBag">@L["PurchaseOrders"]</MudNavLink>
             <MudNavLink Href="/stock-transfers" Icon="@Icons.Material.Filled.LocalShipping">@L["Stock Transfer"]</MudNavLink>
             <MudNavLink Href="/inventory-counts" Icon="@Icons.Material.Filled.Checklist">@L["Counts"]</MudNavLink>
+        </MudNavGroup>
+    </AuthorizeView>
+
+    <AuthorizeView Roles="Administrator,Manager,Cashier,SalesPerson">
+        <MudNavGroup Title="@L["Sales"]" Icon="@Icons.Material.Filled.PointOfSale" Expanded="false">
+            <MudNavLink Href="/sell-orders" Icon="@Icons.Material.Filled.ShoppingCart">@L["SellOrders"]</MudNavLink>
+            <MudNavLink Href="/purchase-orders" Icon="@Icons.Material.Filled.ShoppingBag">@L["PurchaseOrders"]</MudNavLink>
         </MudNavGroup>
     </AuthorizeView>
 

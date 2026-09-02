@@ -81,6 +81,10 @@ public class ZenDbContext : IdentityDbContext<AppUser, AppRole, string>
     public DbSet<Coupon> Coupons => Set<Coupon>();
     public DbSet<Promotion> Promotions => Set<Promotion>();
 
+    // Sell Orders
+    public DbSet<SellOrder> SellOrders => Set<SellOrder>();
+    public DbSet<SellOrderItem> SellOrderItems => Set<SellOrderItem>();
+
     // Sync
     public DbSet<SyncState> SyncStates => Set<SyncState>();
     public DbSet<SyncOutboxItem> SyncOutboxItems => Set<SyncOutboxItem>();

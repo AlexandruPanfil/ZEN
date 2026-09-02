@@ -18,7 +18,7 @@ var apiService = builder.AddProject<Projects.ZEN_ApiService>("apiservice")
 
 builder.AddProject<Projects.ZEN_Web>("webfrontend")
     .WithExternalHttpEndpoints()
-    .WithHttpHealthCheck("/health")
+    // .WithHttpHealthCheck("/health")  // Disabled to avoid timeout during startup
     .WithReference(cache)
     .WaitFor(cache)
     .WithReference(apiService)

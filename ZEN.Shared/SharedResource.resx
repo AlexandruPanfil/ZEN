@@ -69,6 +69,9 @@
   <data name="PurchaseOrders" xml:space="preserve">
     <value>Purchase Orders</value>
   </data>
+  <data name="SellOrders" xml:space="preserve">
+    <value>Sell Orders</value>
+  </data>
   <data name="Counts" xml:space="preserve">
     <value>Counts</value>
   </data>

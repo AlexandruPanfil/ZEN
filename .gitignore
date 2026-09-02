@@ -366,6 +366,9 @@ FodyWeavers.xsd
 ZEN-MAP.png
 ZEN-MAP.txt
 /.kilo/plans
+/.kilo
 
 .idea/
+/.idea/
 swagger.json
+migration_script.sql
