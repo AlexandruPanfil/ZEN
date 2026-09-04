@@ -3,6 +3,7 @@ using ZEN.Application.Services.Interfaces;
 using ZEN.Domain.Entities;
 using ZEN.Domain.Enums;
 using ZEN.Domain.Interfaces;
+using System.Linq.Expressions;
 
 namespace ZEN.Application.Services.Implementations;
 
@@ -36,7 +37,7 @@ public class SellOrderService : ISellOrderService
 
     public async Task<SellOrderDto?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
-        var so = await _sellOrderRepository.GetByIdAsync(id, cancellationToken);
+        var so = await _sellOrderRepository.GetByIdAsync(id, [s => s.Items], cancellationToken);
 
         return so == null ? null : await MapToDtoAsync(so, cancellationToken);
     }

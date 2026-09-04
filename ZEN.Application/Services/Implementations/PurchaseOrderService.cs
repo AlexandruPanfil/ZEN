@@ -33,7 +33,7 @@ public class PurchaseOrderService : IPurchaseOrderService
 
     public async Task<PurchaseOrderDto?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
-        var po = await _purchaseOrderRepository.GetByIdAsync(id, cancellationToken);
+        var po = await _purchaseOrderRepository.GetByIdAsync(id, [p => p.Items], cancellationToken);
 
         return po == null ? null : await MapToDtoAsync(po, cancellationToken);
     }

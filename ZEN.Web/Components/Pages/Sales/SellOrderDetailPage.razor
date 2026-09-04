@@ -1,0 +1,888 @@
+@page "/sell-orders/{OrderId:guid}"
+@page "/sell-orders/new"
+@using MudBlazor
+@using Microsoft.AspNetCore.Authorization
+@using ZEN.Application.DTOs.Sales
+@using ZEN.Application.DTOs.Products
+@using ZEN.Application.DTOs.Customers
+@using ZEN.Application.DTOs.Admin
+@using ZEN.Application.Services.Interfaces
+@using ZEN.Domain.Enums
+@using ZEN.Domain.Entities
+@using ZEN.Domain.Interfaces
+@inject ISellOrderService SellOrderService
+@inject ICustomerService CustomerService
+@inject IProductService ProductService
+@inject IStoreContext StoreContext
+@inject global::ZEN.Domain.Interfaces.IRepository<Store> StoreRepository
+@inject ISnackbar Snackbar
+@inject NavigationManager Navigation
+@inject IDialogService DialogService
+@attribute [Authorize(Roles = "Administrator,Manager,Cashier,SalesPerson")]
+
+<style>
+    .compact-table .mud-table-cell,
+    .compact-table .mud-th {
+        padding: 2px 6px !important;
+    }
+    
+    .compact-table .mud-tbody .mud-tr {
+        min-height: 36px !important;
+        height: 36px !important;
+    }
+    
+    /* Force select to fit in compact row - override MudBlazor's 18.5px vertical padding */
+    .compact-input .mud-select .mud-input-slot.mud-input-root-outlined,
+    .compact-input .mud-select .mud-input-slot.mud-select-input,
+    .compact-input .mud-select input.mud-input-root-outlined.mud-select-input,
+    .compact-input.mud-select .mud-input-slot.mud-input-root-outlined,
+    .compact-input.mud-select .mud-input-slot.mud-select-input,
+    .compact-input.mud-select input.mud-input-root-outlined.mud-select-input {
+        padding: 0 8px !important;
+        min-height: 32px !important;
+        height: 32px !important;
+        max-height: 32px !important;
+        line-height: 1.2 !important;
+        display: flex !important;
+        align-items: center !important;
+    }
+    
+    /* Override MudBlazor's default input padding for select - target nested structure */
+    .compact-input .mud-select .mud-input-control,
+    .compact-input .mud-select .mud-input-slot,
+    .compact-input.mud-select .mud-input-control,
+    .compact-input.mud-select .mud-input-slot {
+        padding: 0 !important;
+    }
+
+    /* Target mud-input-control inside compact-input select (even without compact-input class on control) */
+    .compact-input .mud-input-control,
+    .mud-select.compact-input .mud-input-control,
+    .mud-select.compact-input > .mud-input-control {
+        padding: 2px 8px !important;
+        min-height: 32px !important;
+    }
+    
+    /* Override mud-shrink and typography padding on the input element */
+    .compact-input .mud-input.mud-shrink,
+    .mud-select.compact-input .mud-input.mud-shrink {
+        padding: 0 !important;
+    }
+    
+    .compact-input .mud-input.mud-typography-subtitle1,
+    .mud-select.compact-input .mud-input.mud-typography-subtitle1 {
+        padding: 0 !important;
+        font-size: 0.875rem !important;
+        line-height: 1.2 !important;
+    }
+    
+    .compact-input .mud-select {
+        min-height: 32px !important;
+        height: 32px !important;
+        max-height: 32px !important;
+    }
+    
+    .compact-input .mud-field-adornment {
+        padding: 0 4px !important;
+    }
+    
+    .compact-input input {
+        padding: 4px 8px !important;
+        height: 28px !important;
+    }
+    
+    /* Hide spinner buttons on numeric fields - comprehensive selectors */
+    .compact-input .mud-numeric-field .mud-input-adornment,
+    .compact-input .mud-numeric-field .mud-input-adornment.mud-numeric-field-buttons,
+    .compact-input .mud-numeric-field .mud-input-adornment-end,
+    .compact-input .mud-numeric-field .mud-icon-button,
+    .compact-input .mud-numeric-field .mud-button,
+    .compact-input .mud-numeric-field .mud-input-adornment *,
+    .compact-input .mud-numeric-field .mud-input-adornment-end *,
+    .mud-numeric-field .mud-input-adornment,
+    .mud-numeric-field .mud-input-adornment.mud-numeric-field-buttons,
+    .mud-numeric-field .mud-input-adornment-end,
+    .mud-numeric-field .mud-icon-button,
+    .mud-numeric-field .mud-button,
+    .mud-numeric-field .mud-input-adornment *,
+    .mud-numeric-field .mud-input-adornment-end * {
+        display: none !important;
+        visibility: hidden !important;
+        width: 0 !important;
+        height: 0 !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        overflow: hidden !important;
+    }
+    
+    /* Ensure numeric field inputs have enough width for large numbers */
+    .compact-input .mud-numeric-field input,
+    .compact-input .mud-numeric-field .mud-input,
+    .compact-input .mud-numeric-field .mud-input-control,
+    .compact-input .mud-numeric-field .mud-input-slot {
+        min-width: 100% !important;
+        width: 100% !important;
+        box-sizing: border-box !important;
+    }
+    
+    /* Force select to stay compact - hide label space */
+    .compact-input .mud-select .mud-input-slot {
+        padding: 0 8px !important;
+        min-height: 32px !important;
+        height: 32px !important;
+        max-height: 32px !important;
+    }
+    
+    /* Hide the floating label but keep placeholder - aggressive hiding */
+    .compact-input .mud-select-label,
+    .compact-input .mud-select .mud-select-label,
+    .compact-input .mud-select-label.mud-floating,
+    .compact-input .mud-field-label {
+        display: none !important;
+        opacity: 0 !important;
+        visibility: hidden !important;
+        height: 0 !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        width: 0 !important;
+        overflow: hidden !important;
+        position: absolute !important;
+        top: -9999px !important;
+        left: -9999px !important;
+    }
+    
+    /* Override ALL MudBlazor padding on select input and slot - only for select */
+    .compact-input .mud-select .mud-select-input,
+    .compact-input .mud-select .mud-input-slot.mud-input-root-outlined,
+    .compact-input .mud-select .mud-input-slot.mud-select-input,
+    .compact-input .mud-select .mud-input-root.mud-input-root-outlined,
+    .compact-input .mud-select .mud-input-root.mud-select-input {
+        padding: 0 !important;
+        min-height: 32px !important;
+        height: 32px !important;
+        align-items: center !important;
+    }
+    
+    /* Center the placeholder/selected text vertically */
+    .compact-input .mud-select .mud-input-slot .mud-select-text {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: flex-start !important;
+        height: 100% !important;
+        min-height: 32px !important;
+        padding: 0 8px !important;
+    }
+    
+    /* Force the input slot and control to use flex centering */
+    .compact-input .mud-select .mud-input-slot,
+    .compact-input .mud-select .mud-input-control {
+        display: flex !important;
+        align-items: center !important;
+        height: 32px !important;
+        min-height: 32px !important;
+        max-height: 32px !important;
+    }
+    
+    /* Force the select root to use flex centering */
+    .compact-input .mud-select {
+        display: flex !important;
+        align-items: center !important;
+        height: 32px !important;
+        min-height: 32px !important;
+        max-height: 32px !important;
+    }
+    
+    /* Target the specific classes adding padding - input root and input slot - ONLY for select, not numeric field */
+    .compact-input .mud-select .mud-input-root-outlined,
+    .compact-input .mud-select .mud-input-slot.mud-input-root-outlined,
+    .compact-input .mud-select .mud-input>input.mud-input-root-outlined,
+    .compact-input .mud-select div.mud-input-slot.mud-input-root-outlined {
+        padding: 0 8px !important;
+        min-height: 32px !important;
+        height: 32px !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: flex-start !important;
+    }
+
+    /* Numeric field input slot - use block layout so spinner display:none works */
+    .compact-input .mud-numeric-field .mud-input-slot,
+    .compact-input .mud-numeric-field .mud-input-control,
+    .compact-input .mud-numeric-field .mud-input-root-outlined,
+    .compact-input .mud-numeric-field .mud-input>input,
+    .compact-input .mud-numeric-field input.mud-input-root-outlined {
+        display: block !important;
+        padding: 0 8px !important;
+        min-height: 32px !important;
+        height: 32px !important;
+        max-height: 32px !important;
+    }
+    
+    /* Reduce dropdown menu item padding */
+    .compact-input .mud-select .mud-popover .mud-select-item,
+    .compact-input .mud-menu .mud-select-item,
+    .compact-input .mud-list .mud-select-item {
+        padding: 4px 8px !important;
+        min-height: auto !important;
+    }
+    
+    /* Prevent numeric field label from showing */
+    .compact-input .mud-field-label {
+        display: none !important;
+    }
+    
+    /* Ensure the select doesn't grow on focus */
+    .compact-input .mud-select.mud-focused .mud-input-slot,
+    .compact-input .mud-select.mud-focused .mud-select-input,
+    .compact-input .mud-select.mud-focused .mud-input-root {
+        padding: 0 8px !important;
+        min-height: 32px !important;
+        height: 32px !important;
+        max-height: 32px !important;
+    }
+</style>
+
+<PageTitle>@(_isNew ? "New Sell Order" : $"Sell Order: {_order?.Number}") - ZEN POS</PageTitle>
+
+@if (_order == null && !_isNew)
+{
+    <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-4">
+        <MudPaper Class="pa-4" Elevation="1">
+            <MudProgressCircular Color="Color.Primary" Indeterminate="true" />
+        </MudPaper>
+    </MudContainer>
+}
+else
+{
+    <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-4">
+        <div class="d-flex justify-space-between align-center mb-4">
+            <MudButton Variant="Variant.Text" Color="Color.Primary" StartIcon="@Icons.Material.Filled.ArrowBack" OnClick="BackToList">
+                Back to List
+            </MudButton>
+            <MudText Typo="Typo.h5" Class="font-weight-bold">
+                @(_isNew ? "New Sell Order" : $"Sell Order: {_order?.Number}")
+            </MudText>
+            <div class="d-flex gap-2">
+                @if (!_isNew && !_isEditMode)
+                {
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Edit" OnClick="ToggleEditMode" Disabled="@(_order?.Status != SellOrderStatus.Draft && _order?.Status != SellOrderStatus.Pending)">
+                        Edit
+                    </MudButton>
+                    <MudButton Variant="Variant.Filled" Color="Color.Success" StartIcon="@Icons.Material.Filled.CheckCircle" OnClick="FulfillOrderAsync" Disabled="@(_order?.Status != SellOrderStatus.Pending && _order?.Status != SellOrderStatus.PartiallyFulfilled || _isSaving)">
+                        Fulfill
+                    </MudButton>
+                    <MudButton Variant="Variant.Filled" Color="Color.Warning" StartIcon="@Icons.Material.Filled.Cancel" OnClick="CancelOrderAsync" Disabled="@(_order?.Status is SellOrderStatus.Cancelled or SellOrderStatus.Fulfilled || _isSaving)">
+                        Cancel Order
+                    </MudButton>
+                    <MudButton Variant="Variant.Filled" Color="Color.Error" StartIcon="@Icons.Material.Filled.Delete" OnClick="DeleteOrderAsync" Disabled="@(_order?.Status != SellOrderStatus.Draft || _isSaving)">
+                        Delete
+                    </MudButton>
+                }
+                else if (_isEditMode)
+                {
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Save" OnClick="SaveChangesAsync" Disabled="@_isSaving">
+                        @(_isSaving ? "Saving..." : "Save")
+                    </MudButton>
+                    <MudButton Variant="Variant.Text" Color="Color.Secondary" OnClick="CancelEdit" Disabled="@_isSaving">
+                        Cancel
+                    </MudButton>
+                }
+            </div>
+        </div>
+
+        <MudPaper Class="pa-4 mb-4" Elevation="1">
+            <MudGrid>
+                @if (!_isEditMode && !_isNew)
+                {
+                    <MudItem xs="12" sm="6" md="4">
+                        <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-1">Order #</MudText>
+                        <MudText Typo="Typo.h6" Class="font-weight-bold">@_order?.Number</MudText>
+                    </MudItem>
+                    <MudItem xs="12" sm="6" md="4">
+                        <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-1">Status</MudText>
+                        <MudChip T="string" Color="@GetStatusColor(_order?.Status ?? SellOrderStatus.Draft)" Variant="Variant.Text" Size="Size.Medium" Class="font-weight-bold">
+                            @_order?.Status
+                        </MudChip>
+                    </MudItem>
+                    <MudItem xs="12" sm="6" md="4">
+                        <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-1">Order Date</MudText>
+                        <MudText Typo="Typo.h6">@_order?.OrderDate.ToString("yyyy-MM-dd")</MudText>
+                    </MudItem>
+                    <MudItem xs="12" sm="6" md="4">
+                        <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-1">Customer</MudText>
+                        <MudText Typo="Typo.h6">@_order?.CustomerName</MudText>
+                    </MudItem>
+                    <MudItem xs="12" sm="6" md="4">
+                        <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-1">Store / Location</MudText>
+                        <MudText Typo="Typo.h6">@_order?.StoreName</MudText>
+                    </MudItem>
+                    <MudItem xs="12" sm="6" md="4">
+                        <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-1">Expected Date</MudText>
+                        <MudText Typo="Typo.h6">@(_order?.ExpectedDate?.ToString("yyyy-MM-dd") ?? "—")</MudText>
+                    </MudItem>
+                }
+                else
+                {
+                    <MudItem xs="12" sm="6">
+                        <MudSelect T="Guid?" Label="Customer" Variant="Variant.Outlined" @bind-Value="_editingModel.CustomerId" Required="true" Margin="Margin.Dense" RequiredError="Customer is required">
+                            @foreach (var customer in _customers)
+                            {
+                                <MudSelectItem T="Guid?" Value="@customer.Id">@customer.Name</MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudSelect T="Guid?" Label="Store / Location" Variant="Variant.Outlined" Value="_editingModel.StoreId" Required="true" Margin="Margin.Dense" RequiredError="Store is required" ValueChanged="@OnStoreIdChanged">
+                            @foreach (var store in _stores)
+                            {
+                                <MudSelectItem T="Guid?" Value="@store.Id">@store.Name</MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudItem>
+                    @if (!_isNew)
+                    {
+                        <MudItem xs="12" sm="4">
+                            <MudSelect T="SellOrderStatus" Label="Status" Variant="Variant.Outlined" @bind-Value="_editingModel.Status" Margin="Margin.Dense">
+                                @foreach (var status in Enum.GetValues<SellOrderStatus>())
+                                {
+                                    <MudSelectItem T="SellOrderStatus" Value="@status">@status</MudSelectItem>
+                                }
+                            </MudSelect>
+                        </MudItem>
+                        <MudItem xs="12" sm="4">
+                            <MudTextField T="string" Label="Customer" Value="@_editingModel.CustomerName" ReadOnly="true" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                        </MudItem>
+                        <MudItem xs="12" sm="4">
+                            <MudTextField T="string" Label="Store" Value="@_editingModel.StoreName" ReadOnly="true" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                        </MudItem>
+                    }
+                    <MudItem xs="12" sm="6">
+                        <MudDatePicker Label="Expected Fulfillment Date" Variant="Variant.Outlined" @bind-Date="_editingModel.ExpectedDate" Margin="Margin.Dense" />
+                    </MudItem>
+                    <MudItem xs="12">
+                        <MudTextField T="string" Label="Notes" Variant="Variant.Outlined" @bind-Value="_editingModel.Notes" Lines="2" Multiline="true" Margin="Margin.Dense" />
+                    </MudItem>
+                }
+            </MudGrid>
+        </MudPaper>
+
+        <MudPaper Class="pa-4 mb-4" Elevation="1">
+            <div class="d-flex justify-space-between align-center mb-3">
+                <MudText Typo="Typo.h6" Class="font-weight-bold color-primary">Order Items</MudText>
+                @if (_isEditMode)
+                {
+                    <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" Size="Size.Small" OnClick="AddLineItem">
+                        Add Item
+                    </MudButton>
+                }
+            </div>
+
+            @if (_isEditMode)
+            {
+                <div style="overflow-x: auto;">
+                    <MudTable T="SellOrderLineModel" Items="_editingModel.Items" Hover="true" Striped="true" Dense="true" Elevation="0" Outlined="true" Style="min-width: 900px;" Class="compact-table">
+                        <HeaderContent>
+                            <MudTh Style="min-width: 280px;">Product</MudTh>
+                            <MudTh Style="width: 100px; text-align: right;">Qty</MudTh>
+                            <MudTh Style="width: 140px; text-align: right;">Unit Price</MudTh>
+                            <MudTh Style="width: 110px; text-align: right;">Disc %</MudTh>
+                            <MudTh Style="width: 110px; text-align: right;">Tax %</MudTh>
+                            <MudTh Style="width: 140px; text-align: right;">Line Total</MudTh>
+                            <MudTh Style="width: 50px;"></MudTh>
+                        </HeaderContent>
+                        <RowTemplate Context="item">
+                            <MudTd DataLabel="Product" Style="min-width: 280px; padding: 2px 6px;">
+                                <MudSelect T="Guid?" Label="" Placeholder="Product" Variant="Variant.Outlined" @bind-Value="item.ProductId" Required="true" Margin="Margin.None" Dense="true" FullWidth="true" Class="compact-input">
+                                    @foreach (var product in _products)
+                                    {
+                                        <MudSelectItem T="Guid?" Value="@product.Id">@product.Name</MudSelectItem>
+                                    }
+                                </MudSelect>
+                            </MudTd>
+                            <MudTd DataLabel="Qty" Style="text-align: right; padding: 2px 6px;">
+                                <MudNumericField T="decimal" Variant="Variant.Outlined" @bind-Value="item.Quantity" Min="0.01m" Step="0.01m" Margin="Margin.None" Dense="true" Class="w-100 compact-input" HideSpinButtons="true"/>
+                            </MudTd>
+                            <MudTd DataLabel="Unit Price" Style="text-align: right; padding: 2px 6px;">
+                                <MudNumericField T="decimal" Variant="Variant.Outlined" @bind-Value="item.UnitPrice" Min="0.00m" Step="0.01m" Format="C" Margin="Margin.None" Dense="true" Class="w-100 compact-input" HideSpinButtons="true"/>
+                            </MudTd>
+                            <MudTd DataLabel="Disc %" Style="text-align: right; padding: 2px 6px;">
+                                <MudNumericField T="decimal" Variant="Variant.Outlined" @bind-Value="item.Discount" Min="0" Max="100" Step="0.1m" Margin="Margin.None" Dense="true" Class="w-100 compact-input" HideSpinButtons="true"/>
+                            </MudTd>
+                            <MudTd DataLabel="Tax %" Style="text-align: right; padding: 2px 6px;">
+                                <MudNumericField T="decimal" Variant="Variant.Outlined" @bind-Value="item.TaxRate" Min="0" Max="100" Step="0.1m" Margin="Margin.None" Dense="true" Class="w-100 compact-input" HideSpinButtons="true"/>
+                            </MudTd>
+                            <MudTd DataLabel="Line Total" Style="text-align: right; padding: 2px 6px;" Class="font-weight-bold">
+                                @CalculateLineTotal(item).ToString("C")
+                            </MudTd>
+                            <MudTd DataLabel="Actions" Style="text-align: center; padding: 2px 6px;">
+                                <MudIconButton Icon="@Icons.Material.Filled.RemoveCircleOutline" Color="Color.Error" Size="Size.Medium" Disabled="@(_editingModel.Items.Count <= 1)" OnClick="@(() => RemoveLineItem(item))" />
+                            </MudTd>
+                        </RowTemplate>
+                    </MudTable>
+                </div>
+            }
+            else if (_order != null)
+            {
+                <MudTable T="SellOrderItemDto" Items="@_order.Items" Hover="true" Striped="true" Dense="true" Elevation="0" Outlined="true">
+                    <HeaderContent>
+                        <MudTh>Product</MudTh>
+                        <MudTh Style="text-align: right;">Qty</MudTh>
+                        <MudTh Style="text-align: right;">Unit Price</MudTh>
+                        <MudTh Style="text-align: right;">Discount %</MudTh>
+                        <MudTh Style="text-align: right;">Tax %</MudTh>
+                        <MudTh Style="text-align: right;">Line Total</MudTh>
+                    </HeaderContent>
+                    <RowTemplate Context="item">
+                        <MudTd DataLabel="Product">@item.ProductName</MudTd>
+                        <MudTd DataLabel="Qty" Style="text-align: right;">@item.Quantity</MudTd>
+                        <MudTd DataLabel="Unit Price" Style="text-align: right;">@item.UnitPrice.ToString("C")</MudTd>
+                        <MudTd DataLabel="Discount %" Style="text-align: right;">@item.Discount.ToString("F1")%</MudTd>
+                        <MudTd DataLabel="Tax %" Style="text-align: right;">@item.TaxRate.ToString("F1")%</MudTd>
+                        <MudTd DataLabel="Line Total" Style="text-align: right;" Class="font-weight-bold text-success">@item.Total.ToString("C")</MudTd>
+                    </RowTemplate>
+                </MudTable>
+            }
+        </MudPaper>
+
+        <MudPaper Class="pa-4" Elevation="1">
+            <div class="d-flex justify-end gap-4" style="min-width: 300px;">
+                <div>
+                    <MudText Typo="Typo.subtitle2" Color="Color.Secondary">Subtotal:</MudText>
+                    <MudText Typo="Typo.h6" Class="font-weight-bold">@(_isEditMode ? CalculateSubTotal().ToString("C") : _order?.SubTotal.ToString("C") ?? "$0.00")</MudText>
+                </div>
+                <div>
+                    <MudText Typo="Typo.subtitle2" Color="Color.Secondary">Tax:</MudText>
+                    <MudText Typo="Typo.h6" Class="font-weight-bold">@(_isEditMode ? CalculateTaxAmount().ToString("C") : _order?.TaxAmount.ToString("C") ?? "$0.00")</MudText>
+                </div>
+                <div>
+                    <MudText Typo="Typo.subtitle2" Color="Color.Secondary">Total:</MudText>
+                    <MudText Typo="Typo.h6" Class="font-weight-bold color-primary">@(_isEditMode ? CalculateTotalAmount().ToString("C") : _order?.TotalAmount.ToString("C") ?? "$0.00")</MudText>
+                </div>
+            </div>
+        </MudPaper>
+    </MudContainer>
+}
+
+@code {
+    [Parameter] public Guid OrderId { get; set; }
+    private bool _isNew => OrderId == Guid.Empty;
+    private SellOrderDto? _order;
+    private List<CustomerDto> _customers = new();
+    private List<StoreDto> _stores = new();
+    private List<ProductDto> _products = new();
+    private bool _isLoading = false;
+    private bool _isSaving = false;
+    private bool _isEditMode = false;
+    private Guid? _currentStoreId;
+    private SellOrderFormModel _editingModel = new();
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _currentStoreId = StoreContext.GetCurrentStoreId();
+        await LoadLookupsAsync();
+
+        if (_isNew)
+        {
+            InitializeNewOrder();
+        }
+        else
+        {
+            await LoadOrderAsync();
+        }
+    }
+
+    private async Task LoadLookupsAsync()
+    {
+        try
+        {
+            _customers = (await CustomerService.GetAllAsync()).ToList();
+            
+            var storeIdForProducts = _isNew ? _currentStoreId : _order?.StoreId;
+            _products = (await ProductService.GetAllAsync(storeIdForProducts)).ToList();
+
+            var stores = new List<StoreDto>();
+
+            if (_currentStoreId.HasValue)
+            {
+                var store = await StoreRepository.GetByIdAsync(_currentStoreId.Value);
+                if (store != null)
+                {
+                    stores.Add(new StoreDto(store.Id, store.Name, store.Code, store.Address, store.City, store.Phone, store.Email, store.IsActive));
+                }
+            }
+            else
+            {
+                var allStores = await StoreRepository.FindAsync(s => s.IsActive);
+                stores.AddRange(allStores.Select(s => new StoreDto(s.Id, s.Name, s.Code, s.Address, s.City, s.Phone, s.Email, s.IsActive)));
+            }
+
+            _stores = stores;
+            if (!_isNew && _order != null)
+            {
+                _editingModel.StoreId = _order.StoreId;
+                _editingModel.StoreName = _order.StoreName;
+            }
+            else
+            {
+                _editingModel.StoreId ??= _stores.FirstOrDefault()?.Id;
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error loading lookups: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task LoadOrderAsync()
+    {
+        _isLoading = true;
+        try
+        {
+            _order = await SellOrderService.GetByIdAsync(OrderId);
+            if (_order == null)
+            {
+                Snackbar.Add("Sell order not found.", Severity.Error);
+                Navigation.NavigateTo("/sell-orders");
+                return;
+            }
+
+            _editingModel = new SellOrderFormModel
+            {
+                Id = _order.Id,
+                Number = _order.Number,
+                CustomerId = _order.CustomerId,
+                CustomerName = _order.CustomerName,
+                StoreId = _order.StoreId,
+                StoreName = _order.StoreName,
+                ExpectedDate = _order.ExpectedDate,
+                Notes = string.Empty,
+                Status = _order.Status,
+                Items = _order.Items.Select(i => new SellOrderLineModel
+                {
+                    ProductId = i.ProductId,
+                    Quantity = i.Quantity,
+                    UnitPrice = i.UnitPrice,
+                    Discount = i.Discount,
+                    TaxRate = i.TaxRate
+                }).ToList()
+            };
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error loading order: {ex.Message}", Severity.Error);
+            Navigation.NavigateTo("/sell-orders");
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private void InitializeNewOrder()
+    {
+        _editingModel = new SellOrderFormModel
+        {
+            StoreId = _currentStoreId ?? _stores.FirstOrDefault()?.Id,
+            ExpectedDate = DateTime.Today.AddDays(7),
+            Items = [new SellOrderLineModel()]
+        };
+        _isEditMode = true;
+    }
+
+    private void ToggleEditMode()
+    {
+        if (_order?.Status == SellOrderStatus.Draft || _order?.Status == SellOrderStatus.Pending)
+        {
+            _isEditMode = true;
+        }
+    }
+
+    private void CancelEdit()
+    {
+        if (_isNew)
+        {
+            Navigation.NavigateTo("/sell-orders");
+        }
+        else
+        {
+            _isEditMode = false;
+            // Reload original data
+            _editingModel = new SellOrderFormModel
+            {
+                Id = _order!.Id,
+                Number = _order.Number,
+                CustomerId = _order.CustomerId,
+                CustomerName = _order.CustomerName,
+                StoreId = _order.StoreId,
+                StoreName = _order.StoreName,
+                ExpectedDate = _order.ExpectedDate,
+                Notes = string.Empty,
+                Status = _order.Status,
+                Items = _order.Items.Select(i => new SellOrderLineModel
+                {
+                    ProductId = i.ProductId,
+                    Quantity = i.Quantity,
+                    UnitPrice = i.UnitPrice,
+                    Discount = i.Discount,
+                    TaxRate = i.TaxRate
+                }).ToList()
+            };
+        }
+    }
+
+    private async Task OnStoreIdChanged(Guid? storeId)
+    {
+        _editingModel.StoreId = storeId;
+        if (storeId.HasValue)
+        {
+            _products = (await ProductService.GetAllAsync(storeId)).ToList();
+            var store = _stores.FirstOrDefault(s => s.Id == storeId);
+            if (store != null)
+            {
+                _editingModel.StoreName = store.Name;
+            }
+        }
+    }
+
+    private void AddLineItem() => _editingModel.Items.Add(new SellOrderLineModel());
+
+    private void RemoveLineItem(SellOrderLineModel item)
+    {
+        if (_editingModel.Items.Count > 1)
+        {
+            _editingModel.Items.Remove(item);
+        }
+    }
+
+    private decimal CalculateLineTotal(SellOrderLineModel item)
+    {
+        if (!item.ProductId.HasValue || item.Quantity <= 0) return 0;
+        var subtotal = item.Quantity * item.UnitPrice;
+        var discountAmount = subtotal * (item.Discount / 100m);
+        var afterDiscount = subtotal - discountAmount;
+        var taxAmount = afterDiscount * (item.TaxRate / 100m);
+        return afterDiscount + taxAmount;
+    }
+
+    private decimal CalculateSubTotal()
+    {
+        return _editingModel.Items
+            .Where(i => i.ProductId.HasValue && i.Quantity > 0)
+            .Sum(i => i.Quantity * i.UnitPrice);
+    }
+
+    private decimal CalculateTaxAmount()
+    {
+        return _editingModel.Items
+            .Where(i => i.ProductId.HasValue && i.Quantity > 0)
+            .Sum(i =>
+            {
+                var subtotal = i.Quantity * i.UnitPrice;
+                var discountAmount = subtotal * (i.Discount / 100m);
+                var afterDiscount = subtotal - discountAmount;
+                return afterDiscount * (i.TaxRate / 100m);
+            });
+    }
+
+    private decimal CalculateTotalAmount()
+    {
+        return CalculateSubTotal() - _editingModel.Items
+            .Where(i => i.ProductId.HasValue && i.Quantity > 0)
+            .Sum(i =>
+            {
+                var subtotal = i.Quantity * i.UnitPrice;
+                return subtotal * (i.Discount / 100m);
+            })
+            + CalculateTaxAmount();
+    }
+
+    private async Task SaveChangesAsync()
+    {
+        try
+        {
+            if (!_editingModel.CustomerId.HasValue || !_editingModel.StoreId.HasValue)
+            {
+                Snackbar.Add("Customer and store are required.", Severity.Warning);
+                return;
+            }
+
+            var validItems = _editingModel.Items
+                .Where(i => i.ProductId.HasValue && i.Quantity > 0 && i.UnitPrice >= 0)
+                .ToList();
+
+            if (validItems.Count == 0)
+            {
+                Snackbar.Add("Add at least one valid item to the order.", Severity.Warning);
+                return;
+            }
+
+            _isSaving = true;
+
+            if (_isNew)
+            {
+                var items = validItems.Select(i => new CreateSellOrderItemRequest(
+                    i.ProductId!.Value,
+                    i.Quantity,
+                    i.UnitPrice,
+                    i.Discount,
+                    i.TaxRate > 0 ? i.TaxRate : null)).ToList();
+
+                var request = new CreateSellOrderRequest(
+                    _editingModel.CustomerId.Value,
+                    _editingModel.StoreId.Value,
+                    _editingModel.ExpectedDate,
+                    string.IsNullOrWhiteSpace(_editingModel.Notes) ? null : _editingModel.Notes,
+                    items);
+
+                _order = await SellOrderService.CreateAsync(request);
+                Snackbar.Add("Sell order created successfully.", Severity.Success);
+            }
+            else
+            {
+                var request = new UpdateSellOrderRequest(
+                    _editingModel.Id,
+                    _editingModel.ExpectedDate,
+                    string.IsNullOrWhiteSpace(_editingModel.Notes) ? null : _editingModel.Notes,
+                    _editingModel.Status);
+
+                await SellOrderService.UpdateAsync(request);
+                Snackbar.Add("Sell order updated successfully.", Severity.Success);
+            }
+
+            _isEditMode = false;
+            if (!_isNew)
+            {
+                await LoadOrderAsync();
+            }
+            else
+            {
+                Navigation.NavigateTo($"/sell-orders/{_order!.Id}");
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _isSaving = false;
+        }
+    }
+
+    private async Task FulfillOrderAsync()
+    {
+        if (_order == null) return;
+
+        try
+        {
+            _isSaving = true;
+            if (await SellOrderService.FulfillAsync(_order.Id))
+            {
+                Snackbar.Add("Sell order fulfilled successfully.", Severity.Success);
+                await LoadOrderAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _isSaving = false;
+        }
+    }
+
+    private async Task CancelOrderAsync()
+    {
+        if (_order == null) return;
+
+        try
+        {
+            _isSaving = true;
+            if (await SellOrderService.CancelAsync(_order.Id))
+            {
+                Snackbar.Add("Sell order cancelled.", Severity.Warning);
+                await LoadOrderAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _isSaving = false;
+        }
+    }
+
+    private async Task DeleteOrderAsync()
+    {
+        if (_order == null) return;
+
+        var parameters = new DialogParameters
+        {
+            { "ContentText", $"Are you sure you want to delete sell order {_order.Number}?" }
+        };
+        var dialog = await DialogService.ShowAsync<MudMessageBox>("Delete Order", parameters);
+        var result = await dialog.Result;
+
+        if (result != null && !result.Canceled)
+        {
+            try
+            {
+                _isSaving = true;
+                if (await SellOrderService.DeleteAsync(_order.Id))
+                {
+                    Snackbar.Add("Sell order deleted.", Severity.Success);
+                    Navigation.NavigateTo("/sell-orders");
+                }
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add(ex.Message, Severity.Error);
+            }
+            finally
+            {
+                _isSaving = false;
+            }
+        }
+    }
+
+    private void BackToList()
+    {
+        Navigation.NavigateTo("/sell-orders");
+    }
+
+    private static Color GetStatusColor(SellOrderStatus status) => status switch
+    {
+        SellOrderStatus.Draft => Color.Default,
+        SellOrderStatus.Pending => Color.Primary,
+        SellOrderStatus.PartiallyFulfilled => Color.Warning,
+        SellOrderStatus.Fulfilled => Color.Success,
+        SellOrderStatus.Cancelled => Color.Error,
+        _ => Color.Default
+    };
+
+    private sealed class SellOrderFormModel
+    {
+        public Guid Id { get; set; }
+        public string Number { get; set; } = string.Empty;
+        public Guid? CustomerId { get; set; }
+        public string CustomerName { get; set; } = string.Empty;
+        public Guid? StoreId { get; set; }
+        public string StoreName { get; set; } = string.Empty;
+        public DateTime? ExpectedDate { get; set; }
+        public string? Notes { get; set; }
+        public SellOrderStatus Status { get; set; } = SellOrderStatus.Draft;
+        public List<SellOrderLineModel> Items { get; set; } = [];
+    }
+
+    private sealed class SellOrderLineModel
+    {
+        public Guid? ProductId { get; set; }
+        public decimal Quantity { get; set; } = 1;
+        public decimal UnitPrice { get; set; }
+        public decimal Discount { get; set; } = 0;
+        public decimal TaxRate { get; set; } = 0;
+    }
+}
