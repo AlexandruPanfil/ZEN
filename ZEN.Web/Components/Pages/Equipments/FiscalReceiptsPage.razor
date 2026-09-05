@@ -2,8 +2,11 @@
 @using Microsoft.AspNetCore.Authorization
 @using ZEN.Domain.Entities
 @using System.Text.Json
-@inject HttpClient HttpClient
+@using ZEN.Application.Services.Interfaces
+@using MudBlazor
+@inject IFiscalReceiptService FiscalReceiptService
 @inject ISnackbar Snackbar
+@inject IDialogService DialogService
 @attribute [Authorize(Roles = "Administrator,Manager")]
 
 <Microsoft.AspNetCore.Components.Web.PageTitle>Fiscal Receipts - ZEN POS</Microsoft.AspNetCore.Components.Web.PageTitle>
@@ -88,30 +91,22 @@
                         </RowTemplate>
                     </MudTable>
                 </MudItem>
-                @if (!string.IsNullOrEmpty(_selectedReceipt.RequestJson))
-                {
-                    <MudItem xs="12">
-                        <MudExpansionPanels Dense="true">
-                            <MudExpansionPanel Text="Request JSON">
-                                <MudPaper Class="pa-2" Style="max-height: 300px; overflow-y: auto;">
-                                    <pre style="font-size: 0.75rem; margin: 0;">@FormatJson(_selectedReceipt.RequestJson)</pre>
-                                </MudPaper>
-                            </MudExpansionPanel>
-                        </MudExpansionPanels>
-                    </MudItem>
-                }
-                @if (!string.IsNullOrEmpty(_selectedReceipt.ResponseJson))
-                {
-                    <MudItem xs="12">
-                        <MudExpansionPanels Dense="true">
-                            <MudExpansionPanel Text="Response JSON">
-                                <MudPaper Class="pa-2" Style="max-height: 300px; overflow-y: auto;">
-                                    <pre style="font-size: 0.75rem; margin: 0;">@FormatJson(_selectedReceipt.ResponseJson)</pre>
-                                </MudPaper>
-                            </MudExpansionPanel>
-                        </MudExpansionPanels>
-                    </MudItem>
-                }
+                <MudItem xs="12">
+                    <div class="d-flex gap-2 mt-2">
+                        @if (!string.IsNullOrEmpty(_selectedReceipt.RequestJson))
+                        {
+                            <MudButton Variant="Variant.Outlined" Color="Color.Info" StartIcon="@Icons.Material.Filled.Code" OnClick="@(() => OpenJsonDialog("Request JSON", _selectedReceipt.RequestJson))">
+                                View Request JSON
+                            </MudButton>
+                        }
+                        @if (!string.IsNullOrEmpty(_selectedReceipt.ResponseJson))
+                        {
+                            <MudButton Variant="Variant.Outlined" Color="Color.Secondary" StartIcon="@Icons.Material.Filled.Code" OnClick="@(() => OpenJsonDialog("Response JSON", _selectedReceipt.ResponseJson))">
+                                View Response JSON
+                            </MudButton>
+                        }
+                    </div>
+                </MudItem>
             </MudGrid>
         }
     </DialogContent>
@@ -120,11 +115,29 @@
     </DialogActions>
 </MudDialog>
 
+<!-- JSON Viewer Dialog -->
+<MudDialog @bind-Visible="_isJsonDialogOpen" Options="new DialogOptions { MaxWidth = MaxWidth.Large, FullWidth = true }">
+    <TitleContent>
+        <MudText Typo="Typo.h6">@_jsonDialogTitle</MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudPaper Class="pa-4" Style="max-height: 60vh; overflow-y: auto;">
+            <pre style="font-size: 0.85rem; margin: 0; white-space: pre-wrap; word-break: break-word;">@_formattedJson</pre>
+        </MudPaper>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="CloseJsonDialog">Close</MudButton>
+    </DialogActions>
+</MudDialog>
+
 @code {
     private List<FiscalReceipt> _receipts = new();
     private bool _isLoading = true;
     private bool _isDetailsDialogOpen = false;
+    private bool _isJsonDialogOpen = false;
     private FiscalReceipt? _selectedReceipt = null;
+    private string _jsonDialogTitle = string.Empty;
+    private string _formattedJson = string.Empty;
 
     protected override async Task OnInitializedAsync()
     {
@@ -136,15 +149,7 @@
         _isLoading = true;
         try
         {
-            var response = await HttpClient.GetAsync("/api/equipments/fiscal-receipts");
-            if (response.IsSuccessStatusCode)
-            {
-                _receipts = await response.Content.ReadFromJsonAsync<List<FiscalReceipt>>() ?? new();
-            }
-            else
-            {
-                Snackbar.Add("Failed to load fiscal receipts", Severity.Error);
-            }
+            _receipts = (await FiscalReceiptService.GetAllAsync()).ToList();
         }
         catch (Exception ex)
         {
@@ -166,6 +171,20 @@
     {
         _isDetailsDialogOpen = false;
         _selectedReceipt = null;
+    }
+
+    private void OpenJsonDialog(string title, string json)
+    {
+        _jsonDialogTitle = title;
+        _formattedJson = FormatJson(json);
+        _isJsonDialogOpen = true;
+    }
+
+    private void CloseJsonDialog()
+    {
+        _isJsonDialogOpen = false;
+        _jsonDialogTitle = string.Empty;
+        _formattedJson = string.Empty;
     }
 
     private string FormatJson(string json)

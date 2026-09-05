@@ -124,27 +124,28 @@
         _isLoading = true;
         _errorMessage = null;
 
-        try
-        {
-            var request = new PinLoginRequest(_pinValue);
-            var response = await AuthService.PinLoginAsync(request);
-
-            var query = new Dictionary<string, string?>
+try
             {
-                ["userId"] = response.UserId,
-                ["userName"] = response.UserName,
-                ["email"] = response.Email,
-                ["roles"] = string.Join(",", response.Roles),
-                ["cashDeskId"] = response.CashDeskId?.ToString(),
-                ["storeId"] = response.StoreId?.ToString(),
-                ["returnUrl"] = "/"
-            };
+                var request = new PinLoginRequest(_pinValue);
+                var response = await AuthService.PinLoginAsync(request);
 
-            var url = Microsoft.AspNetCore.WebUtilities.QueryHelpers.AddQueryString(
-                "/login-handler", query);
+                var query = new Dictionary<string, string?>
+                {
+                    ["userId"] = response.UserId,
+                    ["userName"] = response.UserName,
+                    ["email"] = response.Email,
+                    ["roles"] = string.Join(",", response.Roles),
+                    ["cashDeskId"] = response.CashDeskId?.ToString(),
+                    ["storeId"] = response.StoreId?.ToString(),
+                    ["token"] = response.Token,
+                    ["returnUrl"] = "/"
+                };
 
-            NavigationManager.NavigateTo(url, forceLoad: true);
-        }
+                var url = Microsoft.AspNetCore.WebUtilities.QueryHelpers.AddQueryString(
+                    "/login-handler", query);
+
+                NavigationManager.NavigateTo(url, forceLoad: true);
+            }
         catch (UnauthorizedAccessException)
         {
             _errorMessage = "Invalid PIN.";

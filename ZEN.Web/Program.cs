@@ -109,6 +109,23 @@ builder.Services.AddAuthorization();
 
 builder.Services.AddCascadingAuthenticationState();
 
+// Register named HttpClient for API calls with BaseAddress from Aspire service discovery or config
+builder.Services.AddHttpClient("ApiClient", (sp, client) =>
+{
+    var configuration = sp.GetRequiredService<IConfiguration>();
+    
+    // In Aspire, the API service URL is provided via service discovery
+    // The environment variable format is: services__<service-name>__<protocol>__<port-index>
+    var apiBaseUrl = configuration["services__apiservice__https__0"] 
+                  ?? configuration["services__apiservice__http__0"]
+                  ?? configuration["ApiService:BaseUrl"] 
+                  ?? configuration["ApiService__BaseUrl"] 
+                  ?? "https://localhost:7000";
+    
+    client.BaseAddress = new Uri(apiBaseUrl);
+    client.Timeout = TimeSpan.FromSeconds(30);
+});
+
 // Add SignalR service
 builder.Services.AddScoped<SignalRService>(sp =>
 {

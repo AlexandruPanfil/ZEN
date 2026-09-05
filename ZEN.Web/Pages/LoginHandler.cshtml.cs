@@ -10,7 +10,7 @@ public class LoginHandlerModel : PageModel
 {
     public async Task<IActionResult> OnGetAsync(
         string userId, string userName, string email,
-        string roles, string cashDeskId, string storeId, string returnUrl = "/")
+        string roles, string cashDeskId, string storeId, string token, string returnUrl = "/")
     {
         if (string.IsNullOrEmpty(userId) || string.IsNullOrEmpty(email))
             return RedirectToPage("/login");
@@ -23,6 +23,11 @@ public class LoginHandlerModel : PageModel
             new(ClaimTypes.Name, userName),
             new(ClaimTypes.Email, email)
         };
+
+        if (!string.IsNullOrEmpty(token))
+        {
+            claims.Add(new Claim("access_token", token));
+        }
 
         if (!string.IsNullOrEmpty(cashDeskId))
         {
