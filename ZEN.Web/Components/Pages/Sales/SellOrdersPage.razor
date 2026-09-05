@@ -5,6 +5,7 @@
 @using ZEN.Application.DTOs.Products
 @using ZEN.Application.DTOs.Customers
 @using ZEN.Application.DTOs.Admin
+@using ZEN.Application.DTOs.Auth
 @using ZEN.Application.Services.Interfaces
 @using ZEN.Domain.Enums
 @using ZEN.Domain.Entities
@@ -13,6 +14,7 @@
 @inject ICustomerService CustomerService
 @inject IProductService ProductService
 @inject IStoreContext StoreContext
+@inject IAuthService AuthService
 @inject global::ZEN.Domain.Interfaces.IRepository<Store> StoreRepository
 @inject ISnackbar Snackbar
 @inject NavigationManager Navigation
@@ -22,8 +24,8 @@
 
 <Microsoft.AspNetCore.Components.Web.PageTitle>Sell Orders - ZEN POS</Microsoft.AspNetCore.Components.Web.PageTitle>
 
-<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-4">
-    <div class="d-flex justify-space-between align-center mb-6">
+<div class="sell-orders-layout">
+    <div class="page-header">
         <div>
             <MudText Typo="Typo.h4" Class="font-weight-bold" Color="Color.Primary">Sell Orders</MudText>
             <MudText Typo="Typo.subtitle2" Color="Color.Secondary">Manage customer sales orders, track fulfillment, and process invoices.</MudText>
@@ -37,130 +39,307 @@
         </MudButton>
     </div>
 
-    <MudGrid Class="mb-6">
-        <MudItem xs="12" sm="4">
-            <MudPaper Class="pa-4 d-flex align-center" Elevation="1">
-                <MudIcon Icon="@Icons.Material.Filled.ShoppingCart" Color="Color.Primary" Size="Size.Large" Class="mr-4" />
-                <div>
-                    <MudText Typo="Typo.subtitle2" Color="Color.Secondary">Active Orders</MudText>
-                    <MudText Typo="Typo.h5" Class="font-weight-bold">@FilteredSellOrders.Count()</MudText>
-                </div>
-            </MudPaper>
-        </MudItem>
-        <MudItem xs="12" sm="4">
-            <MudPaper Class="pa-4 d-flex align-center" Elevation="1">
-                <MudIcon Icon="@Icons.Material.Filled.PendingActions" Color="Color.Warning" Size="Size.Large" Class="mr-4" />
-                <div>
-                    <MudText Typo="Typo.subtitle2" Color="Color.Secondary">Pending Fulfillment</MudText>
-                    <MudText Typo="Typo.h5" Class="font-weight-bold">@_sellOrders.Count(s => s.Status == SellOrderStatus.Pending)</MudText>
-                </div>
-            </MudPaper>
-        </MudItem>
-        <MudItem xs="12" sm="4">
-            <MudPaper Class="pa-4 d-flex align-center" Elevation="1">
-                <MudIcon Icon="@Icons.Material.Filled.AccountBalanceWallet" Color="Color.Success" Size="Size.Large" Class="mr-4" />
-                <div>
-                    <MudText Typo="Typo.subtitle2" Color="Color.Secondary">Total Order Value</MudText>
-                    <MudText Typo="Typo.h5" Class="font-weight-bold">@FilteredSellOrders.Sum(s => s.TotalAmount).ToString("C")</MudText>
-                </div>
-            </MudPaper>
-        </MudItem>
-    </MudGrid>
+    <div class="main-content">
+        <div class="table-area">
+            <MudTable T="SellOrderDto" Items="@FilteredSellOrders" Hover="true" Striped="true" Elevation="1" Breakpoint="Breakpoint.Md" Loading="@_isLoading" Class="sell-orders-table">
+                <ToolBarContent>
+                    <MudText Typo="Typo.h6" Class="font-weight-bold">Sales Order Ledger</MudText>
+                </ToolBarContent>
+                <HeaderContent>
+                    <MudTh><MudTableSortLabel SortBy="new Func<SellOrderDto, object>(x => x.Number)">Order #</MudTableSortLabel></MudTh>
+                    <MudTh>Customer</MudTh>
+                    <MudTh>Store Location</MudTh>
+                    <MudTh><MudTableSortLabel SortBy="new Func<SellOrderDto, object>(x => x.OrderDate)">Order Date</MudTableSortLabel></MudTh>
+                    <MudTh>Expected Date</MudTh>
+                    <MudTh>Fulfillment Status</MudTh>
+                    <MudTh><MudTableSortLabel SortBy="new Func<SellOrderDto, object>(x => x.TotalAmount)">Order Value</MudTableSortLabel></MudTh>
+                    <MudTh Style="text-align: right; min-width: 220px;">Actions</MudTh>
+                </HeaderContent>
+                <RowTemplate Context="order">
+                    <MudTd DataLabel="Order #" Class="font-weight-bold">@order.Number</MudTd>
+                    <MudTd DataLabel="Customer">@order.CustomerName</MudTd>
+                    <MudTd DataLabel="Store">
+                        <span class="d-flex align-center gap-1">
+                            <MudIcon Icon="@Icons.Material.Filled.Storefront" Size="Size.Small" Color="Color.Secondary" Class="mr-1" />
+                            @order.StoreName
+                        </span>
+                    </MudTd>
+                    <MudTd DataLabel="Order Date">@order.OrderDate.ToString("yyyy-MM-dd")</MudTd>
+                    <MudTd DataLabel="Expected Date">@(order.ExpectedDate?.ToString("yyyy-MM-dd") ?? "—")</MudTd>
+                    <MudTd DataLabel="Status">
+                        <MudChip T="string" Color="@GetStatusColor(order.Status)" Variant="Variant.Text" Size="Size.Small" Class="font-weight-bold">
+                            @order.Status
+                        </MudChip>
+                    </MudTd>
+                    <MudTd DataLabel="Total" Class="font-weight-bold color-primary">@order.TotalAmount.ToString("C")</MudTd>
+                    <MudTd DataLabel="Actions" Style="text-align: right; white-space: nowrap;">
+                        <MudTooltip Text="View / Edit Order">
+                            <MudIconButton Icon="@Icons.Material.Filled.Visibility" Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small" Class="mr-1" OnClick="@(() => Navigation.NavigateTo($"/sell-orders/{order.Id}"))" />
+                        </MudTooltip>
+                        <MudTooltip Text="Fulfill Order">
+                            <MudIconButton Icon="@Icons.Material.Filled.CheckCircle" Variant="Variant.Outlined" Color="Color.Success" Size="Size.Small" Class="mr-1" Disabled="@(order.Status != SellOrderStatus.Pending && order.Status != SellOrderStatus.PartiallyFulfilled)" OnClick="@(() => FulfillOrder(order))" />
+                        </MudTooltip>
+                        <MudTooltip Text="Cancel Order">
+                            <MudIconButton Icon="@Icons.Material.Filled.Cancel" Variant="Variant.Outlined" Color="Color.Warning" Size="Size.Small" Class="mr-1" Disabled="@(order.Status is SellOrderStatus.Cancelled or SellOrderStatus.Fulfilled)" OnClick="@(() => CancelOrder(order))" />
+                        </MudTooltip>
+                        <MudTooltip Text="Delete Draft">
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Variant="Variant.Outlined" Color="Color.Error" Size="Size.Small" Disabled="@(order.Status != SellOrderStatus.Draft)" OnClick="@(() => DeleteOrder(order))" />
+                        </MudTooltip>
+                    </MudTd>
+                </RowTemplate>
+                <NoRecordsContent>
+                    <MudText Align="Align.Center" Class="pa-4 color-secondary">No sell orders match current filter criteria.</MudText>
+                </NoRecordsContent>
+                <PagerContent>
+                    <MudTablePager RowsPerPageString="Items per page:" />
+                </PagerContent>
+            </MudTable>
+        </div>
 
-    <MudPaper Class="pa-4 mb-4" Elevation="1">
-        <MudGrid Class="align-center mb-2">
-            <MudItem xs="12" md="6" lg="7">
-                <MudTextField T="string"
-                              Placeholder="Filter by order #, customer name, or details..."
-                              Variant="Variant.Outlined"
-                              Adornment="Adornment.Start"
-                              AdornmentIcon="@Icons.Material.Filled.Search"
-                              @bind-Value="_searchTerm"
-                              Immediate="true"
-                              Clearable="true"
-                              Margin="Margin.Dense" />
-            </MudItem>
-            <MudItem xs="12" md="6" lg="5">
-                <MudSelect T="Guid?"
-                           Label="Store / Location"
-                           Variant="Variant.Outlined"
-                           Value="_selectedStoreId"
-                           ValueChanged="OnStoreChanged"
-                           Margin="Margin.Dense">
+        <aside class="filter-sidebar">
+            <div class="filter-sidebar-header">
+                <MudText Typo="Typo.h6" Class="font-weight-bold mb-0">Filters</MudText>
+                <MudButton Variant="Variant.Text" Size="Size.Small" Color="Color.Secondary" OnClick="ClearAllFilters" Class="ms-auto">
+                    Clear All
+                </MudButton>
+            </div>
+            <div class="filter-sidebar-content">
+                <div class="filter-section mb-3">
+                    <MudText Typo="Typo.subtitle2" Class="font-weight-bold mb-2">Search & Basic</MudText>
+                    <MudTextField T="string"
+                                  Placeholder="Search orders..."
+                                  Variant="Variant.Outlined"
+                                  Adornment="Adornment.Start"
+                                  AdornmentIcon="@Icons.Material.Filled.Search"
+                                  @bind-Value="_searchTerm"
+                                  Immediate="true"
+                                  Clearable="true"
+                                  Margin="Margin.Dense"
+                                  Class="mb-3" />
+                    <MudSelect T="Guid?"
+                               Label="Store / Location"
+                               Variant="Variant.Outlined"
+                               Value="_selectedStoreId"
+                               ValueChanged="OnStoreChanged"
+                               Margin="Margin.Dense"
+                               Class="w-100">
                         <MudSelectItem T="Guid?" Value="@(null)">All Stores & Locations</MudSelectItem>
                         @foreach (var store in _stores)
                         {
                             <MudSelectItem T="Guid?" Value="@store.Id">@store.Name</MudSelectItem>
                         }
                     </MudSelect>
-            </MudItem>
-        </MudGrid>
-    </MudPaper>
+                </div>
 
-    <MudTable T="SellOrderDto" Items="@FilteredSellOrders" Hover="true" Striped="true" Elevation="1" Breakpoint="Breakpoint.Md" Loading="@_isLoading">
-        <ToolBarContent>
-            <MudText Typo="Typo.h6" Class="font-weight-bold">Sales Order Ledger</MudText>
-        </ToolBarContent>
-        <HeaderContent>
-            <MudTh><MudTableSortLabel SortBy="new Func<SellOrderDto, object>(x => x.Number)">Order #</MudTableSortLabel></MudTh>
-            <MudTh>Customer</MudTh>
-            <MudTh>Store Location</MudTh>
-            <MudTh><MudTableSortLabel SortBy="new Func<SellOrderDto, object>(x => x.OrderDate)">Order Date</MudTableSortLabel></MudTh>
-            <MudTh>Expected Date</MudTh>
-            <MudTh>Fulfillment Status</MudTh>
-            <MudTh><MudTableSortLabel SortBy="new Func<SellOrderDto, object>(x => x.TotalAmount)">Order Value</MudTableSortLabel></MudTh>
-            <MudTh Style="text-align: right; min-width: 220px;">Actions</MudTh>
-        </HeaderContent>
-        <RowTemplate Context="order">
-            <MudTd DataLabel="Order #" Class="font-weight-bold">@order.Number</MudTd>
-            <MudTd DataLabel="Customer">@order.CustomerName</MudTd>
-            <MudTd DataLabel="Store">
-                <span class="d-flex align-center gap-1">
-                    <MudIcon Icon="@Icons.Material.Filled.Storefront" Size="Size.Small" Color="Color.Secondary" Class="mr-1" />
-                    @order.StoreName
-                </span>
-            </MudTd>
-            <MudTd DataLabel="Order Date">@order.OrderDate.ToString("yyyy-MM-dd")</MudTd>
-            <MudTd DataLabel="Expected Date">@(order.ExpectedDate?.ToString("yyyy-MM-dd") ?? "—")</MudTd>
-            <MudTd DataLabel="Status">
-                <MudChip T="string" Color="@GetStatusColor(order.Status)" Variant="Variant.Text" Size="Size.Small" Class="font-weight-bold">
-                    @order.Status
-                </MudChip>
-            </MudTd>
-            <MudTd DataLabel="Total" Class="font-weight-bold color-primary">@order.TotalAmount.ToString("C")</MudTd>
-            <MudTd DataLabel="Actions" Style="text-align: right; white-space: nowrap;">
-                <MudTooltip Text="View / Edit Order">
-                    <MudIconButton Icon="@Icons.Material.Filled.Visibility" Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small" Class="mr-1" OnClick="@(() => Navigation.NavigateTo($"/sell-orders/{order.Id}"))" />
-                </MudTooltip>
-                <MudTooltip Text="Fulfill Order">
-                    <MudIconButton Icon="@Icons.Material.Filled.CheckCircle" Variant="Variant.Outlined" Color="Color.Success" Size="Size.Small" Class="mr-1" Disabled="@(order.Status != SellOrderStatus.Pending && order.Status != SellOrderStatus.PartiallyFulfilled)" OnClick="@(() => FulfillOrder(order))" />
-                </MudTooltip>
-                <MudTooltip Text="Cancel Order">
-                    <MudIconButton Icon="@Icons.Material.Filled.Cancel" Variant="Variant.Outlined" Color="Color.Warning" Size="Size.Small" Class="mr-1" Disabled="@(order.Status is SellOrderStatus.Cancelled or SellOrderStatus.Fulfilled)" OnClick="@(() => CancelOrder(order))" />
-                </MudTooltip>
-                <MudTooltip Text="Delete Draft">
-                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Variant="Variant.Outlined" Color="Color.Error" Size="Size.Small" Disabled="@(order.Status != SellOrderStatus.Draft)" OnClick="@(() => DeleteOrder(order))" />
-                </MudTooltip>
-            </MudTd>
-        </RowTemplate>
-        <NoRecordsContent>
-            <MudText Align="Align.Center" Class="pa-4 color-secondary">No sell orders match current filter criteria.</MudText>
-        </NoRecordsContent>
-        <PagerContent>
-            <MudTablePager RowsPerPageString="Items per page:" />
-        </PagerContent>
-    </MudTable>
-</MudContainer>
+                <div class="filter-section mb-3">
+                    <MudText Typo="Typo.subtitle2" Class="font-weight-bold mb-2">Customer & Status</MudText>
+                    <MudAutocomplete T="CustomerDto"
+                                     Label="Customer"
+                                     Variant="Variant.Outlined"
+                                     SearchFunc="SearchCustomers"
+                                     ToStringFunc="@(c => c?.Name ?? string.Empty)"
+                                     Value="@_selectedCustomer"
+                                     ValueChanged="OnCustomerChanged"
+                                     Clearable="true"
+                                     Margin="Margin.Dense"
+                                     Class="mb-3 w-100" />
+                    <MudSelect T="SellOrderStatus"
+                               Label="Status"
+                               Variant="Variant.Outlined"
+                               MultiSelection="true"
+                               SelectedValues="_selectedStatusesHashSet"
+                               SelectedValuesChanged="@(values => OnStatusesChanged(values))"
+                               Margin="Margin.Dense"
+                               Class="w-100">
+                        @foreach (var status in Enum.GetValues<SellOrderStatus>())
+                        {
+                            <MudSelectItem T="SellOrderStatus" Value="@status">@status</MudSelectItem>
+                        }
+                    </MudSelect>
+                </div>
+
+                <div class="filter-section mb-3">
+                    <MudText Typo="Typo.subtitle2" Class="font-weight-bold mb-2">Date Ranges</MudText>
+                    <MudGrid>
+                        <MudItem xs="12" sm="6">
+                            <MudDatePicker Label="Order Date From"
+                                           Variant="Variant.Outlined"
+                                           Margin="Margin.Dense"
+                                           Date="@_orderDateFrom"
+                                           DateChanged="@(d => _orderDateFrom = d)"
+                                           Class="w-100" />
+                        </MudItem>
+                        <MudItem xs="12" sm="6">
+                            <MudDatePicker Label="Order Date To"
+                                           Variant="Variant.Outlined"
+                                           Margin="Margin.Dense"
+                                           Date="@_orderDateTo"
+                                           DateChanged="@(d => _orderDateTo = d)"
+                                           Class="w-100" />
+                        </MudItem>
+                        <MudItem xs="12" sm="6">
+                            <MudDatePicker Label="Expected Date From"
+                                           Variant="Variant.Outlined"
+                                           Margin="Margin.Dense"
+                                           Date="@_expectedDateFrom"
+                                           DateChanged="@(d => _expectedDateFrom = d)"
+                                           Class="w-100" />
+                        </MudItem>
+                        <MudItem xs="12" sm="6">
+                            <MudDatePicker Label="Expected Date To"
+                                           Variant="Variant.Outlined"
+                                           Margin="Margin.Dense"
+                                           Date="@_expectedDateTo"
+                                           DateChanged="@(d => _expectedDateTo = d)"
+                                           Class="w-100" />
+                        </MudItem>
+                    </MudGrid>
+                </div>
+
+                <div class="filter-section mb-3">
+                    <MudText Typo="Typo.subtitle2" Class="font-weight-bold mb-2">Price Range</MudText>
+                    <MudGrid>
+                        <MudItem xs="12" sm="6">
+                            <MudNumericField T="decimal?"
+                                             Label="Min Amount"
+                                             Variant="Variant.Outlined"
+                                             Margin="Margin.Dense"
+                                             Format="C"
+                                             Min="0"
+                                             @bind-Value="_minTotalAmount"
+                                             Class="w-100" />
+                        </MudItem>
+                        <MudItem xs="12" sm="6">
+                            <MudNumericField T="decimal?"
+                                             Label="Max Amount"
+                                             Variant="Variant.Outlined"
+                                             Margin="Margin.Dense"
+                                             Format="C"
+                                             Min="0"
+                                             @bind-Value="_maxTotalAmount"
+                                             Class="w-100" />
+                        </MudItem>
+                    </MudGrid>
+                </div>
+
+                <div class="filter-section mb-3">
+                    <MudText Typo="Typo.subtitle2" Class="font-weight-bold mb-2">Advanced</MudText>
+                    <MudTextField T="string"
+                                  Label="Order ID"
+                                  Placeholder="Exact order number"
+                                  Variant="Variant.Outlined"
+                                  Margin="Margin.Dense"
+                                  @bind-Value="_orderNumberFilter"
+                                  Immediate="true"
+                                  Clearable="true"
+                                  Class="mb-3 w-100" />
+                </div>
+            </div>
+        </aside>
+    </div>
+</div>
+
+<style>
+.sell-orders-layout {
+    display: flex;
+    flex-direction: column;
+    min-height: calc(100vh - 64px);
+    padding: 1rem;
+    box-sizing: border-box;
+}
+
+.page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+
+.main-content {
+    display: flex;
+    flex: 1;
+    gap: 1rem;
+    min-height: 0;
+}
+
+.table-area {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.sell-orders-table {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+.filter-sidebar {
+    width: 320px;
+    max-width: 22%;
+    min-width: 280px;
+    flex-shrink: 0;
+    background-color: var(--mud-palette-surface);
+    border-left: 1px solid var(--mud-palette-divider);
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    height: fit-content;
+    max-height: calc(100vh - 200px);
+    position: sticky;
+    top: 1rem;
+}
+
+.filter-sidebar-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem;
+    border-bottom: 1px solid var(--mud-palette-divider);
+}
+
+.filter-sidebar-content {
+    flex: 1;
+    padding: 0.5rem 1rem 1rem;
+    overflow-y: auto;
+}
+
+.filter-section {
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--mud-palette-divider);
+}
+
+.filter-section:last-child {
+    border-bottom: none;
+}
+</style>
 
 @code {
     private List<SellOrderDto> _sellOrders = new();
     private List<CustomerDto> _customers = new();
     private List<StoreDto> _stores = new();
     private List<ProductDto> _products = new();
+    private List<UserDto> _users = new();
+    
     private string _searchTerm = string.Empty;
+    private Guid? _selectedStoreId;
+    private CustomerDto? _selectedCustomer;
+    private Guid? _selectedCustomerId;
+    private IEnumerable<SellOrderStatus> _selectedStatuses = Enumerable.Empty<SellOrderStatus>();
+    private HashSet<SellOrderStatus> _selectedStatusesHashSet = new();
+    private DateTime? _orderDateFrom;
+    private DateTime? _orderDateTo;
+    private DateTime? _expectedDateFrom;
+    private DateTime? _expectedDateTo;
+    private decimal? _minTotalAmount;
+    private decimal? _maxTotalAmount;
+    private string _orderNumberFilter = string.Empty;
+    
     private bool _isLoading = false;
     private Guid? _currentStoreId;
-    private Guid? _selectedStoreId;
 
     protected override async Task OnInitializedAsync()
     {
@@ -170,10 +349,21 @@
     }
 
     private IEnumerable<SellOrderDto> FilteredSellOrders => _sellOrders.Where(s =>
-        string.IsNullOrWhiteSpace(_searchTerm) ||
-        s.Number.Contains(_searchTerm, StringComparison.OrdinalIgnoreCase) ||
-        s.CustomerName.Contains(_searchTerm, StringComparison.OrdinalIgnoreCase) ||
-        s.StoreName.Contains(_searchTerm, StringComparison.OrdinalIgnoreCase));
+        (string.IsNullOrWhiteSpace(_searchTerm) || 
+         s.Number.Contains(_searchTerm, StringComparison.OrdinalIgnoreCase) ||
+         s.CustomerName.Contains(_searchTerm, StringComparison.OrdinalIgnoreCase) ||
+         s.StoreName.Contains(_searchTerm, StringComparison.OrdinalIgnoreCase)) &&
+        (!_selectedStoreId.HasValue || s.StoreId == _selectedStoreId.Value) &&
+        (!_selectedCustomerId.HasValue || s.CustomerId == _selectedCustomerId.Value) &&
+        (!_selectedStatuses.Any() || _selectedStatuses.Contains(s.Status)) &&
+        (!_orderDateFrom.HasValue || s.OrderDate >= _orderDateFrom.Value) &&
+        (!_orderDateTo.HasValue || s.OrderDate <= _orderDateTo.Value) &&
+        (!_expectedDateFrom.HasValue || (s.ExpectedDate.HasValue && s.ExpectedDate.Value >= _expectedDateFrom.Value)) &&
+        (!_expectedDateTo.HasValue || (s.ExpectedDate.HasValue && s.ExpectedDate.Value <= _expectedDateTo.Value)) &&
+        (!_minTotalAmount.HasValue || s.TotalAmount >= _minTotalAmount.Value) &&
+        (!_maxTotalAmount.HasValue || s.TotalAmount <= _maxTotalAmount.Value) &&
+        (string.IsNullOrWhiteSpace(_orderNumberFilter) || s.Number.Contains(_orderNumberFilter, StringComparison.OrdinalIgnoreCase))
+    );
 
     private async Task LoadLookupsAsync()
     {
@@ -181,6 +371,7 @@
         {
             _customers = (await CustomerService.GetAllAsync()).ToList();
             _products = (await ProductService.GetAllAsync(_currentStoreId)).ToList();
+            _users = (await AuthService.GetAllUsersAsync()).ToList();
 
             var stores = new List<StoreDto>();
 
@@ -236,6 +427,46 @@
     {
         _selectedStoreId = storeId;
         await LoadSellOrdersAsync();
+    }
+
+    private Task<IEnumerable<CustomerDto>> SearchCustomers(string text, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return Task.FromResult(_customers.AsEnumerable());
+        }
+        return Task.FromResult(_customers.Where(c => 
+            c.Name.Contains(text, StringComparison.OrdinalIgnoreCase) ||
+            (c.Email != null && c.Email.Contains(text, StringComparison.OrdinalIgnoreCase)) ||
+            (c.Phone != null && c.Phone.Contains(text, StringComparison.OrdinalIgnoreCase))).AsEnumerable());
+    }
+
+    private void OnCustomerChanged(CustomerDto? customer)
+    {
+        _selectedCustomer = customer;
+        _selectedCustomerId = customer?.Id;
+    }
+
+    private void OnStatusesChanged(IEnumerable<SellOrderStatus> statuses)
+    {
+        _selectedStatusesHashSet = statuses?.ToHashSet() ?? new HashSet<SellOrderStatus>();
+        _selectedStatuses = _selectedStatusesHashSet;
+    }
+
+    private void ClearAllFilters()
+    {
+        _searchTerm = string.Empty;
+        _selectedCustomer = null;
+        _selectedCustomerId = null;
+        _selectedStatuses = Enumerable.Empty<SellOrderStatus>();
+        _selectedStatusesHashSet = new HashSet<SellOrderStatus>();
+        _orderDateFrom = null;
+        _orderDateTo = null;
+        _expectedDateFrom = null;
+        _expectedDateTo = null;
+        _minTotalAmount = null;
+        _maxTotalAmount = null;
+        _orderNumberFilter = string.Empty;
     }
 
     private async Task FulfillOrder(SellOrderDto order)
