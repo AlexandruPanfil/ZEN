@@ -13,6 +13,7 @@
             <MudNavLink Href="/pos" Icon="@Icons.Material.Filled.ShoppingCart">@L["POS"]</MudNavLink>
             <MudNavLink Href="/shifts" Icon="@Icons.Material.Filled.Schedule">@L["Shifts"]</MudNavLink>
             <MudNavLink Href="/held-sales" Icon="@Icons.Material.Filled.Pause">@L["HeldSales"]</MudNavLink>
+            <MudNavLink Href="/pos/fiscal-receipts" Icon="@Icons.Material.Filled.ReceiptLong">@L["FiscalReceipts"]</MudNavLink>
         </MudNavGroup>
     </AuthorizeView>
 
@@ -84,12 +85,6 @@
             <MudNavLink Href="/equipments/scanners" Icon="@Icons.Material.Filled.QrCodeScanner">@L["Scanners"]</MudNavLink>
             <MudNavLink Href="/equipments/customer-displays" Icon="@Icons.Material.Filled.DisplaySettings">@L["CustomerDisplays"]</MudNavLink>
             <MudNavLink Href="/equipments/cash-desks" Icon="@Icons.Material.Filled.Desk">@L["CashDesks"]</MudNavLink>
-        </MudNavGroup>
-    </AuthorizeView>
-
-    <AuthorizeView Roles="Administrator,Manager">
-        <MudNavGroup Title="@L["Fiscal"]" Icon="@Icons.Material.Filled.Receipt" Expanded="false">
-            <MudNavLink Href="/equipments/fiscal-receipts" Icon="@Icons.Material.Filled.ReceiptLong">@L["FiscalReceipts"]</MudNavLink>
         </MudNavGroup>
     </AuthorizeView>
 
