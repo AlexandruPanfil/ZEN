@@ -1,0 +1,21 @@
+@page "/"
+@inject NavigationManager Navigation
+@inject ZEN.Windows.Services.PosAuthState PosAuthState
+
+@code {
+    protected override void OnInitialized()
+    {
+        if (!PosAuthState.IsAuthenticated)
+        {
+            Navigation.NavigateTo("/pin-login");
+        }
+        else if (PosAuthState.IsCashier)
+        {
+            Navigation.NavigateTo("/sell");
+        }
+        else
+        {
+            Navigation.NavigateTo("/manager");
+        }
+    }
+}
