@@ -17,10 +17,8 @@ namespace ZEN.Application.Services.Interfaces
 
     public record CreatePrinterRequest(
         string Name,
-        string PrinterName,
         string PrinterType,
-        string? ConnectionType,
-        string? ConnectionString,
+        string? FiscalDeviceType,
         bool IsDefault,
         bool IsActive,
         string? ApiKey,
@@ -32,10 +30,8 @@ namespace ZEN.Application.Services.Interfaces
     public record UpdatePrinterRequest(
         Guid Id,
         string Name,
-        string PrinterName,
         string PrinterType,
-        string? ConnectionType,
-        string? ConnectionString,
+        string? FiscalDeviceType,
         bool IsDefault,
         bool IsActive,
         string? ApiKey,

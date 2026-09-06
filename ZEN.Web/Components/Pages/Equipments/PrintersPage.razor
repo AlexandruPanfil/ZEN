@@ -5,6 +5,7 @@
 @using ZEN.Domain.Enums
 @using ZEN.Shared.Components.Common
 @inject IPrinterService PrinterService
+@inject IFiscalCloudService FiscalCloudService
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
 @attribute [Authorize(Roles = "Administrator,Manager,Technician")]
@@ -38,15 +39,15 @@
     <MudTable T="PrinterDto" Items="@_printers" Hover="true" Striped="true" Outlined="true" Dense="true" Loading="@_isLoading" LoadingProgressColor="Color.Info">
         <HeaderContent>
             <MudTh>Name</MudTh>
-            <MudTh>Printer Name</MudTh>
             <MudTh>Type</MudTh>
+            <MudTh>Fiscal Device Type</MudTh>
             <MudTh>Status</MudTh>
             <MudTh Style="text-align: right;">Actions</MudTh>
         </HeaderContent>
         <RowTemplate Context="printer">
             <MudTd DataLabel="Name">@printer.Name</MudTd>
-            <MudTd DataLabel="Printer Name">@printer.PrinterName</MudTd>
             <MudTd DataLabel="Type">@printer.PrinterType</MudTd>
+            <MudTd DataLabel="Fiscal Device Type">@(printer.FiscalDeviceType ?? "-")</MudTd>
             <MudTd DataLabel="Status">
                 <MudChip T="string" Color="@(printer.IsActive ? Color.Success : Color.Error)" Size="Size.Small">
                     @(printer.IsActive ? "Active" : "Inactive")
@@ -81,21 +82,12 @@
                     <MudTextField Label="Name" Variant="Variant.Outlined" @bind-Value="_editingPrinter.Name" Required="true" For="@(() => _editingPrinter.Name)" Margin="Margin.Dense" Style="font-size: 0.8rem;" />
                 </MudItem>
                 <MudItem xs="12" sm="6">
-                    <MudTextField Label="Printer Name" Variant="Variant.Outlined" @bind-Value="_editingPrinter.PrinterName" For="@(() => _editingPrinter.PrinterName)" Margin="Margin.Dense" Style="font-size: 0.8rem;" />
-                </MudItem>
-                <MudItem xs="12" sm="6">
                     <MudSelect T="string" Label="Printer Type" Variant="Variant.Outlined" @bind-Value="_editingPrinter.PrinterType" AnchorOrigin="Origin.BottomLeft" Margin="Margin.Dense" Style="font-size: 0.8rem;">
                         @foreach (var type in Enum.GetNames(typeof(PrinterType)))
                         {
                             <MudSelectItem T="string" Value="@type">@type</MudSelectItem>
                         }
                     </MudSelect>
-                </MudItem>
-                <MudItem xs="12" sm="6">
-                    <MudTextField Label="Connection Type" Variant="Variant.Outlined" @bind-Value="_editingPrinter.ConnectionType" Margin="Margin.Dense" Style="font-size: 0.8rem;" />
-                </MudItem>
-                <MudItem xs="12" sm="6">
-                    <MudTextField Label="Connection String" Variant="Variant.Outlined" @bind-Value="_editingPrinter.ConnectionString" Margin="Margin.Dense" Style="font-size: 0.8rem;" />
                 </MudItem>
                 <MudItem xs="12" sm="6" Class="d-flex align-center ps-1">
                     <MudSwitch @bind-Value="_editingPrinter.IsActive" Color="Color.Primary" Label="Active" Dense="true" Style="font-size: 0.75rem;" />
@@ -104,33 +96,27 @@
                     <MudSwitch @bind-Value="_editingPrinter.IsDefault" Color="Color.Primary" Label="Default Printer" Dense="true" Style="font-size: 0.75rem;" />
                 </MudItem>
 
-                @if (_editingPrinter.PrinterType == "Fiscal")
+@if (_editingPrinter.PrinterType == "Fiscal")
                 {
                     <MudItem xs="12">
-                        <MudText Typo="Typo.subtitle2" Class="mt-2 mb-2 font-weight-bold">FiscalCloud Configuration</MudText>
-                        <MudAlert Severity="Severity.Info" Class="mb-3" Variant="Variant.Filled">
-                            <MudText Typo="Typo.caption">
-                                <strong>Required:</strong> Obtain credentials from your FiscalCloud portal.<br/>
-                                <strong>Default URL:</strong> http://localhost:50700 (local agent)<br/>
-                                <strong>Note:</strong> Replace placeholder values (YOUR_API_KEY, etc.) with actual credentials.
-                            </MudText>
-                        </MudAlert>
-                        <MudDivider />
-                    </MudItem>
-                    <MudItem xs="12" sm="6">
-                        <MudTextField Label="API Key" Variant="Variant.Outlined" @bind-Value="_editingPrinter.ApiKey" Margin="Margin.Dense" Style="font-size: 0.8rem;" Required="@(_editingPrinter.PrinterType == "Fiscal")" HelperText="Get from FiscalCloud portal" />
-                    </MudItem>
-                    <MudItem xs="12" sm="6">
-                        <MudTextField Label="API Secret" Variant="Variant.Outlined" @bind-Value="_editingPrinter.ApiSecret" InputType="InputType.Password" Margin="Margin.Dense" Style="font-size: 0.8rem;" Required="@(_editingPrinter.PrinterType == "Fiscal")" HelperText="Get from FiscalCloud portal" />
-                    </MudItem>
-                    <MudItem xs="12" sm="6">
-                        <MudTextField Label="Device ID (GUID)" Variant="Variant.Outlined" @bind-Value="_editingPrinter.DeviceId" Margin="Margin.Dense" Style="font-size: 0.8rem;" Placeholder="00000000-0000-0000-0000-000000000000" Required="@(_editingPrinter.PrinterType == "Fiscal")" HelperText="Device GUID from FiscalCloud" />
-                    </MudItem>
-                    <MudItem xs="12" sm="6">
-                        <MudTextField Label="Point of Sale ID (GUID)" Variant="Variant.Outlined" @bind-Value="_editingPrinter.PointOfSaleId" Margin="Margin.Dense" Style="font-size: 0.8rem;" Placeholder="Optional" HelperText="Optional POS identifier" />
+                        <MudText Typo="Typo.subtitle2" Class="mt-2 mb-2 font-weight-bold">Fiscal Device Configuration</MudText>
+                        <MudSelect T="string" Label="Fiscal Device Type" Variant="Variant.Outlined" @bind-Value="_editingPrinter.FiscalDeviceType" AnchorOrigin="Origin.BottomLeft" Margin="Margin.Dense" Style="font-size: 0.8rem;" Required="true">
+                            <MudSelectItem T="string" Value="@("FiscalCloud")">FiscalCloud</MudSelectItem>
+                            <MudSelectItem T="string" Value="@("ISFiscalCloud")">IS Fiscal Cloud</MudSelectItem>
+                            <MudSelectItem T="string" Value="@("SLFiscalRegister")">SL Fiscal Register</MudSelectItem>
+                        </MudSelect>
                     </MudItem>
                     <MudItem xs="12">
-                        <MudTextField Label="FiscalCloud Base URL" Variant="Variant.Outlined" @bind-Value="_editingPrinter.FiscalCloudBaseUrl" Margin="Margin.Dense" Style="font-size: 0.8rem;" Placeholder="http://localhost:50700" HelperText="Default: http://localhost:50700 (local agent)" />
+                        <MudAlert Severity="Severity.Info" Class="mb-3" Variant="Variant.Filled">
+                            <MudText Typo="Typo.caption">
+                                <strong>Note:</strong> Use the "Configure" button below to set device-specific settings for the selected fiscal device type.
+                            </MudText>
+                        </MudAlert>
+                    </MudItem>
+                    <MudItem xs="12">
+                        <MudButton Variant="Variant.Outlined" Color="Color.Secondary" StartIcon="@Icons.Material.Filled.Settings" OnClick="OpenConfigureDialog" Size="Size.Small">
+                            Configure @_editingPrinter.FiscalDeviceType
+                        </MudButton>
                     </MudItem>
                 }
             </MudGrid>
@@ -156,6 +142,97 @@
     </DialogActions>
 </MudDialog>
 
+<!-- Configure Fiscal Device Modal -->
+<MudDialog @bind-Visible="_isConfigureDialogOpen" Options="new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true }">
+    <TitleContent>
+        <MudText Typo="Typo.subtitle1" Class="font-weight-bold">
+            <MudIcon Icon="@Icons.Material.Filled.Settings" Class="mr-2" />
+            Configure @_editingPrinter.FiscalDeviceType
+        </MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudForm @ref="_configureForm" @bind-IsValid="@_configureFormIsValid">
+            <MudGrid Spacing="2" Class="py-1">
+                @switch (_editingPrinter.FiscalDeviceType)
+                {
+                    case "FiscalCloud":
+                    case "ISFiscalCloud":
+                        {
+                            <MudItem xs="12">
+                                <MudAlert Severity="Severity.Info" Class="mb-3" Variant="Variant.Filled">
+                                    <MudText Typo="Typo.caption">
+                                        <strong>Required:</strong> Obtain credentials from your @_editingPrinter.FiscalDeviceType portal.<br/>
+                                        <strong>Default URL:</strong> http://localhost:50700 (local agent)<br/>
+                                        <strong>Note:</strong> Replace placeholder values (YOUR_API_KEY, etc.) with actual credentials.
+                                    </MudText>
+                                </MudAlert>
+                                <MudDivider />
+                            </MudItem>
+                            <MudItem xs="12" sm="6">
+                                <MudTextField Label="API Key" Variant="Variant.Outlined" @bind-Value="_editingPrinter.ApiKey" Margin="Margin.Dense" Style="font-size: 0.8rem;" Required="true" HelperText="Get from FiscalCloud portal" />
+                            </MudItem>
+                            <MudItem xs="12" sm="6">
+                                <MudTextField Label="API Secret" Variant="Variant.Outlined" @bind-Value="_editingPrinter.ApiSecret" InputType="InputType.Password" Margin="Margin.Dense" Style="font-size: 0.8rem;" Required="true" HelperText="Get from FiscalCloud portal" />
+                            </MudItem>
+                            <MudItem xs="12" sm="6">
+                                <MudTextField Label="Device ID (GUID)" Variant="Variant.Outlined" @bind-Value="_editingPrinter.DeviceId" Margin="Margin.Dense" Style="font-size: 0.8rem;" Placeholder="00000000-0000-0000-0000-000000000000" Required="true" HelperText="Device GUID from FiscalCloud" />
+                            </MudItem>
+                            <MudItem xs="12" sm="6">
+                                <MudTextField Label="Point of Sale ID (GUID)" Variant="Variant.Outlined" @bind-Value="_editingPrinter.PointOfSaleId" Margin="Margin.Dense" Style="font-size: 0.8rem;" Placeholder="Optional" HelperText="Optional POS identifier" />
+                            </MudItem>
+                            <MudItem xs="12">
+                                <MudTextField Label="Base URL" Variant="Variant.Outlined" @bind-Value="_editingPrinter.FiscalCloudBaseUrl" Margin="Margin.Dense" Style="font-size: 0.8rem;" Placeholder="http://localhost:50700" HelperText="Default: http://localhost:50700 (local agent)" />
+                            </MudItem>
+                            <MudItem xs="12">
+                                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Wifi" OnClick="TestFiscalCloudConnectionFromModal" Size="Size.Small" Disabled="@_isTestingConnection">
+                                    @if (_isTestingConnection)
+                                    {
+                                        <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                                        <text>Testing...</text>
+                                    }
+                                    else
+                                    {
+                                        <text>Test Connection</text>
+                                    }
+                                </MudButton>
+                            </MudItem>
+                            break;
+                        }
+                    case "SLFiscalRegister":
+                        {
+                            <MudItem xs="12">
+                                <MudAlert Severity="Severity.Warning" Class="mb-3" Variant="Variant.Filled">
+                                    <MudText Typo="Typo.body2">
+                                        <MudIcon Icon="@Icons.Material.Filled.Info" Class="mr-2" />
+                                        <strong>Configuration Not Available:</strong> SL Fiscal Register device configuration is pending documentation. 
+                                        Please check back later or contact support for setup instructions.
+                                    </MudText>
+                                </MudAlert>
+                            </MudItem>
+                            break;
+                        }
+                    default:
+                        {
+                            <MudItem xs="12">
+                                <MudAlert Severity="Severity.Info" Class="mb-3" Variant="Variant.Filled">
+                                    <MudText Typo="Typo.body2">
+                                        <MudIcon Icon="@Icons.Material.Filled.Info" Class="mr-2" />
+                                        Select a Fiscal Device Type to configure device-specific settings.
+                                    </MudText>
+                                </MudAlert>
+                            </MudItem>
+                            break;
+                        }
+                }
+            </MudGrid>
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="CloseConfigureDialog" Size="Size.Small">Close</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveConfigureDialog" Disabled="@(!_configureFormIsValid)" Size="Size.Small">Save Configuration</MudButton>
+    </DialogActions>
+</MudDialog>
+
 @code {
     private IEnumerable<PrinterDto> _printers = new List<PrinterDto>();
     private string _searchTerm = string.Empty;
@@ -166,9 +243,12 @@
     private bool _isTestingConnection = false;
     private MudForm? _form;
 
-    private PrinterFormModel _editingPrinter = new();
+    // Configure dialog
+    private bool _isConfigureDialogOpen = false;
+    private bool _configureFormIsValid = false;
+    private MudForm? _configureForm;
 
-    [Inject] private IFiscalCloudService FiscalCloudService { get; set; } = default!;
+    private PrinterFormModel _editingPrinter = new();
 
     protected override async Task OnInitializedAsync()
     {
@@ -215,10 +295,8 @@
         {
             Id = printer.Id,
             Name = printer.Name,
-            PrinterName = printer.PrinterName,
             PrinterType = printer.PrinterType,
-            ConnectionType = printer.ConnectionType,
-            ConnectionString = printer.ConnectionString,
+            FiscalDeviceType = printer.FiscalDeviceType,
             IsDefault = printer.IsDefault,
             IsActive = printer.IsActive,
             ApiKey = printer.ApiKey,
@@ -230,6 +308,22 @@
         _isDialogOpen = true;
     }
 
+    private void OpenConfigureDialog()
+    {
+        _isConfigureDialogOpen = true;
+    }
+
+    private void CloseConfigureDialog()
+    {
+        _isConfigureDialogOpen = false;
+    }
+
+    private async Task SaveConfigureDialog()
+    {
+        // The fields are already bound to _editingPrinter, so just close
+        CloseConfigureDialog();
+    }
+
     private async Task SavePrinter(bool closeDialog = true)
     {
         try
@@ -238,26 +332,42 @@
             if (_editingPrinter.PrinterType == "Fiscal")
             {
                 var missingFields = new List<string>();
-                if (string.IsNullOrWhiteSpace(_editingPrinter.ApiKey)) missingFields.Add("API Key");
-                if (string.IsNullOrWhiteSpace(_editingPrinter.ApiSecret)) missingFields.Add("API Secret");
-                if (string.IsNullOrWhiteSpace(_editingPrinter.DeviceId)) missingFields.Add("Device ID");
+                if (string.IsNullOrWhiteSpace(_editingPrinter.FiscalDeviceType))
+                {
+                    missingFields.Add("Fiscal Device Type");
+                }
 
                 if (missingFields.Count > 0)
                 {
-                    Snackbar.Add($"Fiscal printer requires: {string.Join(", ", missingFields)}. Get these from your FiscalCloud portal.", Severity.Error);
+                    Snackbar.Add($"Fiscal printer requires: {string.Join(", ", missingFields)}.", Severity.Error);
                     return;
                 }
 
-                // Check for placeholder values
-                var placeholderFields = new List<string>();
-                if (_editingPrinter.ApiKey?.Contains("YOUR_") == true) placeholderFields.Add("API Key");
-                if (_editingPrinter.ApiSecret?.Contains("YOUR_") == true) placeholderFields.Add("API Secret");
-                if (_editingPrinter.DeviceId?.Contains("YOUR_") == true) placeholderFields.Add("Device ID");
-                if (_editingPrinter.PointOfSaleId?.Contains("YOUR_") == true) placeholderFields.Add("Point of Sale ID");
-
-                if (placeholderFields.Count > 0)
+                // Validate FiscalCloud/ISFiscalCloud fields if selected
+                if (_editingPrinter.FiscalDeviceType is "FiscalCloud" or "ISFiscalCloud")
                 {
-                    Snackbar.Add($"Please replace placeholder values for: {string.Join(", ", placeholderFields)} with actual FiscalCloud credentials.", Severity.Warning);
+                    var missingFiscalFields = new List<string>();
+                    if (string.IsNullOrWhiteSpace(_editingPrinter.ApiKey)) missingFiscalFields.Add("API Key");
+                    if (string.IsNullOrWhiteSpace(_editingPrinter.ApiSecret)) missingFiscalFields.Add("API Secret");
+                    if (string.IsNullOrWhiteSpace(_editingPrinter.DeviceId)) missingFiscalFields.Add("Device ID");
+
+                    if (missingFiscalFields.Count > 0)
+                    {
+                        Snackbar.Add($"Fiscal printer ({_editingPrinter.FiscalDeviceType}) requires: {string.Join(", ", missingFiscalFields)}. Get these from your portal.", Severity.Error);
+                        return;
+                    }
+
+                    // Check for placeholder values
+                    var placeholderFields = new List<string>();
+                    if (_editingPrinter.ApiKey?.Contains("YOUR_") == true) placeholderFields.Add("API Key");
+                    if (_editingPrinter.ApiSecret?.Contains("YOUR_") == true) placeholderFields.Add("API Secret");
+                    if (_editingPrinter.DeviceId?.Contains("YOUR_") == true) placeholderFields.Add("Device ID");
+                    if (_editingPrinter.PointOfSaleId?.Contains("YOUR_") == true) placeholderFields.Add("Point of Sale ID");
+
+                    if (placeholderFields.Count > 0)
+                    {
+                        Snackbar.Add($"Please replace placeholder values for: {string.Join(", ", placeholderFields)} with actual credentials.", Severity.Warning);
+                    }
                 }
             }
 
@@ -266,10 +376,8 @@
                 var request = new UpdatePrinterRequest(
                     _editingPrinter.Id,
                     _editingPrinter.Name,
-                    _editingPrinter.PrinterName,
                     _editingPrinter.PrinterType,
-                    _editingPrinter.ConnectionType,
-                    _editingPrinter.ConnectionString,
+                    _editingPrinter.FiscalDeviceType,
                     _editingPrinter.IsDefault,
                     _editingPrinter.IsActive,
                     _editingPrinter.ApiKey,
@@ -284,10 +392,8 @@
             {
                 var request = new CreatePrinterRequest(
                     _editingPrinter.Name,
-                    _editingPrinter.PrinterName,
                     _editingPrinter.PrinterType,
-                    _editingPrinter.ConnectionType,
-                    _editingPrinter.ConnectionString,
+                    _editingPrinter.FiscalDeviceType,
                     _editingPrinter.IsDefault,
                     _editingPrinter.IsActive,
                     _editingPrinter.ApiKey,
@@ -364,6 +470,54 @@
         }
     }
 
+    private async Task TestFiscalCloudConnectionFromModal()
+    {
+        _isTestingConnection = true;
+        try
+        {
+            if (string.IsNullOrWhiteSpace(_editingPrinter.ApiKey) ||
+                string.IsNullOrWhiteSpace(_editingPrinter.ApiSecret) ||
+                string.IsNullOrWhiteSpace(_editingPrinter.DeviceId))
+            {
+                Snackbar.Add("FiscalCloud credentials (Api Key, Api Secret, Device Id) are required.", Severity.Warning);
+                return;
+            }
+
+            var printer = new ZEN.Domain.Entities.Printer
+            {
+                Id = _editingPrinter.Id,
+                ApiKey = _editingPrinter.ApiKey,
+                ApiSecret = _editingPrinter.ApiSecret,
+                DeviceId = _editingPrinter.DeviceId,
+                PointOfSaleId = _editingPrinter.PointOfSaleId,
+                FiscalCloudBaseUrl = _editingPrinter.FiscalCloudBaseUrl
+            };
+
+            var effectiveUrl = string.IsNullOrWhiteSpace(printer.FiscalCloudBaseUrl)
+                ? "http://localhost:50700 (default)"
+                : printer.FiscalCloudBaseUrl;
+
+            var status = await FiscalCloudService.GetStatusAsync(printer);
+
+            if (status.IsOnline && status.IsConnected)
+            {
+                Snackbar.Add($"FiscalCloud connection successful at {effectiveUrl}.", Severity.Success);
+            }
+            else
+            {
+                Snackbar.Add($"FiscalCloud connection FAILED at {effectiveUrl}: {status.ErrorMessage ?? status.DeviceStatus ?? "unknown error"}", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error testing connection: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isTestingConnection = false;
+        }
+    }
+
     private async Task DeletePrinter(PrinterDto printer)
     {
         var parameters = new DialogParameters { ["ContentText"] = $"Delete printer '{printer.Name}'?" };
@@ -393,10 +547,8 @@
     {
         public Guid Id { get; set; }
         public string Name { get; set; } = string.Empty;
-        public string PrinterName { get; set; } = string.Empty;
         public string PrinterType { get; set; } = string.Empty;
-        public string? ConnectionType { get; set; }
-        public string? ConnectionString { get; set; }
+        public string? FiscalDeviceType { get; set; }
         public bool IsDefault { get; set; } = false;
         public bool IsActive { get; set; } = true;
         public string? ApiKey { get; set; }

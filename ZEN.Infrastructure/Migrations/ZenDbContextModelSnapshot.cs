@@ -1268,12 +1268,6 @@ namespace ZEN.Infrastructure.Migrations
                     b.Property<string>("ApiSecret")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<string>("ConnectionString")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("ConnectionType")
-                        .HasColumnType("nvarchar(max)");
-
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
@@ -1282,6 +1276,9 @@ namespace ZEN.Infrastructure.Migrations
 
                     b.Property<string>("FiscalCloudBaseUrl")
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<int?>("FiscalDeviceType")
+                        .HasColumnType("int");
 
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
@@ -1297,10 +1294,6 @@ namespace ZEN.Infrastructure.Migrations
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("PointOfSaleId")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("PrinterName")
-                        .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<int>("Type")

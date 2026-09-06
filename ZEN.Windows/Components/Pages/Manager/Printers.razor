@@ -17,12 +17,12 @@
         <MudText Typo="Typo.body2" Class="mb-3">Cashiers can elevate to Manager by entering a Manager or Admin PIN.</MudText>
         
         <MudTextField @bind-Value="_pin"
-                     Label="Enter Manager/Admin PIN"
-                     InputType="InputType.Password"
-                     MaxLength="6"
-                     Variant="Variant.Filled"
-                     Class="mb-2"
-                     @onkeypress="HandlePinKeyPress" />
+                      Label="Enter Manager/Admin PIN"
+                      InputType="InputType.Password"
+                      MaxLength="6"
+                      Variant="Variant.Filled"
+                      Class="mb-2"
+                      @onkeypress="HandlePinKeyPress" />
         
         @if (!string.IsNullOrWhiteSpace(_error))
         {
@@ -60,15 +60,15 @@ else
             <MudTable T="PrinterDto" Items="_printers" Hover="true">
                 <HeaderContent>
                     <MudTh>Name</MudTh>
-                    <MudTh>Printer Name</MudTh>
                     <MudTh>Type</MudTh>
+                    <MudTh>Fiscal Device Type</MudTh>
                     <MudTh>Default</MudTh>
                     <MudTh>Status</MudTh>
                 </HeaderContent>
                 <RowTemplate Context="printer">
                     <MudTd DataLabel="Name">@printer.Name</MudTd>
-                    <MudTd DataLabel="Printer Name">@printer.PrinterName</MudTd>
                     <MudTd DataLabel="Type">@printer.PrinterType</MudTd>
+                    <MudTd DataLabel="Fiscal Device Type">@(printer.FiscalDeviceType ?? "-")</MudTd>
                     <MudTd DataLabel="Default">@(printer.IsDefault ? "Yes" : "No")</MudTd>
                     <MudTd DataLabel="Status">
                         <MudChip T="string" Color="@(printer.IsActive ? Color.Success : Color.Error)">

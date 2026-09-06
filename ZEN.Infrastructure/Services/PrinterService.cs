@@ -22,10 +22,8 @@ namespace ZEN.Infrastructure.Services
             return printer == null ? null : new PrinterDto(
                 printer.Id,
                 printer.Name,
-                printer.PrinterName,
                 printer.Type.ToString(),
-                printer.ConnectionType,
-                printer.ConnectionString,
+                printer.FiscalDeviceType?.ToString(),
                 printer.IsDefault,
                 printer.IsActive,
                 printer.ApiKey,
@@ -41,10 +39,8 @@ namespace ZEN.Infrastructure.Services
             return printers.Select(p => new PrinterDto(
                 p.Id,
                 p.Name,
-                p.PrinterName,
                 p.Type.ToString(),
-                p.ConnectionType,
-                p.ConnectionString,
+                p.FiscalDeviceType?.ToString(),
                 p.IsDefault,
                 p.IsActive,
                 p.ApiKey,
@@ -60,10 +56,8 @@ namespace ZEN.Infrastructure.Services
             return printers.Select(p => new PrinterDto(
                 p.Id,
                 p.Name,
-                p.PrinterName,
                 p.Type.ToString(),
-                p.ConnectionType,
-                p.ConnectionString,
+                p.FiscalDeviceType?.ToString(),
                 p.IsDefault,
                 p.IsActive,
                 p.ApiKey,
@@ -79,10 +73,8 @@ namespace ZEN.Infrastructure.Services
             return printers.Select(p => new PrinterDto(
                 p.Id,
                 p.Name,
-                p.PrinterName,
                 p.Type.ToString(),
-                p.ConnectionType,
-                p.ConnectionString,
+                p.FiscalDeviceType?.ToString(),
                 p.IsDefault,
                 p.IsActive,
                 p.ApiKey,
@@ -97,10 +89,8 @@ namespace ZEN.Infrastructure.Services
             var printer = new Printer
             {
                 Name = request.Name,
-                PrinterName = request.PrinterName,
                 Type = Enum.Parse<PrinterType>(request.PrinterType),
-                ConnectionType = request.ConnectionType,
-                ConnectionString = request.ConnectionString,
+                FiscalDeviceType = string.IsNullOrWhiteSpace(request.FiscalDeviceType) ? null : Enum.Parse<FiscalDeviceType>(request.FiscalDeviceType),
                 IsDefault = request.IsDefault,
                 IsActive = request.IsActive,
                 ApiKey = request.ApiKey,
@@ -116,10 +106,8 @@ namespace ZEN.Infrastructure.Services
             return new PrinterDto(
                 printer.Id,
                 printer.Name,
-                printer.PrinterName,
                 printer.Type.ToString(),
-                printer.ConnectionType,
-                printer.ConnectionString,
+                printer.FiscalDeviceType?.ToString(),
                 printer.IsDefault,
                 printer.IsActive,
                 printer.ApiKey,
@@ -138,10 +126,8 @@ namespace ZEN.Infrastructure.Services
             }
 
             printer.Name = request.Name;
-            printer.PrinterName = request.PrinterName;
             printer.Type = Enum.Parse<PrinterType>(request.PrinterType);
-            printer.ConnectionType = request.ConnectionType;
-            printer.ConnectionString = request.ConnectionString;
+            printer.FiscalDeviceType = string.IsNullOrWhiteSpace(request.FiscalDeviceType) ? null : Enum.Parse<FiscalDeviceType>(request.FiscalDeviceType);
             printer.IsDefault = request.IsDefault;
             printer.IsActive = request.IsActive;
             printer.ApiKey = request.ApiKey;
@@ -155,10 +141,8 @@ namespace ZEN.Infrastructure.Services
             return new PrinterDto(
                 printer.Id,
                 printer.Name,
-                printer.PrinterName,
                 printer.Type.ToString(),
-                printer.ConnectionType,
-                printer.ConnectionString,
+                printer.FiscalDeviceType?.ToString(),
                 printer.IsDefault,
                 printer.IsActive,
                 printer.ApiKey,

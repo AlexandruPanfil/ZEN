@@ -445,14 +445,14 @@ public static class EquipmentEndpoints
                     Message = "Fiscal printer not found"
                 });
 
-            return Results.Ok(new 
+return Results.Ok(new 
             { 
                 CashDeskId = id,
                 CashDeskName = cashDesk.Name,
                 HasFiscalPrinter = true,
                 PrinterId = printer.Id,
                 PrinterName = printer.Name,
-                PrinterType = printer.PrinterType,
+                PrinterType = printer.FiscalDeviceType,
                 PrinterFound = true,
                 HasApiKey = !string.IsNullOrEmpty(printer.ApiKey),
                 HasApiSecret = !string.IsNullOrEmpty(printer.ApiSecret),
@@ -463,8 +463,8 @@ public static class EquipmentEndpoints
                 Message = (!string.IsNullOrEmpty(printer.ApiKey) && 
                           !string.IsNullOrEmpty(printer.ApiSecret) && 
                           !string.IsNullOrEmpty(printer.DeviceId))
-                    ? "Fiscal printer is fully configured for FiscalCloud"
-                    : "Fiscal printer is missing required credentials (ApiKey, ApiSecret, or DeviceId)"
+                      ? "Fiscal printer is fully configured for FiscalCloud"
+                      : "Fiscal printer is missing required credentials (ApiKey, ApiSecret, or DeviceId)"
             });
         })
         .WithName("GetCashDeskFiscalStatus")

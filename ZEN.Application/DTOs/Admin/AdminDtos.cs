@@ -65,10 +65,8 @@ public record WarehouseDto(
 public record PrinterDto(
     Guid Id,
     string Name,
-    string PrinterName,
     string PrinterType,
-    string? ConnectionType,
-    string? ConnectionString,
+    string? FiscalDeviceType,
     bool IsDefault,
     bool IsActive,
     string? ApiKey,

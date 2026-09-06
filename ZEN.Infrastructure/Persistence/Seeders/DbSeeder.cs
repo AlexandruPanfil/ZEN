@@ -114,9 +114,8 @@ public static class DbSeeder
             {
                 Id = Guid.NewGuid(),
                 Name = "FiscalCloud (Local)",
-                PrinterName = "FiscalCloud",
                 Type = PrinterType.Fiscal,
-                ConnectionType = "FiscalCloud",
+                FiscalDeviceType = FiscalDeviceType.FiscalCloud,
                 IsDefault = true,
                 IsActive = true,
                 ApiKey = "REPLACE_WITH_ACTUAL_API_KEY",
