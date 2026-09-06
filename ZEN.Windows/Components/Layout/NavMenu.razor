@@ -3,6 +3,7 @@
 @inject ISnackbar Snackbar
 @inject ZEN.Windows.Services.PosAuthState PosAuthState
 @inject ZEN.Windows.Services.Sync.SyncApiClient ApiClient
+@implements IDisposable
 
 <MudNavMenu>
     @if (PosAuthState.IsAuthenticated)
@@ -69,13 +70,28 @@
 </MudNavMenu>
 
 @code {
-    private void GoToLogin() => Navigation.NavigateTo("/pin-login");
+    private void GoToLogin() => Navigation.NavigateTo("/");
 
     private void Logout()
     {
         ApiClient.SetBearerToken(null);
         PosAuthState.SignOut();
         Snackbar.Add("Logged out successfully", Severity.Info);
-        Navigation.NavigateTo("/pin-login");
+        Navigation.NavigateTo("/");
+    }
+
+    protected override void OnInitialized()
+    {
+        PosAuthState.Changed += OnAuthStateChanged;
+    }
+
+    private void OnAuthStateChanged()
+    {
+        InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        PosAuthState.Changed -= OnAuthStateChanged;
     }
 }
