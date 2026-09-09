@@ -1,0 +1,321 @@
+@page "/equipments/scanners"
+@using ZEN.Windows.Services
+@using ZEN.Application.Services.Interfaces
+@using ZEN.Application.DTOs.Admin
+@using ZEN.Domain.Enums
+@using MudBlazor
+@inject IScannerService ScannerService
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+@inject PosAuthState PosAuthState
+
+<PageTitle>Scanners - ZEN POS</PageTitle>
+
+@if (!PosAuthState.IsManager && !PosAuthState.IsAdmin)
+{
+    <MudPaper Class="pa-4" Elevation="3">
+        <MudText Typo="Typo.h5" GutterBottom="true">Manager access required.</MudText>
+        <MudText Typo="Typo.body2" Class="mb-3">Cashiers can elevate to Manager by entering a Manager or Admin PIN.</MudText>
+
+        <MudTextField @bind-Value="_pin"
+                      Label="Enter Manager/Admin PIN"
+                      InputType="InputType.Password"
+                      MaxLength="6"
+                      Variant="Variant.Filled"
+                      Class="mb-2"
+                      @onkeypress="HandlePinKeyPress" />
+
+        @if (!string.IsNullOrWhiteSpace(_error))
+        {
+            <MudAlert Severity="Severity.Error" Class="mt-2">@_error</MudAlert>
+        }
+
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="ValidatePin" Disabled="_isProcessing" Class="mt-3">
+            @if (_isProcessing)
+            {
+                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                <span>Validating...</span>
+            }
+            else
+            {
+                <span>Confirm</span>
+            }
+        </MudButton>
+    </MudPaper>
+}
+else
+{
+    <MudContainer MaxWidth="MaxWidth.Large" Class="mt-4">
+        <div class="d-flex justify-space-between align-center mb-4">
+            <MudText Typo="Typo.h5" Class="font-weight-bold" Color="Color.Primary">Scanners</MudText>
+            <MudButton Variant="Variant.Filled"
+                       Color="Color.Primary"
+                       StartIcon="@Icons.Material.Filled.Add"
+                       OnClick="OpenCreateDialog">
+                Add Scanner
+            </MudButton>
+        </div>
+
+        <MudPaper Class="pa-2 mb-2" Outlined="true">
+            <MudTextField T="string"
+                          @bind-Value="_searchTerm"
+                          Placeholder="Search scanners..."
+                          Variant="Variant.Outlined"
+                          Adornment="Adornment.Start"
+                          AdornmentIcon="@Icons.Material.Filled.Search"
+                          OnKeyDown="@HandleKeyDown"
+                          Clearable="true"
+                          OnClearButtonClick="LoadScanners"
+                          Margin="Margin.Dense" />
+        </MudPaper>
+
+        <MudTable T="ScannerDto" Items="@_scanners" Hover="true" Striped="true" Outlined="true" Dense="true" Loading="@_isLoading" LoadingProgressColor="Color.Info">
+            <HeaderContent>
+                <MudTh>Name</MudTh>
+                <MudTh>Type</MudTh>
+                <MudTh>Status</MudTh>
+                <MudTh Style="text-align: right;">Actions</MudTh>
+            </HeaderContent>
+            <RowTemplate Context="scanner">
+                <MudTd DataLabel="Name">@scanner.Name</MudTd>
+                <MudTd DataLabel="Type">@scanner.ScannerType</MudTd>
+                <MudTd DataLabel="Status">
+                    <MudChip T="string" Color="@(scanner.IsActive ? Color.Success : Color.Error)" Size="Size.Small">
+                        @(scanner.IsActive ? "Active" : "Inactive")
+                    </MudChip>
+                </MudTd>
+                <MudTd DataLabel="Actions" Style="text-align: right;">
+                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Info" Size="Size.Small" OnClick="@(() => OpenEditDialog(scanner))" />
+                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small" OnClick="@(() => DeleteScanner(scanner))" />
+                </MudTd>
+            </RowTemplate>
+            <NoRecordsContent>
+                <MudText Align="Align.Center" Class="pa-3">No scanners found.</MudText>
+            </NoRecordsContent>
+            <PagerContent>
+                <MudTablePager />
+            </PagerContent>
+        </MudTable>
+    </MudContainer>
+
+    <MudDialog @bind-Visible="_isDialogOpen" Options="new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true }">
+        <TitleContent>
+            <MudText Typo="Typo.subtitle1" Class="font-weight-bold">
+                <MudIcon Icon="@(_isEditMode ? Icons.Material.Filled.Edit : Icons.Material.Filled.Add)" Class="mr-2" />
+                @(_isEditMode ? "Edit Scanner" : "Add Scanner")
+            </MudText>
+        </TitleContent>
+        <DialogContent>
+            <MudForm @ref="_form" @bind-IsValid="@_formIsValid">
+                <MudGrid Spacing="2" Class="py-1">
+                    <MudItem xs="12" sm="6">
+                        <MudTextField Label="Name" Variant="Variant.Outlined" @bind-Value="_editingScanner.Name" Required="true" For="@(() => _editingScanner.Name)" Margin="Margin.Dense" Style="font-size: 0.8rem;" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudSelect T="string" Label="Scanner Type" Variant="Variant.Outlined" @bind-Value="_editingScanner.ScannerType" AnchorOrigin="Origin.BottomLeft" Margin="Margin.Dense" Style="font-size: 0.8rem;">
+                            @foreach (var type in Enum.GetNames(typeof(ScannerType)))
+                            {
+                                <MudSelectItem T="string" Value="@type">@type</MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudTextField Label="Connection Type" Variant="Variant.Outlined" @bind-Value="_editingScanner.ConnectionType" Margin="Margin.Dense" Style="font-size: 0.8rem;" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudTextField Label="Connection String" Variant="Variant.Outlined" @bind-Value="_editingScanner.ConnectionString" Margin="Margin.Dense" Style="font-size: 0.8rem;" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6" Class="d-flex align-center ps-1">
+                        <MudSwitch @bind-Value="_editingScanner.IsActive" Color="Color.Primary" Label="Active" Dense="true" Style="font-size: 0.75rem;" />
+                    </MudItem>
+                </MudGrid>
+            </MudForm>
+        </DialogContent>
+        <DialogActions>
+            <MudButton OnClick="CloseDialog" Size="Size.Small">Cancel</MudButton>
+            <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveScanner" Disabled="@(!_formIsValid)" Size="Size.Small">Save</MudButton>
+        </DialogActions>
+    </MudDialog>
+}
+
+@code {
+    private IEnumerable<ScannerDto> _scanners = new List<ScannerDto>();
+    private string _searchTerm = string.Empty;
+    private bool _isLoading = true;
+    private bool _isDialogOpen = false;
+    private bool _isEditMode = false;
+    private bool _formIsValid = false;
+    private MudForm? _form;
+
+    private ScannerFormModel _editingScanner = new();
+
+    private string _pin = string.Empty;
+    private string? _error;
+    private bool _isProcessing = false;
+    private bool _dataLoaded = false;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if ((PosAuthState.IsManager || PosAuthState.IsAdmin) && !_dataLoaded)
+        {
+            await LoadScanners();
+            _dataLoaded = true;
+        }
+    }
+
+    private async Task LoadScanners()
+    {
+        _isLoading = true;
+        try
+        {
+            var scanners = await ScannerService.GetAllAsync(cancellationToken: default);
+            _scanners = string.IsNullOrWhiteSpace(_searchTerm)
+                ? scanners
+                : scanners.Where(s => s.Name.Contains(_searchTerm, StringComparison.OrdinalIgnoreCase));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error loading scanners: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+            await LoadScanners();
+    }
+
+    private void OpenCreateDialog()
+    {
+        _isEditMode = false;
+        _editingScanner = new ScannerFormModel();
+        _isDialogOpen = true;
+    }
+
+    private void OpenEditDialog(ScannerDto scanner)
+    {
+        _isEditMode = true;
+        _editingScanner = new ScannerFormModel
+        {
+            Id = scanner.Id,
+            Name = scanner.Name,
+            ScannerType = scanner.ScannerType,
+            ConnectionType = scanner.ConnectionType,
+            ConnectionString = scanner.ConnectionString,
+            CashDeskId = scanner.CashDeskId,
+            IsActive = scanner.IsActive
+        };
+        _isDialogOpen = true;
+    }
+
+    private async Task SaveScanner()
+    {
+        try
+        {
+            if (_isEditMode)
+            {
+                var request = new UpdateScannerRequest(
+                    _editingScanner.Id,
+                    _editingScanner.Name,
+                    _editingScanner.ScannerType,
+                    _editingScanner.ConnectionType,
+                    _editingScanner.ConnectionString,
+                    _editingScanner.IsActive);
+                await ScannerService.UpdateAsync(request);
+                Snackbar.Add("Scanner updated successfully.", Severity.Success);
+            }
+            else
+            {
+                var request = new CreateScannerRequest(
+                    _editingScanner.Name,
+                    _editingScanner.ScannerType,
+                    _editingScanner.ConnectionType,
+                    _editingScanner.ConnectionString,
+                    _editingScanner.IsActive);
+                await ScannerService.CreateAsync(request);
+                Snackbar.Add("Scanner created successfully.", Severity.Success);
+            }
+            await LoadScanners();
+            CloseDialog();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error saving scanner: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task DeleteScanner(ScannerDto scanner)
+    {
+        var parameters = new DialogParameters { ["ContentText"] = $"Delete scanner '{scanner.Name}'?" };
+        var dialog = await DialogService.ShowAsync<MudDialog>("Delete Scanner", parameters, new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small });
+        var result = await dialog.Result;
+
+        if (!result.Canceled)
+        {
+            try
+            {
+                if (await ScannerService.DeleteAsync(scanner.Id))
+                {
+                    Snackbar.Add("Scanner deleted successfully.", Severity.Success);
+                    await LoadScanners();
+                }
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Error deleting scanner: {ex.Message}", Severity.Error);
+            }
+        }
+    }
+
+    private void CloseDialog() => _isDialogOpen = false;
+
+    private async Task HandlePinKeyPress(KeyboardEventArgs args)
+    {
+        if (args.Key == "Enter")
+            await ValidatePin();
+    }
+
+    private async Task ValidatePin()
+    {
+        if (_isProcessing) return;
+
+        _error = null;
+        _isProcessing = true;
+        await InvokeAsync(StateHasChanged);
+
+        try
+        {
+            if (_pin == "3333" || _pin == "1234")
+            {
+                var role = _pin == "3333" ? PosRoles.Manager : PosRoles.Administrator;
+                PosAuthState.SignIn(PosAuthState.UserName ?? "user@zen.pos", role);
+                await LoadScanners();
+                _dataLoaded = true;
+            }
+            else
+            {
+                _error = "Invalid PIN. Enter Manager PIN (3333) or Admin PIN (1234).";
+            }
+        }
+        finally
+        {
+            _isProcessing = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private class ScannerFormModel
+    {
+        public Guid Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string ScannerType { get; set; } = string.Empty;
+        public string? ConnectionType { get; set; }
+        public string? ConnectionString { get; set; }
+        public Guid? CashDeskId { get; set; }
+        public bool IsActive { get; set; } = true;
+    }
+}
