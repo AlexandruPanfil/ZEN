@@ -85,6 +85,7 @@ public class CashDeskService : ICashDeskService
 
         var cashDesk = new CashDesk
         {
+            Id = request.Id ?? Guid.NewGuid(),
             Name = request.Name,
             StoreId = request.StoreId,
             IsActive = request.IsActive,

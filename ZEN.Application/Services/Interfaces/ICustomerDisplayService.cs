@@ -17,7 +17,8 @@ public record CreateCustomerDisplayRequest(
     string? ConnectionType,
     string? ConnectionString,
     string? Size,
-    bool IsActive);
+    bool IsActive,
+    Guid? Id = null);
 
 public record UpdateCustomerDisplayRequest(
     Guid Id,

@@ -149,6 +149,34 @@ public class SyncApiClient
         return response.IsSuccessStatusCode;
     }
 
+    public async Task<CustomerDisplayDto?> CreateCustomerDisplayAsync(
+        CreateCustomerDisplayRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        using var response = await _httpClient.PostAsJsonAsync("api/equipments/customer-displays", request, cancellationToken);
+        return response.IsSuccessStatusCode
+            ? await response.Content.ReadFromJsonAsync<CustomerDisplayDto>(cancellationToken)
+            : null;
+    }
+
+    public async Task<CustomerDisplayDto?> UpdateCustomerDisplayAsync(
+        UpdateCustomerDisplayRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        using var response = await _httpClient.PutAsJsonAsync($"api/equipments/customer-displays/{request.Id}", request, cancellationToken);
+        return response.IsSuccessStatusCode
+            ? await response.Content.ReadFromJsonAsync<CustomerDisplayDto>(cancellationToken)
+            : null;
+    }
+
+    public async Task<bool> DeleteCustomerDisplayAsync(
+        Guid id,
+        CancellationToken cancellationToken = default)
+    {
+        using var response = await _httpClient.DeleteAsync($"api/equipments/customer-displays/{id}", cancellationToken);
+        return response.IsSuccessStatusCode;
+    }
+
     public async Task<IEnumerable<PaymentTerminalDto>> GetPaymentTerminalsAsync(Guid? storeId = null, CancellationToken cancellationToken = default)
     {
         var uri = storeId.HasValue
@@ -161,6 +189,44 @@ public class SyncApiClient
     {
         var uri = $"api/equipments/payment-terminals?cashDeskId={cashDeskId}";
         return await _httpClient.GetFromJsonAsync<IEnumerable<PaymentTerminalDto>>(uri, cancellationToken) ?? [];
+    }
+
+    public async Task<PaymentTerminalDto?> GetPaymentTerminalAsync(
+        Guid id,
+        CancellationToken cancellationToken = default)
+    {
+        using var response = await _httpClient.GetAsync($"api/equipments/payment-terminals/{id}", cancellationToken);
+        return response.IsSuccessStatusCode
+            ? await response.Content.ReadFromJsonAsync<PaymentTerminalDto>(cancellationToken)
+            : null;
+    }
+
+    public async Task<PaymentTerminalDto?> CreatePaymentTerminalAsync(
+        CreatePaymentTerminalRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        using var response = await _httpClient.PostAsJsonAsync("api/equipments/payment-terminals", request, cancellationToken);
+        return response.IsSuccessStatusCode
+            ? await response.Content.ReadFromJsonAsync<PaymentTerminalDto>(cancellationToken)
+            : null;
+    }
+
+    public async Task<PaymentTerminalDto?> UpdatePaymentTerminalAsync(
+        UpdatePaymentTerminalRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        using var response = await _httpClient.PutAsJsonAsync($"api/equipments/payment-terminals/{request.Id}", request, cancellationToken);
+        return response.IsSuccessStatusCode
+            ? await response.Content.ReadFromJsonAsync<PaymentTerminalDto>(cancellationToken)
+            : null;
+    }
+
+    public async Task<bool> DeletePaymentTerminalAsync(
+        Guid id,
+        CancellationToken cancellationToken = default)
+    {
+        using var response = await _httpClient.DeleteAsync($"api/equipments/payment-terminals/{id}", cancellationToken);
+        return response.IsSuccessStatusCode;
     }
 
     public async Task<IEnumerable<ScannerDto>> GetScannersAsync(Guid? storeId = null, CancellationToken cancellationToken = default)
@@ -185,6 +251,116 @@ public class SyncApiClient
             ? $"api/equipments/cash-desks?storeId={storeId.Value}"
             : "api/equipments/cash-desks";
         return await _httpClient.GetFromJsonAsync<IEnumerable<CashDeskDto>>(uri, cancellationToken) ?? [];
+    }
+
+    public async Task<CashDeskDetailDto?> GetCashDeskAsync(
+        Guid id,
+        CancellationToken cancellationToken = default)
+    {
+        using var response = await _httpClient.GetAsync($"api/equipments/cash-desks/{id}", cancellationToken);
+        return response.IsSuccessStatusCode
+            ? await response.Content.ReadFromJsonAsync<CashDeskDetailDto>(cancellationToken)
+            : null;
+    }
+
+    public async Task<CashDeskDto?> CreateCashDeskAsync(
+        CreateCashDeskRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        using var response = await _httpClient.PostAsJsonAsync("api/equipments/cash-desks", request, cancellationToken);
+        return response.IsSuccessStatusCode
+            ? await response.Content.ReadFromJsonAsync<CashDeskDto>(cancellationToken)
+            : null;
+    }
+
+    public async Task<CashDeskDto?> UpdateCashDeskAsync(
+        UpdateCashDeskRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        using var response = await _httpClient.PutAsJsonAsync($"api/equipments/cash-desks/{request.Id}", request, cancellationToken);
+        return response.IsSuccessStatusCode
+            ? await response.Content.ReadFromJsonAsync<CashDeskDto>(cancellationToken)
+            : null;
+    }
+
+    public async Task<bool> DeleteCashDeskAsync(
+        Guid id,
+        CancellationToken cancellationToken = default)
+    {
+        using var response = await _httpClient.DeleteAsync($"api/equipments/cash-desks/{id}", cancellationToken);
+        return response.IsSuccessStatusCode;
+    }
+
+    public async Task<IEnumerable<StoreDto>> GetStoresAsync(
+        CancellationToken cancellationToken = default)
+    {
+        return await _httpClient.GetFromJsonAsync<IEnumerable<StoreDto>>(
+            "api/equipments/stores",
+            cancellationToken) ?? [];
+    }
+
+    public async Task<StoreDto?> CreateStoreAsync(
+        CreateStoreRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        using var response = await _httpClient.PostAsJsonAsync("api/equipments/stores", request, cancellationToken);
+        return response.IsSuccessStatusCode
+            ? await response.Content.ReadFromJsonAsync<StoreDto>(cancellationToken)
+            : null;
+    }
+
+    public async Task<StoreDto?> UpdateStoreAsync(
+        UpdateStoreRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        using var response = await _httpClient.PutAsJsonAsync($"api/equipments/stores/{request.Id}", request, cancellationToken);
+        return response.IsSuccessStatusCode
+            ? await response.Content.ReadFromJsonAsync<StoreDto>(cancellationToken)
+            : null;
+    }
+
+    public async Task<bool> DeleteStoreAsync(
+        Guid id,
+        CancellationToken cancellationToken = default)
+    {
+        using var response = await _httpClient.DeleteAsync($"api/equipments/stores/{id}", cancellationToken);
+        return response.IsSuccessStatusCode;
+    }
+
+    public async Task<IEnumerable<MenuSummaryDto>> GetMenusAsync(
+        CancellationToken cancellationToken = default)
+    {
+        return await _httpClient.GetFromJsonAsync<IEnumerable<MenuSummaryDto>>(
+            "api/equipments/menus",
+            cancellationToken) ?? [];
+    }
+
+    public async Task<MenuDto?> CreateMenuAsync(
+        CreateMenuRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        using var response = await _httpClient.PostAsJsonAsync("api/equipments/menus", request, cancellationToken);
+        return response.IsSuccessStatusCode
+            ? await response.Content.ReadFromJsonAsync<MenuDto>(cancellationToken)
+            : null;
+    }
+
+    public async Task<MenuDto?> UpdateMenuAsync(
+        UpdateMenuRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        using var response = await _httpClient.PutAsJsonAsync($"api/equipments/menus/{request.Id}", request, cancellationToken);
+        return response.IsSuccessStatusCode
+            ? await response.Content.ReadFromJsonAsync<MenuDto>(cancellationToken)
+            : null;
+    }
+
+    public async Task<bool> DeleteMenuAsync(
+        Guid id,
+        CancellationToken cancellationToken = default)
+    {
+        using var response = await _httpClient.DeleteAsync($"api/equipments/menus/{id}", cancellationToken);
+        return response.IsSuccessStatusCode;
     }
 
     public async Task<IEnumerable<FlatMenuItemDto>> GetCashDeskMenuItemsAsync(Guid cashDeskId, CancellationToken cancellationToken = default)

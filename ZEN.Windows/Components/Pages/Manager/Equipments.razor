@@ -59,6 +59,14 @@ else
                     <MudText Typo="Typo.body2">Payment terminals</MudText>
                 </MudPaper>
             </MudItem>
+
+            <MudItem xs="12" sm="6" md="4">
+                <MudPaper Elevation="2" Class="pa-4" Style="text-align: center; cursor: pointer;" @onclick="NavigateToCashDesks">
+                    <MudIcon Icon="@Icons.Material.Filled.PointOfSale" Size="Size.Large" />
+                    <MudText Typo="Typo.h6">Cash Desks</MudText>
+                    <MudText Typo="Typo.body2">Manage POS cash desks</MudText>
+                </MudPaper>
+            </MudItem>
         </MudGrid>
     </MudPaper>
 }
@@ -76,6 +84,11 @@ else
     private void NavigateToTerminals()
     {
         Navigation.NavigateTo("/manager/equipments/terminals");
+    }
+
+    private void NavigateToCashDesks()
+    {
+        Navigation.NavigateTo("/manager/equipments/cash-desks");
     }
 
     private async Task HandlePinKeyPress(KeyboardEventArgs args)

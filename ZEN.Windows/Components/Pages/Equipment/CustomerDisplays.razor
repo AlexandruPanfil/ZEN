@@ -3,7 +3,7 @@
 @using ZEN.Application.Services.Interfaces
 @using ZEN.Application.DTOs.Admin
 @using MudBlazor
-@inject ICustomerDisplayService CustomerDisplayService
+@inject PosCustomerDisplayService CustomerDisplayService
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
 @inject PosAuthState PosAuthState
@@ -162,10 +162,22 @@ else
         _isLoading = true;
         try
         {
-            var displays = await CustomerDisplayService.GetAllAsync(cancellationToken: default);
-            _displays = string.IsNullOrWhiteSpace(_searchTerm)
-                ? displays
-                : displays.Where(d => d.Name.Contains(_searchTerm, StringComparison.OrdinalIgnoreCase));
+            var cachedDisplays = await CustomerDisplayService.GetCachedAsync();
+            _displays = FilterDisplays(cachedDisplays);
+
+            try
+            {
+                var refreshedDisplays = await CustomerDisplayService.RefreshAsync(PosAuthState.StoreId);
+                _displays = FilterDisplays(refreshedDisplays);
+            }
+            catch (HttpRequestException)
+            {
+                Snackbar.Add("Server unavailable. Showing locally cached displays.", Severity.Warning);
+            }
+            catch (TaskCanceledException)
+            {
+                Snackbar.Add("Server request timed out. Showing locally cached displays.", Severity.Warning);
+            }
         }
         catch (Exception ex)
         {
@@ -176,6 +188,11 @@ else
             _isLoading = false;
         }
     }
+
+    private IEnumerable<CustomerDisplayDto> FilterDisplays(IEnumerable<CustomerDisplayDto> displays) =>
+        string.IsNullOrWhiteSpace(_searchTerm)
+            ? displays
+            : displays.Where(d => d.Name.Contains(_searchTerm, StringComparison.OrdinalIgnoreCase));
 
     private async Task HandleKeyDown(KeyboardEventArgs e)
     {
@@ -244,8 +261,15 @@ else
 
     private async Task DeleteDisplay(CustomerDisplayDto display)
     {
-        var parameters = new DialogParameters { ["ContentText"] = $"Delete display '{display.Name}'?" };
-        var dialog = await DialogService.ShowAsync<MudDialog>("Delete Display", parameters, new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small });
+        var parameters = new DialogParameters<ConfirmDeleteDialog>
+        {
+            { x => x.ContentText, $"Delete display '{display.Name}'?" },
+            { x => x.EntityName, "customer display" }
+        };
+        var dialog = await DialogService.ShowAsync<ConfirmDeleteDialog>(
+            "Delete Display",
+            parameters,
+            new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small });
         var result = await dialog.Result;
 
         if (!result.Canceled)

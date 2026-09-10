@@ -1,9 +1,12 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
+using Microsoft.EntityFrameworkCore;
 using ZEN.Application.DTOs.Admin;
 using ZEN.Application.DTOs.CashDeskMenu;
 using ZEN.Application.Services.Interfaces;
 using ZEN.ApiService.Hubs;
+using ZEN.Domain.Entities;
+using ZEN.Infrastructure.Persistence;
 
 namespace ZEN.ApiService.Endpoints;
 
@@ -11,6 +14,98 @@ public static class EquipmentEndpoints
 {
     public static RouteGroupBuilder MapEquipmentEndpoints(this RouteGroupBuilder group)
     {
+        group.MapGet("/stores", async (
+            ZenDbContext dbContext,
+            CancellationToken ct) =>
+        {
+            var stores = await dbContext.Stores
+                .AsNoTracking()
+                .OrderBy(s => s.Name)
+                .Select(s => new StoreDto(
+                    s.Id,
+                    s.Name,
+                    s.Code,
+                    s.Address,
+                    s.City,
+                    s.Phone,
+                    s.Email,
+                    s.IsActive))
+                .ToListAsync(ct);
+            return Results.Ok(stores);
+        })
+        .WithName("GetStores")
+        .WithOpenApi()
+        .RequireAuthorization();
+
+        group.MapPost("/stores", async (
+            CreateStoreRequest request,
+            ZenDbContext dbContext,
+            CancellationToken ct) =>
+        {
+            var store = new Store
+            {
+                Id = request.Id ?? Guid.NewGuid(),
+                Name = request.Name,
+                Code = request.Code,
+                Address = request.Address,
+                City = request.City,
+                Phone = request.Phone,
+                Email = request.Email,
+                IsActive = true
+            };
+
+            dbContext.Stores.Add(store);
+            await dbContext.SaveChangesAsync(ct);
+            return Results.Created($"/api/equipments/stores/{store.Id}", ToStoreDto(store));
+        })
+        .WithName("CreateStore")
+        .WithOpenApi()
+        .RequireAuthorization();
+
+        group.MapPut("/stores/{id:guid}", async (
+            Guid id,
+            UpdateStoreRequest request,
+            ZenDbContext dbContext,
+            CancellationToken ct) =>
+        {
+            if (id != request.Id)
+                return Results.BadRequest();
+
+            var store = await dbContext.Stores.FirstOrDefaultAsync(s => s.Id == id, ct);
+            if (store is null)
+                return Results.NotFound();
+
+            store.Name = request.Name;
+            store.Code = request.Code;
+            store.Address = request.Address;
+            store.City = request.City;
+            store.Phone = request.Phone;
+            store.Email = request.Email;
+            store.IsActive = request.IsActive;
+            await dbContext.SaveChangesAsync(ct);
+            return Results.Ok(ToStoreDto(store));
+        })
+        .WithName("UpdateStore")
+        .WithOpenApi()
+        .RequireAuthorization();
+
+        group.MapDelete("/stores/{id:guid}", async (
+            Guid id,
+            ZenDbContext dbContext,
+            CancellationToken ct) =>
+        {
+            var store = await dbContext.Stores.FirstOrDefaultAsync(s => s.Id == id, ct);
+            if (store is null)
+                return Results.NotFound();
+
+            dbContext.Stores.Remove(store);
+            await dbContext.SaveChangesAsync(ct);
+            return Results.NoContent();
+        })
+        .WithName("DeleteStore")
+        .WithOpenApi()
+        .RequireAuthorization();
+
         // Printers
         group.MapGet("/printers", async (
             IPrinterService printerService,
@@ -732,4 +827,14 @@ return Results.Ok(new
 
         return group;
     }
+
+    private static StoreDto ToStoreDto(Store store) => new(
+        store.Id,
+        store.Name,
+        store.Code,
+        store.Address,
+        store.City,
+        store.Phone,
+        store.Email,
+        store.IsActive);
 }

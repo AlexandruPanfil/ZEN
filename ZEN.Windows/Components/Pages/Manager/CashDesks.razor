@@ -3,14 +3,14 @@
 @using ZEN.Application.Services.Interfaces
 @using ZEN.Application.DTOs.Admin
 @using ZEN.Application.DTOs.CashDeskMenu
-@using ZEN.Domain.Interfaces
 @using MudBlazor
 @inject ICashDeskService CashDeskService
-@inject IMenuService MenuService
+@inject PosCashDeskService PosCashDeskService
+@inject PosStoreService PosStoreService
+@inject PosMenuService PosMenuService
 @inject IPrinterService PrinterService
 @inject ICustomerDisplayService CustomerDisplayService
-@inject IPaymentTerminalService PaymentTerminalService
-@inject IRepository<ZEN.Domain.Entities.Store> StoreRepository
+@inject PosPaymentTerminalService PosTerminalService
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
 @inject PosAuthState PosAuthState
@@ -193,7 +193,7 @@ else
 
 @code {
     private IEnumerable<CashDeskDto> _cashDesks = new List<CashDeskDto>();
-    private IEnumerable<ZEN.Domain.Entities.Store> _stores = new List<ZEN.Domain.Entities.Store>();
+    private IEnumerable<StoreDto> _stores = new List<StoreDto>();
     private IEnumerable<PrinterDto> _fiscalPrinters = new List<PrinterDto>();
     private IEnumerable<CustomerDisplayDto> _customerDisplays = new List<CustomerDisplayDto>();
     private IEnumerable<PaymentTerminalDto> _terminals = new List<PaymentTerminalDto>();
@@ -233,11 +233,35 @@ else
     {
         try
         {
-            _stores = (await StoreRepository.GetAllAsync()).Where(s => s.IsActive).ToList();
+            _stores = (await PosStoreService.GetCachedAsync()).Where(s => s.IsActive).ToList();
+            try
+            {
+                _stores = (await PosStoreService.RefreshAsync()).Where(s => s.IsActive).ToList();
+            }
+            catch (HttpRequestException)
+            {
+                Snackbar.Add("Server unavailable. Showing cached stores.", Severity.Info);
+            }
+            catch (TaskCanceledException)
+            {
+                Snackbar.Add("Store refresh timed out. Showing cached data.", Severity.Info);
+            }
             _fiscalPrinters = PrinterService.GetAll().Where(p => p.PrinterType == "Fiscal");
             _customerDisplays = CustomerDisplayService.GetAll();
-            _terminals = PaymentTerminalService.GetAll();
-            _menus = await MenuService.GetAllSummariesAsync();
+            await LoadTerminals();
+            _menus = await PosMenuService.GetCachedAsync();
+            try
+            {
+                _menus = await PosMenuService.RefreshAsync();
+            }
+            catch (HttpRequestException)
+            {
+                Snackbar.Add("Server unavailable. Showing cached menus.", Severity.Info);
+            }
+            catch (TaskCanceledException)
+            {
+                Snackbar.Add("Menu refresh timed out. Showing cached data.", Severity.Info);
+            }
             _storeNames = _stores.ToDictionary(s => s.Id, s => s.Name);
             _fiscalPrinterNames = _fiscalPrinters.ToDictionary(p => p.Id, p => p.Name);
             _customerDisplayNames = _customerDisplays.ToDictionary(d => d.Id, d => d.Name);
@@ -252,7 +276,20 @@ else
 
     private async Task LoadTerminals()
     {
-        _terminals = PaymentTerminalService.GetAll();
+        _terminals = (await PosTerminalService.GetCachedAsync()).ToList();
+        try
+        {
+            _terminals = (await PosTerminalService.RefreshAsync()).ToList();
+        }
+        catch (HttpRequestException)
+        {
+            Snackbar.Add("Server unavailable. Showing cached payment terminals.", Severity.Info);
+        }
+        catch (TaskCanceledException)
+        {
+            Snackbar.Add("Payment terminal refresh timed out. Showing cached data.", Severity.Info);
+        }
+
         _terminalNames = _terminals.ToDictionary(t => t.Id, t => t.Name);
     }
 
@@ -274,16 +311,24 @@ else
         _isLoading = true;
         try
         {
-            var cashDesks = await CashDeskService.GetAllAsync(cancellationToken: default);
+            var cachedCashDesks = await PosCashDeskService.GetCachedAsync(cancellationToken: default);
+            ApplyCashDesks(cachedCashDesks);
+
+            try
+            {
+                var refreshedCashDesks = await PosCashDeskService.RefreshAsync(PosAuthState.StoreId);
+                ApplyCashDesks(refreshedCashDesks);
+            }
+            catch (HttpRequestException)
+            {
+                Snackbar.Add("Server unavailable. Showing cached cash desks.", Severity.Info);
+            }
+            catch (TaskCanceledException)
+            {
+                Snackbar.Add("Cash desk refresh timed out. Showing cached data.", Severity.Info);
+            }
+
             await LoadTerminals();
-            var terminalCounts = _terminals
-                .Where(t => t.CashDeskId.HasValue)
-                .GroupBy(t => t.CashDeskId!.Value)
-                .ToDictionary(g => g.Key, g => g.Count());
-            _cashDeskTerminalCounts = terminalCounts;
-            _cashDesks = string.IsNullOrWhiteSpace(_searchTerm)
-                ? cashDesks
-                : cashDesks.Where(cd => cd.Name.Contains(_searchTerm, StringComparison.OrdinalIgnoreCase));
         }
         catch (Exception ex)
         {
@@ -293,6 +338,13 @@ else
         {
             _isLoading = false;
         }
+    }
+
+    private void ApplyCashDesks(IEnumerable<CashDeskDto> cashDesks)
+    {
+        _cashDesks = string.IsNullOrWhiteSpace(_searchTerm)
+            ? cashDesks
+            : cashDesks.Where(cd => cd.Name.Contains(_searchTerm, StringComparison.OrdinalIgnoreCase));
     }
 
     private async Task HandleKeyDown(KeyboardEventArgs e)
@@ -312,7 +364,7 @@ else
     private async Task OpenEditDialog(CashDeskDto cashDesk)
     {
         _isEditMode = true;
-        var detail = await CashDeskService.GetDetailByIdAsync(cashDesk.Id);
+        var detail = await PosCashDeskService.GetDetailAsync(cashDesk.Id);
         var assignedTerminalIds = detail?.PaymentTerminals.Select(t => t.Id).ToArray() ?? Array.Empty<Guid>();
         _editingCashDesk = new CashDeskFormModel
         {
@@ -347,7 +399,7 @@ else
                     _editingCashDesk.CustomerDisplayId,
                     _editingCashDesk.MenuId,
                     terminalIds);
-                await CashDeskService.UpdateAsync(request);
+                await PosCashDeskService.UpdateAsync(request);
                 Snackbar.Add("Cash desk updated successfully.", Severity.Success);
             }
             else
@@ -360,7 +412,7 @@ else
                     _editingCashDesk.CustomerDisplayId,
                     _editingCashDesk.MenuId,
                     terminalIds);
-                await CashDeskService.CreateAsync(request);
+                await PosCashDeskService.CreateAsync(request);
                 Snackbar.Add("Cash desk created successfully.", Severity.Success);
             }
             await LoadCashDesks();
@@ -374,15 +426,22 @@ else
 
     private async Task DeleteCashDesk(CashDeskDto cashDesk)
     {
-        var parameters = new DialogParameters { ["ContentText"] = $"Delete cash desk '{cashDesk.Name}'?" };
-        var dialog = await DialogService.ShowAsync<MudDialog>("Delete Cash Desk", parameters, new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small });
+        var parameters = new DialogParameters<ConfirmDeleteDialog>
+        {
+            { x => x.ContentText, $"Delete cash desk '{cashDesk.Name}'?" },
+            { x => x.EntityName, "cash desk" }
+        };
+        var dialog = await DialogService.ShowAsync<ConfirmDeleteDialog>(
+            "Delete Cash Desk",
+            parameters,
+            new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small });
         var result = await dialog.Result;
 
         if (!result.Canceled)
         {
             try
             {
-                if (await CashDeskService.DeleteAsync(cashDesk.Id))
+                if (await PosCashDeskService.DeleteAsync(cashDesk.Id))
                 {
                     Snackbar.Add("Cash desk deleted successfully.", Severity.Success);
                     await LoadCashDesks();

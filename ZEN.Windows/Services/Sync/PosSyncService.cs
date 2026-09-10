@@ -1,8 +1,10 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using ZEN.Application.Services.Interfaces;
+using ZEN.Application.DTOs.Admin;
+using ZEN.Application.DTOs.CashDeskMenu;
 using ZEN.Application.DTOs.Sync;
+using ZEN.Application.Services.Interfaces;
 using ZEN.Domain.Entities;
 using ZEN.Infrastructure.Persistence;
 
@@ -37,6 +39,11 @@ public class PosSyncService : IPosSyncService
             await PushPendingPaymentsAsync(syncState, cancellationToken);
             await PushPendingPrintersAsync(cancellationToken);
             await PushPendingScannersAsync(cancellationToken);
+            await PushPendingCustomerDisplaysAsync(cancellationToken);
+            await PushPendingCashDesksAsync(cancellationToken);
+            await PushPendingPaymentTerminalsAsync(cancellationToken);
+            await PushPendingStoresAsync(cancellationToken);
+            await PushPendingMenusAsync(cancellationToken);
             await PullProductsAsync(syncState, cancellationToken);
 
             syncState.LastSuccessfulSyncUtc = DateTime.UtcNow;
@@ -177,6 +184,307 @@ public class PosSyncService : IPosSyncService
         var request = JsonSerializer.Deserialize<UpdateScannerRequest>(outbox.PayloadJson)
             ?? throw new InvalidOperationException("Invalid scanner update payload.");
         return await _syncApiClient.UpdateScannerAsync(request, cancellationToken) is not null;
+    }
+
+    private async Task PushPendingCustomerDisplaysAsync(CancellationToken cancellationToken)
+    {
+        var pending = await _dbContext.SyncOutboxItems
+            .Where(x => x.EntityType.StartsWith("CustomerDisplay:") && x.Status == "Pending")
+            .OrderBy(x => x.CreatedAt)
+            .Take(100)
+            .ToListAsync(cancellationToken);
+
+        foreach (var outbox in pending)
+        {
+            outbox.Status = "InProgress";
+            outbox.LastAttemptUtc = DateTime.UtcNow;
+            outbox.RetryCount++;
+            await _dbContext.SaveChangesAsync(cancellationToken);
+
+            try
+            {
+                var succeeded = outbox.EntityType switch
+                {
+                    "CustomerDisplay:Create" => await PushCustomerDisplayCreateAsync(outbox, cancellationToken),
+                    "CustomerDisplay:Update" => await PushCustomerDisplayUpdateAsync(outbox, cancellationToken),
+                    "CustomerDisplay:Delete" => await _syncApiClient.DeleteCustomerDisplayAsync(outbox.EntityId, cancellationToken),
+                    _ => throw new InvalidOperationException($"Unknown customer display sync operation '{outbox.EntityType}'.")
+                };
+
+                outbox.Status = succeeded ? "Synced" : "Pending";
+                outbox.Error = succeeded ? null : "Server rejected customer display synchronization.";
+            }
+            catch (HttpRequestException ex)
+            {
+                outbox.Status = "Pending";
+                outbox.Error = ex.Message;
+            }
+            catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested)
+            {
+                outbox.Status = "Pending";
+                outbox.Error = "Customer display synchronization timed out.";
+            }
+        }
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    private async Task<bool> PushCustomerDisplayCreateAsync(SyncOutboxItem outbox, CancellationToken cancellationToken)
+    {
+        var request = JsonSerializer.Deserialize<CreateCustomerDisplayRequest>(outbox.PayloadJson)
+            ?? throw new InvalidOperationException("Invalid customer display create payload.");
+        return await _syncApiClient.CreateCustomerDisplayAsync(request, cancellationToken) is not null;
+    }
+
+    private async Task<bool> PushCustomerDisplayUpdateAsync(SyncOutboxItem outbox, CancellationToken cancellationToken)
+    {
+        var request = JsonSerializer.Deserialize<UpdateCustomerDisplayRequest>(outbox.PayloadJson)
+            ?? throw new InvalidOperationException("Invalid customer display update payload.");
+        return await _syncApiClient.UpdateCustomerDisplayAsync(request, cancellationToken) is not null;
+    }
+
+    private async Task PushPendingCashDesksAsync(CancellationToken cancellationToken)
+    {
+        var pending = await _dbContext.SyncOutboxItems
+            .Where(x => x.EntityType.StartsWith("CashDesk:") && x.Status == "Pending")
+            .OrderBy(x => x.CreatedAt)
+            .Take(100)
+            .ToListAsync(cancellationToken);
+
+        foreach (var outbox in pending)
+        {
+            outbox.Status = "InProgress";
+            outbox.LastAttemptUtc = DateTime.UtcNow;
+            outbox.RetryCount++;
+            await _dbContext.SaveChangesAsync(cancellationToken);
+
+            try
+            {
+                var succeeded = outbox.EntityType switch
+                {
+                    "CashDesk:Create" => await PushCashDeskCreateAsync(outbox, cancellationToken),
+                    "CashDesk:Update" => await PushCashDeskUpdateAsync(outbox, cancellationToken),
+                    "CashDesk:Delete" => await _syncApiClient.DeleteCashDeskAsync(outbox.EntityId, cancellationToken),
+                    _ => throw new InvalidOperationException($"Unknown cash desk sync operation '{outbox.EntityType}'.")
+                };
+
+                outbox.Status = succeeded ? "Synced" : "Pending";
+                outbox.Error = succeeded ? null : "Server rejected cash desk synchronization.";
+            }
+            catch (HttpRequestException ex)
+            {
+                outbox.Status = "Pending";
+                outbox.Error = ex.Message;
+            }
+            catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested)
+            {
+                outbox.Status = "Pending";
+                outbox.Error = "Cash desk synchronization timed out.";
+            }
+        }
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    private async Task<bool> PushCashDeskCreateAsync(
+        SyncOutboxItem outbox,
+        CancellationToken cancellationToken)
+    {
+        var request = JsonSerializer.Deserialize<CreateCashDeskRequest>(outbox.PayloadJson)
+            ?? throw new InvalidOperationException("Invalid cash desk create payload.");
+        return await _syncApiClient.CreateCashDeskAsync(request, cancellationToken) is not null;
+    }
+
+    private async Task<bool> PushCashDeskUpdateAsync(
+        SyncOutboxItem outbox,
+        CancellationToken cancellationToken)
+    {
+        var request = JsonSerializer.Deserialize<UpdateCashDeskRequest>(outbox.PayloadJson)
+            ?? throw new InvalidOperationException("Invalid cash desk update payload.");
+        return await _syncApiClient.UpdateCashDeskAsync(request, cancellationToken) is not null;
+    }
+
+    private async Task PushPendingPaymentTerminalsAsync(CancellationToken cancellationToken)
+    {
+        var pending = await _dbContext.SyncOutboxItems
+            .Where(x => x.EntityType.StartsWith("PaymentTerminal:") && x.Status == "Pending")
+            .OrderBy(x => x.CreatedAt)
+            .Take(100)
+            .ToListAsync(cancellationToken);
+
+        foreach (var outbox in pending)
+        {
+            outbox.Status = "InProgress";
+            outbox.LastAttemptUtc = DateTime.UtcNow;
+            outbox.RetryCount++;
+            await _dbContext.SaveChangesAsync(cancellationToken);
+
+            try
+            {
+                var succeeded = outbox.EntityType switch
+                {
+                    "PaymentTerminal:Create" => await PushPaymentTerminalCreateAsync(outbox, cancellationToken),
+                    "PaymentTerminal:Update" => await PushPaymentTerminalUpdateAsync(outbox, cancellationToken),
+                    "PaymentTerminal:Delete" => await _syncApiClient.DeletePaymentTerminalAsync(outbox.EntityId, cancellationToken),
+                    _ => throw new InvalidOperationException($"Unknown payment terminal sync operation '{outbox.EntityType}'.")
+                };
+
+                outbox.Status = succeeded ? "Synced" : "Pending";
+                outbox.Error = succeeded ? null : "Server rejected payment terminal synchronization.";
+            }
+            catch (HttpRequestException ex)
+            {
+                outbox.Status = "Pending";
+                outbox.Error = ex.Message;
+            }
+            catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested)
+            {
+                outbox.Status = "Pending";
+                outbox.Error = "Payment terminal synchronization timed out.";
+            }
+        }
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    private async Task<bool> PushPaymentTerminalCreateAsync(
+        SyncOutboxItem outbox,
+        CancellationToken cancellationToken)
+    {
+        var request = JsonSerializer.Deserialize<CreatePaymentTerminalRequest>(outbox.PayloadJson)
+            ?? throw new InvalidOperationException("Invalid payment terminal create payload.");
+        return await _syncApiClient.CreatePaymentTerminalAsync(request, cancellationToken) is not null;
+    }
+
+    private async Task<bool> PushPaymentTerminalUpdateAsync(
+        SyncOutboxItem outbox,
+        CancellationToken cancellationToken)
+    {
+        var request = JsonSerializer.Deserialize<UpdatePaymentTerminalRequest>(outbox.PayloadJson)
+            ?? throw new InvalidOperationException("Invalid payment terminal update payload.");
+        return await _syncApiClient.UpdatePaymentTerminalAsync(request, cancellationToken) is not null;
+    }
+
+    private async Task PushPendingStoresAsync(CancellationToken cancellationToken)
+    {
+        var pending = await _dbContext.SyncOutboxItems
+            .Where(x => x.EntityType.StartsWith("Store:") && x.Status == "Pending")
+            .OrderBy(x => x.CreatedAt)
+            .Take(100)
+            .ToListAsync(cancellationToken);
+
+        foreach (var outbox in pending)
+        {
+            outbox.Status = "InProgress";
+            outbox.LastAttemptUtc = DateTime.UtcNow;
+            outbox.RetryCount++;
+            await _dbContext.SaveChangesAsync(cancellationToken);
+
+            try
+            {
+                var succeeded = outbox.EntityType switch
+                {
+                    "Store:Create" => await PushStoreCreateAsync(outbox, cancellationToken),
+                    "Store:Update" => await PushStoreUpdateAsync(outbox, cancellationToken),
+                    "Store:Delete" => await _syncApiClient.DeleteStoreAsync(outbox.EntityId, cancellationToken),
+                    _ => throw new InvalidOperationException($"Unknown store sync operation '{outbox.EntityType}'.")
+                };
+
+                outbox.Status = succeeded ? "Synced" : "Pending";
+                outbox.Error = succeeded ? null : "Server rejected store synchronization.";
+            }
+            catch (HttpRequestException ex)
+            {
+                outbox.Status = "Pending";
+                outbox.Error = ex.Message;
+            }
+            catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested)
+            {
+                outbox.Status = "Pending";
+                outbox.Error = "Store synchronization timed out.";
+            }
+        }
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    private async Task<bool> PushStoreCreateAsync(
+        SyncOutboxItem outbox,
+        CancellationToken cancellationToken)
+    {
+        var request = JsonSerializer.Deserialize<CreateStoreRequest>(outbox.PayloadJson)
+            ?? throw new InvalidOperationException("Invalid store create payload.");
+        return await _syncApiClient.CreateStoreAsync(request, cancellationToken) is not null;
+    }
+
+    private async Task<bool> PushStoreUpdateAsync(
+        SyncOutboxItem outbox,
+        CancellationToken cancellationToken)
+    {
+        var request = JsonSerializer.Deserialize<UpdateStoreRequest>(outbox.PayloadJson)
+            ?? throw new InvalidOperationException("Invalid store update payload.");
+        return await _syncApiClient.UpdateStoreAsync(request, cancellationToken) is not null;
+    }
+
+    private async Task PushPendingMenusAsync(CancellationToken cancellationToken)
+    {
+        var pending = await _dbContext.SyncOutboxItems
+            .Where(x => x.EntityType.StartsWith("Menu:") && x.Status == "Pending")
+            .OrderBy(x => x.CreatedAt)
+            .Take(100)
+            .ToListAsync(cancellationToken);
+
+        foreach (var outbox in pending)
+        {
+            outbox.Status = "InProgress";
+            outbox.LastAttemptUtc = DateTime.UtcNow;
+            outbox.RetryCount++;
+            await _dbContext.SaveChangesAsync(cancellationToken);
+
+            try
+            {
+                var succeeded = outbox.EntityType switch
+                {
+                    "Menu:Create" => await PushMenuCreateAsync(outbox, cancellationToken),
+                    "Menu:Update" => await PushMenuUpdateAsync(outbox, cancellationToken),
+                    "Menu:Delete" => await _syncApiClient.DeleteMenuAsync(outbox.EntityId, cancellationToken),
+                    _ => throw new InvalidOperationException($"Unknown menu sync operation '{outbox.EntityType}'.")
+                };
+
+                outbox.Status = succeeded ? "Synced" : "Pending";
+                outbox.Error = succeeded ? null : "Server rejected menu synchronization.";
+            }
+            catch (HttpRequestException ex)
+            {
+                outbox.Status = "Pending";
+                outbox.Error = ex.Message;
+            }
+            catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested)
+            {
+                outbox.Status = "Pending";
+                outbox.Error = "Menu synchronization timed out.";
+            }
+        }
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    private async Task<bool> PushMenuCreateAsync(
+        SyncOutboxItem outbox,
+        CancellationToken cancellationToken)
+    {
+        var request = JsonSerializer.Deserialize<CreateMenuRequest>(outbox.PayloadJson)
+            ?? throw new InvalidOperationException("Invalid menu create payload.");
+        return await _syncApiClient.CreateMenuAsync(request, cancellationToken) is not null;
+    }
+
+    private async Task<bool> PushMenuUpdateAsync(
+        SyncOutboxItem outbox,
+        CancellationToken cancellationToken)
+    {
+        var request = JsonSerializer.Deserialize<UpdateMenuRequest>(outbox.PayloadJson)
+            ?? throw new InvalidOperationException("Invalid menu update payload.");
+        return await _syncApiClient.UpdateMenuAsync(request, cancellationToken) is not null;
     }
 
     private async Task PushPendingPaymentsAsync(SyncState syncState, CancellationToken cancellationToken)

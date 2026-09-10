@@ -38,7 +38,18 @@ public record CreateStoreRequest(
     string? Address,
     string? City,
     string? Phone,
-    string? Email);
+    string? Email,
+    Guid? Id = null);
+
+public record UpdateStoreRequest(
+    Guid Id,
+    string Name,
+    string Code,
+    string? Address,
+    string? City,
+    string? Phone,
+    string? Email,
+    bool IsActive);
 
 public record TaxDto(
     Guid Id,

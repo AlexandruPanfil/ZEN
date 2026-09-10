@@ -38,6 +38,7 @@ public class MenuService : IMenuService
     {
         var menu = new Menu
         {
+            Id = request.Id ?? Guid.NewGuid(),
             Name = request.Name,
             StoreId = request.StoreId
         };

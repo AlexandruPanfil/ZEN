@@ -1,0 +1,143 @@
+@page "/manager/equipments/cash-desk-menus"
+@using ZEN.Application.DTOs.CashDeskMenu
+@using ZEN.Windows.Services
+@using MudBlazor
+@inject PosMenuService MenuService
+@inject PosStoreService StoreService
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+
+<PageTitle>Cash Desk Menus - ZEN POS</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="mt-4">
+    <div class="d-flex justify-space-between align-center mb-4">
+        <MudText Typo="Typo.h5" Color="Color.Primary">Cash Desk Menus</MudText>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="StartCreate">
+            Add Menu
+        </MudButton>
+    </div>
+
+    @if (_editing)
+    {
+        <MudPaper Class="pa-4 mb-4" Outlined="true">
+            <MudText Typo="Typo.h6" Class="mb-3">@(_editingId.HasValue ? "Edit Menu" : "New Menu")</MudText>
+            <MudTextField @bind-Value="_name" Label="Name" Variant="Variant.Outlined" Class="mb-3" />
+            <MudSelect T="Guid?" @bind-Value="_storeId" Label="Store (optional)" Variant="Variant.Outlined" Clearable="true">
+                @foreach (var store in _stores)
+                {
+                    <MudSelectItem T="Guid?" Value="@((Guid?)store.Id)">@store.Name</MudSelectItem>
+                }
+            </MudSelect>
+            <div class="mt-3">
+                <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Save" Disabled="_saving">Save</MudButton>
+                <MudButton Class="ml-2" Variant="Variant.Text" OnClick="CancelEdit">Cancel</MudButton>
+            </div>
+        </MudPaper>
+    }
+
+    <MudTable T="MenuSummaryDto" Items="_menus" Hover="true" Striped="true" Outlined="true" Loading="_loading">
+        <HeaderContent>
+            <MudTh>Name</MudTh>
+            <MudTh>Store</MudTh>
+            <MudTh Style="text-align:right">Actions</MudTh>
+        </HeaderContent>
+        <RowTemplate Context="menu">
+            <MudTd DataLabel="Name">@menu.Name</MudTd>
+            <MudTd DataLabel="Store">@_stores.FirstOrDefault(s => s.Id == menu.StoreId)?.Name ?? "All stores"</MudTd>
+            <MudTd Style="text-align:right">
+                <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" OnClick="@(() => StartEdit(menu))" />
+                <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" OnClick="@(() => Delete(menu))" />
+            </MudTd>
+        </RowTemplate>
+        <NoRecordsContent><MudText Class="pa-4">No menus found.</MudText></NoRecordsContent>
+    </MudTable>
+</MudContainer>
+
+@code {
+    private IReadOnlyList<MenuSummaryDto> _menus = [];
+    private IReadOnlyList<ZEN.Application.DTOs.Admin.StoreDto> _stores = [];
+    private bool _loading;
+    private bool _saving;
+    private bool _editing;
+    private Guid? _editingId;
+    private string _name = string.Empty;
+    private Guid? _storeId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Load();
+    }
+
+    private async Task Load()
+    {
+        _loading = true;
+        try
+        {
+            _stores = (await StoreService.GetCachedAsync()).ToList();
+            try { _stores = (await StoreService.RefreshAsync()).ToList(); } catch (HttpRequestException) { }
+            _menus = (await MenuService.GetCachedAsync()).ToList();
+            try { _menus = await MenuService.RefreshAsync(); } catch (HttpRequestException) { }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error loading menus: {ex.Message}", Severity.Error);
+        }
+        finally { _loading = false; }
+    }
+
+    private void StartCreate()
+    {
+        _editing = true;
+        _editingId = null;
+        _name = string.Empty;
+        _storeId = null;
+    }
+
+    private void StartEdit(MenuSummaryDto menu)
+    {
+        _editing = true;
+        _editingId = menu.Id;
+        _name = menu.Name;
+        _storeId = menu.StoreId;
+    }
+
+    private void CancelEdit() => _editing = false;
+
+    private async Task Save()
+    {
+        if (string.IsNullOrWhiteSpace(_name))
+        {
+            Snackbar.Add("Menu name is required.", Severity.Warning);
+            return;
+        }
+
+        _saving = true;
+        try
+        {
+            if (_editingId is Guid id)
+                await MenuService.UpdateAsync(new UpdateMenuRequest(id, _name.Trim(), _storeId));
+            else
+                await MenuService.CreateAsync(new CreateMenuRequest(_name.Trim(), _storeId));
+            _editing = false;
+            await Load();
+        }
+        catch (Exception ex) { Snackbar.Add($"Error saving menu: {ex.Message}", Severity.Error); }
+        finally { _saving = false; }
+    }
+
+    private async Task Delete(MenuSummaryDto menu)
+    {
+        var parameters = new DialogParameters<ConfirmDeleteDialog>
+        {
+            { x => x.ContentText, $"Delete menu '{menu.Name}'?" },
+            { x => x.EntityName, "menu" }
+        };
+        var dialog = await DialogService.ShowAsync<ConfirmDeleteDialog>(
+            "Delete Menu",
+            parameters,
+            new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small });
+        if ((await dialog.Result).Canceled) return;
+        try { await MenuService.DeleteAsync(menu.Id); await Load(); }
+        catch (Exception ex) { Snackbar.Add($"Error deleting menu: {ex.Message}", Severity.Error); }
+    }
+}

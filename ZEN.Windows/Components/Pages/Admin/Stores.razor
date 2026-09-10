@@ -1,0 +1,271 @@
+@page "/admin/stores"
+@using ZEN.Application.DTOs.Admin
+@using ZEN.Windows.Services
+@using MudBlazor
+@inject PosStoreService StoreService
+@inject PosAuthState PosAuthState
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+
+<PageTitle>Stores - ZEN POS</PageTitle>
+
+@if (!PosAuthState.IsManager && !PosAuthState.IsAdmin)
+{
+    <MudPaper Class="pa-4" Elevation="3">
+        <MudText Typo="Typo.h5">Manager access required.</MudText>
+        <MudText Typo="Typo.body2" Class="mb-3">Cashiers can elevate to Manager by entering a Manager or Admin PIN.</MudText>
+    </MudPaper>
+}
+else
+{
+    <MudContainer MaxWidth="MaxWidth.Large" Class="mt-4">
+        <div class="d-flex justify-space-between align-center mb-4">
+            <MudText Typo="Typo.h5" Class="font-weight-bold" Color="Color.Primary">Stores</MudText>
+            <MudButton Variant="Variant.Filled"
+                       Color="Color.Primary"
+                       StartIcon="@Icons.Material.Filled.Add"
+                       OnClick="OpenCreateDialog">
+                Add Store
+            </MudButton>
+        </div>
+
+        <MudPaper Class="pa-2 mb-2" Outlined="true">
+            <MudTextField T="string"
+                          @bind-Value="_searchTerm"
+                          Placeholder="Search stores..."
+                          Variant="Variant.Outlined"
+                          Adornment="Adornment.Start"
+                          AdornmentIcon="@Icons.Material.Filled.Search"
+                          Clearable="true"
+                          Margin="Margin.Dense" />
+        </MudPaper>
+
+        <MudTable T="StoreDto" Items="@FilteredStores" Hover="true" Striped="true" Outlined="true" Loading="@_isLoading">
+            <HeaderContent>
+                <MudTh>Code</MudTh>
+                <MudTh>Name</MudTh>
+                <MudTh>City</MudTh>
+                <MudTh>Phone</MudTh>
+                <MudTh>Status</MudTh>
+                <MudTh Style="text-align: right;">Actions</MudTh>
+            </HeaderContent>
+            <RowTemplate Context="store">
+                <MudTd DataLabel="Code">@store.Code</MudTd>
+                <MudTd DataLabel="Name">@store.Name</MudTd>
+                <MudTd DataLabel="City">@(store.City ?? "—")</MudTd>
+                <MudTd DataLabel="Phone">@(store.Phone ?? "—")</MudTd>
+                <MudTd DataLabel="Status">
+                    <MudChip T="string" Size="Size.Small" Color="@(store.IsActive ? Color.Success : Color.Error)">
+                        @(store.IsActive ? "Active" : "Inactive")
+                    </MudChip>
+                </MudTd>
+                <MudTd DataLabel="Actions" Style="text-align: right;">
+                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Info" Size="Size.Small" OnClick="@(() => OpenEditDialog(store))" />
+                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small" OnClick="@(() => DeleteStore(store))" />
+                </MudTd>
+            </RowTemplate>
+            <NoRecordsContent>
+                <MudText Align="Align.Center" Class="pa-3">No stores found.</MudText>
+            </NoRecordsContent>
+            <PagerContent>
+                <MudTablePager />
+            </PagerContent>
+        </MudTable>
+
+        <MudDialog @bind-Visible="_isDialogOpen" Options="new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true }">
+            <TitleContent>
+                <MudText Typo="Typo.subtitle1" Class="font-weight-bold">
+                    <MudIcon Icon="@(_isEditMode ? Icons.Material.Filled.Edit : Icons.Material.Filled.Add)" Class="mr-2" />
+                    @(_isEditMode ? "Edit Store" : "Add Store")
+                </MudText>
+            </TitleContent>
+            <DialogContent>
+                <MudForm @bind-IsValid="_formIsValid">
+                    <MudGrid Spacing="2" Class="py-1">
+                        <MudItem xs="12" sm="6">
+                            <MudTextField Label="Name" Variant="Variant.Outlined" @bind-Value="_editingStore.Name" Required="true" Margin="Margin.Dense" />
+                        </MudItem>
+                        <MudItem xs="12" sm="6">
+                            <MudTextField Label="Code" Variant="Variant.Outlined" @bind-Value="_editingStore.Code" Required="true" Margin="Margin.Dense" />
+                        </MudItem>
+                        <MudItem xs="12" sm="6">
+                            <MudTextField Label="Address" Variant="Variant.Outlined" @bind-Value="_editingStore.Address" Margin="Margin.Dense" />
+                        </MudItem>
+                        <MudItem xs="12" sm="6">
+                            <MudTextField Label="City" Variant="Variant.Outlined" @bind-Value="_editingStore.City" Margin="Margin.Dense" />
+                        </MudItem>
+                        <MudItem xs="12" sm="6">
+                            <MudTextField Label="Phone" Variant="Variant.Outlined" @bind-Value="_editingStore.Phone" Margin="Margin.Dense" />
+                        </MudItem>
+                        <MudItem xs="12" sm="6">
+                            <MudTextField Label="Email" Variant="Variant.Outlined" @bind-Value="_editingStore.Email" Margin="Margin.Dense" />
+                        </MudItem>
+                        <MudItem xs="12">
+                            <MudSwitch @bind-Value="_editingStore.IsActive" Color="Color.Primary" Label="Active" Dense="true" />
+                        </MudItem>
+                    </MudGrid>
+                </MudForm>
+            </DialogContent>
+            <DialogActions>
+                <MudButton OnClick="CloseDialog" Size="Size.Small">Cancel</MudButton>
+                <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveStore" Disabled="@(!_formIsValid)" Size="Size.Small">Save</MudButton>
+            </DialogActions>
+        </MudDialog>
+    </MudContainer>
+}
+
+@code {
+    private IReadOnlyList<StoreDto> _stores = [];
+    private string _searchTerm = string.Empty;
+    private bool _isLoading = true;
+    private bool _isDialogOpen;
+    private bool _isEditMode;
+    private bool _formIsValid;
+    private StoreFormModel _editingStore = new();
+
+    private IEnumerable<StoreDto> FilteredStores =>
+        _stores.Where(s => string.IsNullOrWhiteSpace(_searchTerm)
+            || s.Name.Contains(_searchTerm, StringComparison.OrdinalIgnoreCase)
+            || s.Code.Contains(_searchTerm, StringComparison.OrdinalIgnoreCase));
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if ((PosAuthState.IsManager || PosAuthState.IsAdmin) && _isLoading)
+            await LoadStoresAsync();
+    }
+
+    private async Task LoadStoresAsync()
+    {
+        try
+        {
+            _stores = await StoreService.GetCachedAsync();
+            try
+            {
+                _stores = await StoreService.RefreshAsync();
+            }
+            catch (HttpRequestException)
+            {
+                Snackbar.Add("Server unavailable. Showing cached stores.", Severity.Info);
+            }
+            catch (TaskCanceledException)
+            {
+                Snackbar.Add("Store refresh timed out. Showing cached data.", Severity.Info);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error loading stores: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private void OpenCreateDialog()
+    {
+        _isEditMode = false;
+        _editingStore = new StoreFormModel();
+        _formIsValid = false;
+        _isDialogOpen = true;
+    }
+
+    private void OpenEditDialog(StoreDto store)
+    {
+        _isEditMode = true;
+        _editingStore = new StoreFormModel
+        {
+            Id = store.Id,
+            Name = store.Name,
+            Code = store.Code,
+            Address = store.Address,
+            City = store.City,
+            Phone = store.Phone,
+            Email = store.Email,
+            IsActive = store.IsActive
+        };
+        _formIsValid = true;
+        _isDialogOpen = true;
+    }
+
+    private async Task SaveStore()
+    {
+        try
+        {
+            if (_isEditMode)
+            {
+                await StoreService.UpdateAsync(new UpdateStoreRequest(
+                    _editingStore.Id!.Value,
+                    _editingStore.Name,
+                    _editingStore.Code,
+                    _editingStore.Address,
+                    _editingStore.City,
+                    _editingStore.Phone,
+                    _editingStore.Email,
+                    _editingStore.IsActive));
+                Snackbar.Add("Store updated successfully.", Severity.Success);
+            }
+            else
+            {
+                await StoreService.CreateAsync(new CreateStoreRequest(
+                    _editingStore.Name,
+                    _editingStore.Code,
+                    _editingStore.Address,
+                    _editingStore.City,
+                    _editingStore.Phone,
+                    _editingStore.Email));
+                Snackbar.Add("Store created successfully.", Severity.Success);
+            }
+
+            await LoadStoresAsync();
+            CloseDialog();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error saving store: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task DeleteStore(StoreDto store)
+    {
+        var parameters = new DialogParameters<ConfirmDeleteDialog>
+        {
+            { x => x.ContentText, $"Delete store '{store.Name}'?" },
+            { x => x.EntityName, "store" }
+        };
+        var dialog = await DialogService.ShowAsync<ConfirmDeleteDialog>(
+            "Delete Store",
+            parameters,
+            new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small });
+
+        if (!(await dialog.Result).Canceled)
+        {
+            try
+            {
+                if (await StoreService.DeleteAsync(store.Id))
+                {
+                    Snackbar.Add("Store deleted successfully.", Severity.Success);
+                    await LoadStoresAsync();
+                }
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Error deleting store: {ex.Message}", Severity.Error);
+            }
+        }
+    }
+
+    private void CloseDialog() => _isDialogOpen = false;
+
+    private sealed class StoreFormModel
+    {
+        public Guid? Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string Code { get; set; } = string.Empty;
+        public string? Address { get; set; }
+        public string? City { get; set; }
+        public string? Phone { get; set; }
+        public string? Email { get; set; }
+        public bool IsActive { get; set; } = true;
+    }
+}

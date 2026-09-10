@@ -26,7 +26,8 @@ public record CreateCashDeskRequest(
     Guid? FiscalPrinterId,
     Guid? CustomerDisplayId,
     Guid? MenuId,
-    IEnumerable<Guid> TerminalIds);
+    IEnumerable<Guid> TerminalIds,
+    Guid? Id = null);
 
 public record UpdateCashDeskRequest(
     Guid Id,

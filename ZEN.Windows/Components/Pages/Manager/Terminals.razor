@@ -2,9 +2,9 @@
 @using ZEN.Application.DTOs.Admin
 @using ZEN.Windows.Services
 @using MudBlazor
-@inject IPaymentTerminalService TerminalService
+@inject PosPaymentTerminalService PosTerminalService
 @inject ISnackbar Snackbar
-@inject NavigationManager Navigation
+@inject IDialogService DialogService
 @inject PosAuthState PosAuthState
 
 <PageTitle>Payment Terminals - ZEN POS</PageTitle>
@@ -44,7 +44,15 @@
 else
 {
     <MudPaper Class="pa-4" Elevation="3">
-        <MudText Typo="Typo.h5" GutterBottom=true>Payment Terminals</MudText>
+        <div class="d-flex justify-space-between align-center mb-3">
+            <MudText Typo="Typo.h5" GutterBottom="true">Payment Terminals</MudText>
+            <MudButton Variant="Variant.Filled"
+                       Color="Color.Primary"
+                       StartIcon="@Icons.Material.Filled.Add"
+                       OnClick="OpenCreateDialog">
+                Add Terminal
+            </MudButton>
+        </div>
 
         @if (!_dataLoaded)
         {
@@ -62,6 +70,7 @@ else
                     <MudTh>Type</MudTh>
                     <MudTh>Serial Number</MudTh>
                     <MudTh>Status</MudTh>
+                    <MudTh Style="text-align: right;">Actions</MudTh>
                 </HeaderContent>
                 <RowTemplate Context="terminal">
                     <MudTd DataLabel="Name">@terminal.Name</MudTd>
@@ -72,9 +81,84 @@ else
                             @(terminal.IsActive ? "Active" : "Inactive")
                         </MudChip>
                     </MudTd>
+                    <MudTd DataLabel="Actions" Style="text-align: right;">
+                        <MudIconButton Icon="@Icons.Material.Filled.Edit"
+                                       Color="Color.Info"
+                                       Size="Size.Small"
+                                       OnClick="@(() => OpenEditDialog(terminal))" />
+                        <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                       Color="Color.Error"
+                                       Size="Size.Small"
+                                       OnClick="@(() => DeleteTerminal(terminal))" />
+                    </MudTd>
                 </RowTemplate>
             </MudTable>
         }
+
+        <MudDialog @bind-Visible="_isDialogOpen"
+                   Options="new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true }">
+            <TitleContent>
+                <MudText Typo="Typo.subtitle1" Class="font-weight-bold">
+                    <MudIcon Icon="@(_isEditMode ? Icons.Material.Filled.Edit : Icons.Material.Filled.Add)" Class="mr-2" />
+                    @(_isEditMode ? "Edit Payment Terminal" : "Add Payment Terminal")
+                </MudText>
+            </TitleContent>
+            <DialogContent>
+                <MudForm @ref="_form" @bind-IsValid="@_formIsValid">
+                    <MudGrid Spacing="2" Class="py-1">
+                        <MudItem xs="12">
+                            <MudTextField Label="Name"
+                                          Variant="Variant.Outlined"
+                                          @bind-Value="_editingTerminal.Name"
+                                          Required="true"
+                                          Margin="Margin.Dense" />
+                        </MudItem>
+                        <MudItem xs="12" sm="6">
+                            <MudTextField Label="Terminal Type"
+                                          Variant="Variant.Outlined"
+                                          @bind-Value="_editingTerminal.TerminalType"
+                                          Required="true"
+                                          Margin="Margin.Dense" />
+                        </MudItem>
+                        <MudItem xs="12" sm="6">
+                            <MudTextField Label="Serial Number"
+                                          Variant="Variant.Outlined"
+                                          @bind-Value="_editingTerminal.SerialNumber"
+                                          Margin="Margin.Dense" />
+                        </MudItem>
+                        <MudItem xs="12" sm="6">
+                            <MudTextField Label="IP Address"
+                                          Variant="Variant.Outlined"
+                                          @bind-Value="_editingTerminal.IpAddress"
+                                          Margin="Margin.Dense" />
+                        </MudItem>
+                        <MudItem xs="12" sm="6">
+                            <MudNumericField T="int"
+                                             Label="Port"
+                                             Variant="Variant.Outlined"
+                                             @bind-Value="_editingTerminal.Port"
+                                             Margin="Margin.Dense" />
+                        </MudItem>
+                        <MudItem xs="12">
+                            <MudSwitch @bind-Value="_editingTerminal.IsActive"
+                                       Color="Color.Primary"
+                                       Label="Active"
+                                       Dense="true" />
+                        </MudItem>
+                    </MudGrid>
+                </MudForm>
+            </DialogContent>
+            <DialogActions>
+                <MudButton OnClick="CloseDialog" Size="Size.Small">Cancel</MudButton>
+                <MudButton Color="Color.Primary"
+                           Variant="Variant.Filled"
+                           OnClick="SaveTerminal"
+                           Disabled="@(!_formIsValid)"
+                           Size="Size.Small">
+                    Save
+                </MudButton>
+            </DialogActions>
+        </MudDialog>
     </MudPaper>
 }
 
@@ -84,6 +168,11 @@ else
     private string _pin = string.Empty;
     private string? _error;
     private bool _isProcessing = false;
+    private bool _isDialogOpen;
+    private bool _isEditMode;
+    private bool _formIsValid;
+    private MudForm? _form;
+    private TerminalFormModel _editingTerminal = new();
 
     protected override async Task OnParametersSetAsync()
     {
@@ -98,14 +187,120 @@ else
     {
         try
         {
-            var terminals = await TerminalService.GetAllAsync();
-            _terminals = terminals.ToList();
+            var cached = await PosTerminalService.GetCachedAsync();
+            _terminals = cached.ToList();
+
+            try
+            {
+                var refreshed = await PosTerminalService.RefreshAsync();
+                _terminals = refreshed.ToList();
+            }
+            catch (HttpRequestException)
+            {
+                Snackbar.Add("Server unavailable. Showing cached payment terminals.", Severity.Info);
+            }
+            catch (TaskCanceledException)
+            {
+                Snackbar.Add("Payment terminal refresh timed out. Showing cached data.", Severity.Info);
+            }
         }
         catch (Exception ex)
         {
             Snackbar.Add($"Error loading terminals: {ex.Message}", Severity.Error);
         }
     }
+
+    private void OpenCreateDialog()
+    {
+        _isEditMode = false;
+        _editingTerminal = new TerminalFormModel();
+        _isDialogOpen = true;
+    }
+
+    private void OpenEditDialog(PaymentTerminalDto terminal)
+    {
+        _isEditMode = true;
+        _editingTerminal = new TerminalFormModel
+        {
+            Id = terminal.Id,
+            Name = terminal.Name,
+            TerminalType = terminal.TerminalType,
+            SerialNumber = terminal.SerialNumber,
+            IpAddress = terminal.IpAddress,
+            Port = terminal.Port,
+            IsActive = terminal.IsActive
+        };
+        _isDialogOpen = true;
+    }
+
+    private async Task SaveTerminal()
+    {
+        try
+        {
+            if (_isEditMode)
+            {
+                await PosTerminalService.UpdateAsync(new UpdatePaymentTerminalRequest(
+                    _editingTerminal.Id!.Value,
+                    _editingTerminal.Name,
+                    _editingTerminal.TerminalType,
+                    _editingTerminal.SerialNumber,
+                    _editingTerminal.IpAddress,
+                    _editingTerminal.Port,
+                    _editingTerminal.IsActive));
+                Snackbar.Add("Payment terminal updated successfully.", Severity.Success);
+            }
+            else
+            {
+                await PosTerminalService.CreateAsync(new CreatePaymentTerminalRequest(
+                    _editingTerminal.Name,
+                    _editingTerminal.TerminalType,
+                    _editingTerminal.SerialNumber,
+                    _editingTerminal.IpAddress,
+                    _editingTerminal.Port,
+                    _editingTerminal.IsActive));
+                Snackbar.Add("Payment terminal created successfully.", Severity.Success);
+            }
+
+            await LoadTerminalsAsync();
+            CloseDialog();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error saving payment terminal: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task DeleteTerminal(PaymentTerminalDto terminal)
+    {
+        var parameters = new DialogParameters<ConfirmDeleteDialog>
+        {
+            { x => x.ContentText, $"Delete payment terminal '{terminal.Name}'?" },
+            { x => x.EntityName, "payment terminal" }
+        };
+        var dialog = await DialogService.ShowAsync<ConfirmDeleteDialog>(
+            "Delete Payment Terminal",
+            parameters,
+            new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small });
+        var result = await dialog.Result;
+
+        if (!result.Canceled)
+        {
+            try
+            {
+                if (await PosTerminalService.DeleteAsync(terminal.Id))
+                {
+                    Snackbar.Add("Payment terminal deleted successfully.", Severity.Success);
+                    await LoadTerminalsAsync();
+                }
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Error deleting payment terminal: {ex.Message}", Severity.Error);
+            }
+        }
+    }
+
+    private void CloseDialog() => _isDialogOpen = false;
 
     private async Task HandlePinKeyPress(KeyboardEventArgs args)
     {
@@ -140,5 +335,16 @@ else
             _isProcessing = false;
             await InvokeAsync(StateHasChanged);
         }
+    }
+
+    private sealed class TerminalFormModel
+    {
+        public Guid? Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string TerminalType { get; set; } = string.Empty;
+        public string? SerialNumber { get; set; }
+        public string? IpAddress { get; set; }
+        public int Port { get; set; }
+        public bool IsActive { get; set; } = true;
     }
 }

@@ -7,7 +7,7 @@
                 <MudIcon Icon="@Icons.Material.Filled.DeleteForever" />
             </MudAvatar>
             <div>
-                <MudText Typo="Typo.h6">Delete printer?</MudText>
+                <MudText Typo="Typo.h6">Delete @EntityName?</MudText>
                 <MudText Typo="Typo.body2" Color="Color.Secondary">
                     This action cannot be undone.
                 </MudText>
@@ -25,12 +25,13 @@
                Variant="Variant.Filled"
                StartIcon="@Icons.Material.Filled.Delete"
                OnClick="Confirm">
-        Delete printer
+        Delete @EntityName
     </MudButton>
 </DialogActions>
 
 @code {
     [Parameter] public string ContentText { get; set; } = string.Empty;
+    [Parameter] public string EntityName { get; set; } = "printer";
 
     [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
 

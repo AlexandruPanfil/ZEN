@@ -45,6 +45,11 @@ public static class MauiProgram
         builder.Services.AddApplication();
         builder.Services.AddScoped<PosPrinterService>();
         builder.Services.AddScoped<PosScannerService>();
+        builder.Services.AddScoped<PosCustomerDisplayService>();
+        builder.Services.AddScoped<PosCashDeskService>();
+        builder.Services.AddScoped<PosPaymentTerminalService>();
+        builder.Services.AddScoped<PosStoreService>();
+        builder.Services.AddScoped<PosMenuService>();
 
         // Add dummy JWT config for local auth
         builder.Configuration["Jwt:Key"] = "SuperSecretKeyForLocalMauiApp12345!";

@@ -49,7 +49,8 @@ public record FlatMenuItemDto(
 
 public record CreateMenuRequest(
     string Name,
-    Guid? StoreId);
+    Guid? StoreId,
+    Guid? Id = null);
 
 public record UpdateMenuRequest(
     Guid Id,

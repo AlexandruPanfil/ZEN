@@ -58,6 +58,7 @@ public class CustomerDisplayService : ICustomerDisplayService
     {
         var display = new CustomerDisplay
         {
+            Id = request.Id ?? Guid.NewGuid(),
             Name = request.Name,
             ConnectionType = request.ConnectionType,
             ConnectionString = request.ConnectionString,

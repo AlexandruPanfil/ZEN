@@ -269,7 +269,8 @@ else
     {
         var parameters = new DialogParameters<ConfirmDeleteDialog>
         {
-            { x => x.ContentText, $"Delete scanner '{scanner.Name}'?" }
+            { x => x.ContentText, $"Delete scanner '{scanner.Name}'?" },
+            { x => x.EntityName, "scanner" }
         };
         var dialog = await DialogService.ShowAsync<ConfirmDeleteDialog>(
             "Delete Scanner",

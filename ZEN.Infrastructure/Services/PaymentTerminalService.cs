@@ -61,6 +61,7 @@ namespace ZEN.Infrastructure.Services
         {
             var terminal = new PaymentTerminal
             {
+                Id = request.Id ?? Guid.NewGuid(),
                 Name = request.Name,
                 TerminalType = request.TerminalType,
                 SerialNumber = request.SerialNumber,

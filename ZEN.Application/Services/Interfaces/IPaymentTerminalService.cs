@@ -18,7 +18,8 @@ namespace ZEN.Application.Services.Interfaces
         string? SerialNumber,
         string? IpAddress,
         int Port,
-        bool IsActive);
+        bool IsActive,
+        Guid? Id = null);
 
     public record UpdatePaymentTerminalRequest(
         Guid Id,
