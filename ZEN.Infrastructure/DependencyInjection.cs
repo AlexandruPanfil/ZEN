@@ -68,7 +68,8 @@ public static class DependencyInjection
     {
         // SQLite for MAUI Windows client
         services.AddDbContext<ZenDbContext>(options =>
-            options.UseSqlite($"Data Source={sqlitePath}"));
+            options.UseSqlite($"Data Source={sqlitePath}")
+                .ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning)));
 
         // ASP.NET Core Identity
         services.AddIdentity<AppUser, AppRole>(options =>

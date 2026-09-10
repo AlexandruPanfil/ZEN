@@ -1,6 +1,7 @@
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using ZEN.Application.DTOs.Admin;
+using ZEN.Application.Services.Interfaces;
 using ZEN.Application.DTOs.Auth;
 using ZEN.Application.DTOs.CashDeskMenu;
 using ZEN.Application.DTOs.Reports;
@@ -90,6 +91,34 @@ public class SyncApiClient
             ? $"api/equipments/printers/fiscal?storeId={storeId.Value}"
             : "api/equipments/printers/fiscal";
         return await _httpClient.GetFromJsonAsync<IEnumerable<PrinterDto>>(uri, cancellationToken) ?? [];
+    }
+
+    public async Task<PrinterDto?> CreatePrinterAsync(
+        CreatePrinterRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        using var response = await _httpClient.PostAsJsonAsync("api/equipments/printers", request, cancellationToken);
+        return response.IsSuccessStatusCode
+            ? await response.Content.ReadFromJsonAsync<PrinterDto>(cancellationToken)
+            : null;
+    }
+
+    public async Task<PrinterDto?> UpdatePrinterAsync(
+        UpdatePrinterRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        using var response = await _httpClient.PutAsJsonAsync($"api/equipments/printers/{request.Id}", request, cancellationToken);
+        return response.IsSuccessStatusCode
+            ? await response.Content.ReadFromJsonAsync<PrinterDto>(cancellationToken)
+            : null;
+    }
+
+    public async Task<bool> DeletePrinterAsync(
+        Guid id,
+        CancellationToken cancellationToken = default)
+    {
+        using var response = await _httpClient.DeleteAsync($"api/equipments/printers/{id}", cancellationToken);
+        return response.IsSuccessStatusCode;
     }
 
     public async Task<IEnumerable<PaymentTerminalDto>> GetPaymentTerminalsAsync(Guid? storeId = null, CancellationToken cancellationToken = default)

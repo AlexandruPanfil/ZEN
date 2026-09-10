@@ -40,8 +40,25 @@ public partial class App : Microsoft.Maui.Controls.Application
         {
             File.AppendAllText(LogPath, $"[{DateTime.Now}] CreateWindow called\n");
             
-            // Ensure TokenSyncService is instantiated to subscribe to PosAuthState.Changed
+            // Initialize database on first window creation
             var services = MauiProgram.ServiceProvider;
+            if (services != null)
+            {
+                File.AppendAllText(LogPath, $"[{DateTime.Now}] Initializing database...\n");
+                try
+                {
+                    DatabaseInitializer.InitializeAsync(services).GetAwaiter().GetResult();
+                    File.AppendAllText(LogPath, $"[{DateTime.Now}] Database initialized successfully\n");
+                    services.GetRequiredService<Services.Sync.PosSyncBackgroundWorker>().Start();
+                }
+                catch (Exception ex)
+                {
+                    File.AppendAllText(LogPath, $"[{DateTime.Now}] Database initialization failed: {ex}\n");
+                    // Don't crash, log and continue
+                }
+            }
+            
+            // Ensure TokenSyncService is instantiated to subscribe to PosAuthState.Changed
             if (services != null)
             {
                 var tokenSyncService = services.GetRequiredService<TokenSyncService>();

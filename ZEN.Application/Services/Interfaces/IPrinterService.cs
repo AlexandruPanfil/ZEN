@@ -25,7 +25,8 @@ namespace ZEN.Application.Services.Interfaces
         string? ApiSecret,
         string? DeviceId,
         string? PointOfSaleId,
-        string? FiscalCloudBaseUrl);
+        string? FiscalCloudBaseUrl,
+        Guid? Id = null);
 
     public record UpdatePrinterRequest(
         Guid Id,

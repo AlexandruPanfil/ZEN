@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using ZEN.Application.Services.Interfaces;
 using ZEN.Application.DTOs.Sync;
 using ZEN.Domain.Entities;
 using ZEN.Infrastructure.Persistence;
@@ -34,12 +35,14 @@ public class PosSyncService : IPosSyncService
             var syncState = await GetOrCreateSyncStateAsync(cancellationToken);
 
             await PushPendingPaymentsAsync(syncState, cancellationToken);
+            await PushPendingPrintersAsync(cancellationToken);
             await PullProductsAsync(syncState, cancellationToken);
 
             syncState.LastSuccessfulSyncUtc = DateTime.UtcNow;
             syncState.LastError = null;
             await _dbContext.SaveChangesAsync(cancellationToken);
         }
+
         catch (Exception ex)
         {
             var syncState = await GetOrCreateSyncStateAsync(cancellationToken);
@@ -51,6 +54,67 @@ public class PosSyncService : IPosSyncService
         {
             _syncLock.Release();
         }
+    }
+
+    private async Task PushPendingPrintersAsync(CancellationToken cancellationToken)
+    {
+        var pending = await _dbContext.SyncOutboxItems
+            .Where(x => x.EntityType.StartsWith("Printer:") && x.Status == "Pending")
+            .OrderBy(x => x.CreatedAt)
+            .Take(100)
+            .ToListAsync(cancellationToken);
+
+        foreach (var outbox in pending)
+        {
+            outbox.Status = "InProgress";
+            outbox.LastAttemptUtc = DateTime.UtcNow;
+            outbox.RetryCount++;
+            await _dbContext.SaveChangesAsync(cancellationToken);
+
+            try
+            {
+                var succeeded = outbox.EntityType switch
+                {
+                    "Printer:Create" => await PushPrinterCreateAsync(outbox, cancellationToken),
+                    "Printer:Update" => await PushPrinterUpdateAsync(outbox, cancellationToken),
+                    "Printer:Delete" => await _syncApiClient.DeletePrinterAsync(outbox.EntityId, cancellationToken),
+                    _ => throw new InvalidOperationException($"Unknown printer sync operation '{outbox.EntityType}'.")
+                };
+
+                outbox.Status = succeeded ? "Synced" : "Pending";
+                outbox.Error = succeeded ? null : "Server rejected printer synchronization.";
+            }
+            catch (HttpRequestException ex)
+            {
+                outbox.Status = "Pending";
+                outbox.Error = ex.Message;
+            }
+            catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested)
+            {
+                outbox.Status = "Pending";
+                outbox.Error = "Printer synchronization timed out.";
+            }
+        }
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    private async Task<bool> PushPrinterCreateAsync(
+        SyncOutboxItem outbox,
+        CancellationToken cancellationToken)
+    {
+        var request = JsonSerializer.Deserialize<CreatePrinterRequest>(outbox.PayloadJson)
+            ?? throw new InvalidOperationException("Invalid printer create payload.");
+        return await _syncApiClient.CreatePrinterAsync(request, cancellationToken) is not null;
+    }
+
+    private async Task<bool> PushPrinterUpdateAsync(
+        SyncOutboxItem outbox,
+        CancellationToken cancellationToken)
+    {
+        var request = JsonSerializer.Deserialize<UpdatePrinterRequest>(outbox.PayloadJson)
+            ?? throw new InvalidOperationException("Invalid printer update payload.");
+        return await _syncApiClient.UpdatePrinterAsync(request, cancellationToken) is not null;
     }
 
     private async Task PushPendingPaymentsAsync(SyncState syncState, CancellationToken cancellationToken)

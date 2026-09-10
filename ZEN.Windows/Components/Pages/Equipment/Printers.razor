@@ -4,7 +4,7 @@
 @using ZEN.Application.DTOs.Admin
 @using ZEN.Domain.Enums
 @using MudBlazor
-@inject IPrinterService PrinterService
+@inject PosPrinterService PrinterService
 @inject IFiscalCloudService FiscalCloudService
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
@@ -302,10 +302,22 @@ else
         _isLoading = true;
         try
         {
-            var printers = await PrinterService.GetAllAsync(cancellationToken: default);
-            _printers = string.IsNullOrWhiteSpace(_searchTerm)
-                ? printers
-                : printers.Where(p => p.Name.Contains(_searchTerm, StringComparison.OrdinalIgnoreCase));
+            var cachedPrinters = await PrinterService.GetCachedAsync();
+            _printers = FilterPrinters(cachedPrinters);
+
+            try
+            {
+                var refreshedPrinters = await PrinterService.RefreshAsync(PosAuthState.StoreId);
+                _printers = FilterPrinters(refreshedPrinters);
+            }
+            catch (HttpRequestException)
+            {
+                Snackbar.Add("Server unavailable. Showing locally cached printers.", Severity.Warning);
+            }
+            catch (TaskCanceledException)
+            {
+                Snackbar.Add("Server request timed out. Showing locally cached printers.", Severity.Warning);
+            }
         }
         catch (Exception ex)
         {
@@ -316,6 +328,11 @@ else
             _isLoading = false;
         }
     }
+
+    private IEnumerable<PrinterDto> FilterPrinters(IEnumerable<PrinterDto> printers) =>
+        string.IsNullOrWhiteSpace(_searchTerm)
+            ? printers
+            : printers.Where(p => p.Name.Contains(_searchTerm, StringComparison.OrdinalIgnoreCase));
 
     private async Task HandleKeyDown(KeyboardEventArgs e)
     {
@@ -562,8 +579,14 @@ else
 
     private async Task DeletePrinter(PrinterDto printer)
     {
-        var parameters = new DialogParameters { ["ContentText"] = $"Delete printer '{printer.Name}'?" };
-        var dialog = await DialogService.ShowAsync<MudDialog>("Delete Printer", parameters, new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small });
+        var parameters = new DialogParameters<ConfirmDeleteDialog>
+        {
+            { x => x.ContentText, $"Delete printer '{printer.Name}'?" }
+        };
+        var dialog = await DialogService.ShowAsync<ConfirmDeleteDialog>(
+            "Delete Printer",
+            parameters,
+            new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small });
         var result = await dialog.Result;
 
         if (!result.Canceled)

@@ -88,6 +88,7 @@ namespace ZEN.Infrastructure.Services
         {
             var printer = new Printer
             {
+                Id = request.Id ?? Guid.NewGuid(),
                 Name = request.Name,
                 Type = Enum.Parse<PrinterType>(request.PrinterType),
                 FiscalDeviceType = string.IsNullOrWhiteSpace(request.FiscalDeviceType) ? null : Enum.Parse<FiscalDeviceType>(request.FiscalDeviceType),
