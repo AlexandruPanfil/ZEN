@@ -80,24 +80,24 @@ app.MapGet("/", () => "ZEN POS API is running.");
 
 // Map API endpoint groups
 app.MapGroup("/api/auth").MapAuthEndpoints();
-app.MapGroup("/api/products").MapProductEndpoints();
-app.MapGroup("/api/categories").MapCategoryEndpoints();
-app.MapGroup("/api/brands").MapBrandEndpoints();
-app.MapGroup("/api/taxes").MapTaxEndpoints();
-app.MapGroup("/api/discounts").MapDiscountEndpoints();
-app.MapGroup("/api/promotions").MapPromotionEndpoints();
-app.MapGroup("/api/coupons").MapCouponEndpoints();
-app.MapGroup("/api/sales").MapSaleEndpoints();
-app.MapGroup("/api/inventory").MapInventoryEndpoints();
-app.MapGroup("/api/shifts").MapShiftEndpoints();
-app.MapGroup("/api/customers").MapCustomerEndpoints();
-app.MapGroup("/api/suppliers").MapSupplierEndpoints();
-app.MapGroup("/api/reports").MapReportEndpoints();
-app.MapGroup("/api/sync").MapSyncEndpoints();
-app.MapGroup("/api/equipments").MapEquipmentEndpoints();
+app.MapGroup("/api/products").RequireAuthorization().MapProductEndpoints();
+app.MapGroup("/api/categories").RequireAuthorization().MapCategoryEndpoints();
+app.MapGroup("/api/brands").RequireAuthorization().MapBrandEndpoints();
+app.MapGroup("/api/taxes").RequireAuthorization().MapTaxEndpoints();
+app.MapGroup("/api/discounts").RequireAuthorization().MapDiscountEndpoints();
+app.MapGroup("/api/promotions").RequireAuthorization().MapPromotionEndpoints();
+app.MapGroup("/api/coupons").RequireAuthorization().MapCouponEndpoints();
+app.MapGroup("/api/sales").RequireAuthorization().MapSaleEndpoints();
+app.MapGroup("/api/inventory").RequireAuthorization().MapInventoryEndpoints();
+app.MapGroup("/api/shifts").RequireAuthorization().MapShiftEndpoints();
+app.MapGroup("/api/customers").RequireAuthorization().MapCustomerEndpoints();
+app.MapGroup("/api/suppliers").RequireAuthorization().MapSupplierEndpoints();
+app.MapGroup("/api/reports").RequireAuthorization().MapReportEndpoints();
+app.MapGroup("/api/sync").RequireAuthorization().MapSyncEndpoints();
+app.MapGroup("/api/equipments").RequireAuthorization().MapEquipmentEndpoints();
 
 // Map SignalR hub
-app.MapHub<CashDeskHub>("/hubs/cashdesk");
+app.MapHub<CashDeskHub>("/hubs/cashdesk").RequireAuthorization();
 
 app.MapDefaultEndpoints();
 

@@ -21,6 +21,8 @@
                       Label="Enter PIN"
                       Variant="Variant.Outlined"
                       ReadOnly="true"
+                      AutoFocus="true"
+                      @onkeydown="HandleKeyDown"
                       Class="mb-4"
                       InputType="InputType.Password" />
 
@@ -123,6 +125,26 @@
     {
         _pin = string.Empty;
     }
+
+private async Task HandleKeyDown(KeyboardEventArgs args)
+{
+    if (args.Key.Length == 1 && args.Key[0] is >= '0' and <= '9')
+    {
+        AddDigit(args.Key);
+    }
+    else if (args.Key == "Backspace")
+    {
+        Backspace();
+    }
+    else if (args.Key is "Delete" or "Escape")
+    {
+        ClearPin();
+    }
+    else if (args.Key == "Enter" && !string.IsNullOrEmpty(_pin))
+    {
+        await SubmitPin();
+    }
+}
 
 private async Task SubmitPin()
         {
