@@ -36,6 +36,7 @@ public class PosSyncService : IPosSyncService
 
             await PushPendingPaymentsAsync(syncState, cancellationToken);
             await PushPendingPrintersAsync(cancellationToken);
+            await PushPendingScannersAsync(cancellationToken);
             await PullProductsAsync(syncState, cancellationToken);
 
             syncState.LastSuccessfulSyncUtc = DateTime.UtcNow;
@@ -115,6 +116,67 @@ public class PosSyncService : IPosSyncService
         var request = JsonSerializer.Deserialize<UpdatePrinterRequest>(outbox.PayloadJson)
             ?? throw new InvalidOperationException("Invalid printer update payload.");
         return await _syncApiClient.UpdatePrinterAsync(request, cancellationToken) is not null;
+    }
+
+    private async Task PushPendingScannersAsync(CancellationToken cancellationToken)
+    {
+        var pending = await _dbContext.SyncOutboxItems
+            .Where(x => x.EntityType.StartsWith("Scanner:") && x.Status == "Pending")
+            .OrderBy(x => x.CreatedAt)
+            .Take(100)
+            .ToListAsync(cancellationToken);
+
+        foreach (var outbox in pending)
+        {
+            outbox.Status = "InProgress";
+            outbox.LastAttemptUtc = DateTime.UtcNow;
+            outbox.RetryCount++;
+            await _dbContext.SaveChangesAsync(cancellationToken);
+
+            try
+            {
+                var succeeded = outbox.EntityType switch
+                {
+                    "Scanner:Create" => await PushScannerCreateAsync(outbox, cancellationToken),
+                    "Scanner:Update" => await PushScannerUpdateAsync(outbox, cancellationToken),
+                    "Scanner:Delete" => await _syncApiClient.DeleteScannerAsync(outbox.EntityId, cancellationToken),
+                    _ => throw new InvalidOperationException($"Unknown scanner sync operation '{outbox.EntityType}'.")
+                };
+
+                outbox.Status = succeeded ? "Synced" : "Pending";
+                outbox.Error = succeeded ? null : "Server rejected scanner synchronization.";
+            }
+            catch (HttpRequestException ex)
+            {
+                outbox.Status = "Pending";
+                outbox.Error = ex.Message;
+            }
+            catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested)
+            {
+                outbox.Status = "Pending";
+                outbox.Error = "Scanner synchronization timed out.";
+            }
+        }
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    private async Task<bool> PushScannerCreateAsync(
+        SyncOutboxItem outbox,
+        CancellationToken cancellationToken)
+    {
+        var request = JsonSerializer.Deserialize<CreateScannerRequest>(outbox.PayloadJson)
+            ?? throw new InvalidOperationException("Invalid scanner create payload.");
+        return await _syncApiClient.CreateScannerAsync(request, cancellationToken) is not null;
+    }
+
+    private async Task<bool> PushScannerUpdateAsync(
+        SyncOutboxItem outbox,
+        CancellationToken cancellationToken)
+    {
+        var request = JsonSerializer.Deserialize<UpdateScannerRequest>(outbox.PayloadJson)
+            ?? throw new InvalidOperationException("Invalid scanner update payload.");
+        return await _syncApiClient.UpdateScannerAsync(request, cancellationToken) is not null;
     }
 
     private async Task PushPendingPaymentsAsync(SyncState syncState, CancellationToken cancellationToken)

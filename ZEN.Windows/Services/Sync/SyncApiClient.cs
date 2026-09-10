@@ -121,6 +121,34 @@ public class SyncApiClient
         return response.IsSuccessStatusCode;
     }
 
+    public async Task<ScannerDto?> CreateScannerAsync(
+        CreateScannerRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        using var response = await _httpClient.PostAsJsonAsync("api/equipments/scanners", request, cancellationToken);
+        return response.IsSuccessStatusCode
+            ? await response.Content.ReadFromJsonAsync<ScannerDto>(cancellationToken)
+            : null;
+    }
+
+    public async Task<ScannerDto?> UpdateScannerAsync(
+        UpdateScannerRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        using var response = await _httpClient.PutAsJsonAsync($"api/equipments/scanners/{request.Id}", request, cancellationToken);
+        return response.IsSuccessStatusCode
+            ? await response.Content.ReadFromJsonAsync<ScannerDto>(cancellationToken)
+            : null;
+    }
+
+    public async Task<bool> DeleteScannerAsync(
+        Guid id,
+        CancellationToken cancellationToken = default)
+    {
+        using var response = await _httpClient.DeleteAsync($"api/equipments/scanners/{id}", cancellationToken);
+        return response.IsSuccessStatusCode;
+    }
+
     public async Task<IEnumerable<PaymentTerminalDto>> GetPaymentTerminalsAsync(Guid? storeId = null, CancellationToken cancellationToken = default)
     {
         var uri = storeId.HasValue

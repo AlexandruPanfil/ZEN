@@ -59,6 +59,7 @@ public class ScannerService : IScannerService
     {
         var scanner = new Scanner
         {
+            Id = request.Id ?? Guid.NewGuid(),
             Name = request.Name,
             ScannerType = Enum.Parse<ScannerType>(request.ScannerType),
             ConnectionType = request.ConnectionType,

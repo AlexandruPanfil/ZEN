@@ -17,7 +17,8 @@ public record CreateScannerRequest(
     string ScannerType,
     string? ConnectionType,
     string? ConnectionString,
-    bool IsActive);
+    bool IsActive,
+    Guid? Id = null);
 
 public record UpdateScannerRequest(
     Guid Id,

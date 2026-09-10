@@ -28,6 +28,7 @@ public static class DatabaseInitializer
         logger.LogInformation("Ensuring database is created...");
         await dbContext.Database.EnsureCreatedAsync();
         await EnsurePrinterTableAsync(dbContext, logger);
+        await EnsureScannerTableAsync(dbContext, logger);
         await EnsureSyncTablesAsync(dbContext, logger);
         logger.LogInformation("Database created successfully");
     }
@@ -108,5 +109,34 @@ public static class DatabaseInitializer
 
         await command.ExecuteNonQueryAsync();
         logger.LogInformation("Verified local synchronization tables.");
+    }
+
+    private static async Task EnsureScannerTableAsync(ZenDbContext dbContext, ILogger logger)
+    {
+        await using var command = dbContext.Database.GetDbConnection().CreateCommand();
+        command.CommandText = """
+            CREATE TABLE IF NOT EXISTS "Scanners" (
+                "Id" TEXT NOT NULL CONSTRAINT "PK_Scanners" PRIMARY KEY,
+                "Name" TEXT NOT NULL,
+                "ScannerType" INTEGER NOT NULL,
+                "ConnectionType" TEXT NULL,
+                "ConnectionString" TEXT NULL,
+                "IsActive" INTEGER NOT NULL,
+                "CashDeskId" TEXT NULL,
+                "CreatedAt" TEXT NOT NULL,
+                "UpdatedAt" TEXT NOT NULL,
+                "IsDeleted" INTEGER NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS "IX_Scanners_CashDeskId"
+                ON "Scanners" ("CashDeskId");
+            """;
+
+        if (command.Connection?.State != System.Data.ConnectionState.Open)
+        {
+            await command.Connection!.OpenAsync();
+        }
+
+        await command.ExecuteNonQueryAsync();
+        logger.LogInformation("Verified local Scanners table.");
     }
 }
