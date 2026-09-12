@@ -46,6 +46,7 @@ public sealed class PosPrinterService
         printers = printers
             .Where(x => !pendingDeleteIds.Contains(x.Id))
             .ToList();
+        var serverEntityIds = printers.Select(x => x.Id).ToHashSet();
         foreach (var dto in printers)
         {
             if (pendingEntityIds.Contains(dto.Id))
@@ -79,8 +80,17 @@ public sealed class PosPrinterService
             existing.IsDeleted = dto.IsDeleted;
         }
 
+        var missingLocalPrinters = await _dbContext.Printers
+            .IgnoreQueryFilters()
+            .Where(x => !pendingEntityIds.Contains(x.Id) && !serverEntityIds.Contains(x.Id))
+            .ToListAsync(cancellationToken);
+        foreach (var printer in missingLocalPrinters)
+        {
+            printer.IsDeleted = true;
+        }
+
         await _dbContext.SaveServerSynchronizationAsync(cancellationToken);
-        return printers;
+        return printers.Where(x => !x.IsDeleted).ToList();
     }
 
     public async Task<PrinterDto> CreateAsync(

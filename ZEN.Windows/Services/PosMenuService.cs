@@ -45,6 +45,7 @@ public sealed class PosMenuService
         menus = menus
             .Where(x => !pendingDeleteIds.Contains(x.Id))
             .ToList();
+        var serverEntityIds = menus.Select(x => x.Id).ToHashSet();
         foreach (var dto in menus)
         {
             if (pendingEntityIds.Contains(dto.Id))
@@ -67,8 +68,17 @@ public sealed class PosMenuService
             existing.IsDeleted = dto.IsDeleted;
         }
 
+        var missingLocalMenus = await _dbContext.Menus
+            .IgnoreQueryFilters()
+            .Where(x => !pendingEntityIds.Contains(x.Id) && !serverEntityIds.Contains(x.Id))
+            .ToListAsync(cancellationToken);
+        foreach (var menu in missingLocalMenus)
+        {
+            menu.IsDeleted = true;
+        }
+
         await _dbContext.SaveServerSynchronizationAsync(cancellationToken);
-        return menus;
+        return menus.Where(x => !x.IsDeleted).ToList();
     }
 
     public async Task<MenuDto> CreateAsync(

@@ -45,6 +45,7 @@ public sealed class PosCustomerDisplayService
         displays = displays
             .Where(x => !pendingDeleteIds.Contains(x.Id))
             .ToList();
+        var serverEntityIds = displays.Select(x => x.Id).ToHashSet();
         foreach (var dto in displays)
         {
             if (pendingEntityIds.Contains(dto.Id))
@@ -71,8 +72,17 @@ public sealed class PosCustomerDisplayService
             existing.IsDeleted = dto.IsDeleted;
         }
 
+        var missingLocalDisplays = await _dbContext.CustomerDisplays
+            .IgnoreQueryFilters()
+            .Where(x => !pendingEntityIds.Contains(x.Id) && !serverEntityIds.Contains(x.Id))
+            .ToListAsync(cancellationToken);
+        foreach (var display in missingLocalDisplays)
+        {
+            display.IsDeleted = true;
+        }
+
         await _dbContext.SaveServerSynchronizationAsync(cancellationToken);
-        return displays;
+        return displays.Where(x => !x.IsDeleted).ToList();
     }
 
     public async Task<CustomerDisplayDto> CreateAsync(

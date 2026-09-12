@@ -54,6 +54,7 @@ public sealed class PosStoreService
         stores = stores
             .Where(x => !pendingDeleteIds.Contains(x.Id))
             .ToList();
+        var serverEntityIds = stores.Select(x => x.Id).ToHashSet();
         foreach (var dto in stores)
         {
             if (pendingEntityIds.Contains(dto.Id))
@@ -81,8 +82,17 @@ public sealed class PosStoreService
             existing.IsDeleted = dto.IsDeleted;
         }
 
+        var missingLocalStores = await _dbContext.Stores
+            .IgnoreQueryFilters()
+            .Where(x => !pendingEntityIds.Contains(x.Id) && !serverEntityIds.Contains(x.Id))
+            .ToListAsync(cancellationToken);
+        foreach (var store in missingLocalStores)
+        {
+            store.IsDeleted = true;
+        }
+
         await _dbContext.SaveServerSynchronizationAsync(cancellationToken);
-        return stores;
+        return stores.Where(x => !x.IsDeleted).ToList();
     }
 
     public async Task<StoreDto> CreateAsync(

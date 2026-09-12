@@ -380,7 +380,7 @@ private async Task LoadProductsAsync()
 
             // Load available payment terminals for current cash desk
             var terminals = await ApiClient.GetPaymentTerminalsAsync(PosAuthState.CashDeskId.Value);
-            var activeTerminals = terminals.Where(t => t.IsActive).ToList();
+            var activeTerminals = terminals.Where(t => !t.IsDeleted && t.IsActive).ToList();
             
             Console.WriteLine($"Found {terminals.Count()} total terminals, {activeTerminals.Count} active");
             foreach (var t in terminals)

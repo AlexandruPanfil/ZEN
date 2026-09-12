@@ -74,9 +74,9 @@
         try
         {
             _stores = (await StoreService.GetCachedAsync()).ToList();
-            try { _stores = (await StoreService.GetCachedAsync()).ToList(); } catch (HttpRequestException) { }
+            try { _stores = (await StoreService.RefreshAsync()).ToList(); } catch (HttpRequestException) { }
             _menus = (await MenuService.GetCachedAsync()).ToList();
-            try { _menus = (await MenuService.GetCachedAsync()).ToList(); } catch (HttpRequestException) { }
+            try { _menus = (await MenuService.RefreshAsync()).ToList(); } catch (HttpRequestException) { }
         }
         catch (Exception ex)
         {

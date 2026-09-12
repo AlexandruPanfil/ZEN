@@ -364,6 +364,7 @@ public class PosSyncService : IPosSyncService
                 outbox.SyncedAtUtc = null;
                 outbox.Error = ex.Message;
                 SetConflictDetails(outbox, ex);
+                await ReconcileCashDeskConflictAsync(ex, cancellationToken);
             }
             catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested)
             {
@@ -708,6 +709,26 @@ public class PosSyncService : IPosSyncService
 
         outbox.ConflictVersion = conflict.CurrentVersion;
         outbox.ConflictRecordJson = conflict.RecordJson;
+    }
+
+    private async Task ReconcileCashDeskConflictAsync(
+        HttpRequestException exception,
+        CancellationToken cancellationToken)
+    {
+        if (exception is not SyncConflictHttpException conflict
+            || string.IsNullOrWhiteSpace(conflict.RecordJson))
+        {
+            return;
+        }
+
+        var serverRecord = JsonSerializer.Deserialize<CashDeskDto>(
+            conflict.RecordJson,
+            new JsonSerializerOptions(JsonSerializerDefaults.Web));
+
+        if (serverRecord is not null)
+        {
+            await _cashDeskService.ApplyServerRecordAsync(serverRecord, cancellationToken);
+        }
     }
 
     private async Task PullProductsAsync(SyncState syncState, CancellationToken cancellationToken)

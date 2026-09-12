@@ -192,7 +192,7 @@ else
 
             try
             {
-                var refreshed = await PosTerminalService.GetCachedAsync();
+                var refreshed = await PosTerminalService.RefreshAsync();
                 _terminals = refreshed.ToList();
             }
             catch (HttpRequestException)

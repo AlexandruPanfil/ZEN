@@ -45,6 +45,7 @@ public sealed class PosPaymentTerminalService
         terminals = terminals
             .Where(x => !pendingDeleteIds.Contains(x.Id))
             .ToList();
+        var serverEntityIds = terminals.Select(x => x.Id).ToHashSet();
         foreach (var dto in terminals)
         {
             if (pendingEntityIds.Contains(dto.Id))
@@ -72,8 +73,17 @@ public sealed class PosPaymentTerminalService
             existing.IsDeleted = dto.IsDeleted;
         }
 
+        var missingLocalTerminals = await _dbContext.PaymentTerminals
+            .IgnoreQueryFilters()
+            .Where(x => !pendingEntityIds.Contains(x.Id) && !serverEntityIds.Contains(x.Id))
+            .ToListAsync(cancellationToken);
+        foreach (var terminal in missingLocalTerminals)
+        {
+            terminal.IsDeleted = true;
+        }
+
         await _dbContext.SaveServerSynchronizationAsync(cancellationToken);
-        return terminals;
+        return terminals.Where(x => !x.IsDeleted).ToList();
     }
 
     public async Task<PaymentTerminalDto> CreateAsync(

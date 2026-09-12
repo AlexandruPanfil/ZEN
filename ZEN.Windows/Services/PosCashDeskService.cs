@@ -47,6 +47,7 @@ public sealed class PosCashDeskService
         cashDesks = cashDesks
             .Where(x => !pendingDeleteIds.Contains(x.Id))
             .ToList();
+        var serverEntityIds = cashDesks.Select(x => x.Id).ToHashSet();
         foreach (var dto in cashDesks)
         {
             if (pendingEntityIds.Contains(dto.Id))
@@ -75,14 +76,51 @@ public sealed class PosCashDeskService
             existing.IsDeleted = dto.IsDeleted;
         }
 
+        var missingLocalCashDesks = await _dbContext.CashDesks
+            .IgnoreQueryFilters()
+            .Where(x => !pendingEntityIds.Contains(x.Id) && !serverEntityIds.Contains(x.Id))
+            .ToListAsync(cancellationToken);
+        foreach (var cashDesk in missingLocalCashDesks)
+        {
+            cashDesk.IsDeleted = true;
+        }
+
         await _dbContext.SaveServerSynchronizationAsync(cancellationToken);
-        return cashDesks;
+        return cashDesks.Where(x => !x.IsDeleted).ToList();
     }
 
     public Task<CashDeskDetailDto?> GetDetailAsync(
         Guid id,
         CancellationToken cancellationToken = default) =>
         _localService.GetDetailByIdAsync(id, cancellationToken);
+
+    public async Task ApplyServerRecordAsync(
+        CashDeskDto serverRecord,
+        CancellationToken cancellationToken = default)
+    {
+        var localRecord = await _dbContext.CashDesks
+            .IgnoreQueryFilters()
+            .FirstOrDefaultAsync(x => x.Id == serverRecord.Id, cancellationToken);
+
+        if (localRecord is null)
+        {
+            localRecord = new CashDesk { Id = serverRecord.Id };
+            await _dbContext.CashDesks.AddAsync(localRecord, cancellationToken);
+        }
+
+        localRecord.Name = serverRecord.Name;
+        localRecord.StoreId = serverRecord.StoreId;
+        localRecord.IsActive = serverRecord.IsActive;
+        localRecord.FiscalPrinterId = serverRecord.FiscalPrinterId;
+        localRecord.CustomerDisplayId = serverRecord.CustomerDisplayId;
+        localRecord.LastActivityUtc = serverRecord.LastActivityUtc;
+        localRecord.IsOnline = serverRecord.IsOnline;
+        localRecord.MenuId = serverRecord.MenuId;
+        localRecord.Version = serverRecord.Version;
+        localRecord.IsDeleted = serverRecord.IsDeleted;
+
+        await _dbContext.SaveServerSynchronizationAsync(cancellationToken);
+    }
 
     public async Task<CashDeskDto> CreateAsync(
         CreateCashDeskRequest request,

@@ -141,7 +141,7 @@ else
             _stores = await StoreService.GetCachedAsync();
             try
             {
-                _stores = await StoreService.GetCachedAsync();
+                _stores = await StoreService.RefreshAsync();
             }
             catch (HttpRequestException)
             {

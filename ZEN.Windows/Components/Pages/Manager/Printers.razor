@@ -102,7 +102,7 @@ else
         try
         {
             var printers = await ApiClient.GetPrintersAsync(PosAuthState.StoreId);
-            _printers = printers.ToList();
+            _printers = printers.Where(p => !p.IsDeleted).ToList();
         }
         catch (Exception ex)
         {

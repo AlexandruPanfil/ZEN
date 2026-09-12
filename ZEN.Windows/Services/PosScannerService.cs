@@ -45,6 +45,7 @@ public sealed class PosScannerService
         scanners = scanners
             .Where(x => !pendingDeleteIds.Contains(x.Id))
             .ToList();
+        var serverEntityIds = scanners.Select(x => x.Id).ToHashSet();
         foreach (var dto in scanners)
         {
             if (pendingEntityIds.Contains(dto.Id))
@@ -71,8 +72,17 @@ public sealed class PosScannerService
             existing.IsDeleted = dto.IsDeleted;
         }
 
+        var missingLocalScanners = await _dbContext.Scanners
+            .IgnoreQueryFilters()
+            .Where(x => !pendingEntityIds.Contains(x.Id) && !serverEntityIds.Contains(x.Id))
+            .ToListAsync(cancellationToken);
+        foreach (var scanner in missingLocalScanners)
+        {
+            scanner.IsDeleted = true;
+        }
+
         await _dbContext.SaveServerSynchronizationAsync(cancellationToken);
-        return scanners;
+        return scanners.Where(x => !x.IsDeleted).ToList();
     }
 
     public async Task<ScannerDto> CreateAsync(

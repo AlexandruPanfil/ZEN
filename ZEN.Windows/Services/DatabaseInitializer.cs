@@ -1,4 +1,4 @@
-using Microsoft.Extensions.DependencyInjection;
+﻿using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.EntityFrameworkCore;
 using ZEN.Infrastructure.Persistence;
@@ -86,6 +86,7 @@ public static class DatabaseInitializer
                 "PullCursor" TEXT NULL,
                 "CreatedAt" TEXT NOT NULL,
                 "UpdatedAt" TEXT NOT NULL,
+                "Version" INTEGER NOT NULL DEFAULT 1,
                 "IsDeleted" INTEGER NOT NULL
             );
             CREATE TABLE IF NOT EXISTS "SyncOutboxItems" (
@@ -99,9 +100,12 @@ public static class DatabaseInitializer
                 "LastAttemptUtc" TEXT NULL,
                 "SyncedAtUtc" TEXT NULL,
                 "BaseVersion" INTEGER NULL,
+                "ConflictRecordJson" TEXT NULL,
+                "ConflictVersion" INTEGER NULL,
                 "Error" TEXT NULL,
                 "CreatedAt" TEXT NOT NULL,
                 "UpdatedAt" TEXT NOT NULL,
+                "Version" INTEGER NOT NULL DEFAULT 1,
                 "IsDeleted" INTEGER NOT NULL
             );
             CREATE TABLE IF NOT EXISTS "ProcessedSyncMessages" (
@@ -111,6 +115,7 @@ public static class DatabaseInitializer
                 "ProcessedAt" TEXT NOT NULL,
                 "CreatedAt" TEXT NOT NULL,
                 "UpdatedAt" TEXT NOT NULL,
+                "Version" INTEGER NOT NULL DEFAULT 1,
                 "IsDeleted" INTEGER NOT NULL
             );
             """;
@@ -121,8 +126,13 @@ public static class DatabaseInitializer
         }
 
         await command.ExecuteNonQueryAsync();
+        await EnsureVersionColumnAsync(dbContext, "SyncStates", logger);
+        await EnsureVersionColumnAsync(dbContext, "SyncOutboxItems", logger);
+        await EnsureVersionColumnAsync(dbContext, "ProcessedSyncMessages", logger);
         await EnsureColumnAsync(dbContext, "SyncOutboxItems", "SyncedAtUtc", "TEXT", logger);
         await EnsureColumnAsync(dbContext, "SyncOutboxItems", "BaseVersion", "INTEGER", logger);
+        await EnsureColumnAsync(dbContext, "SyncOutboxItems", "ConflictRecordJson", "TEXT", logger);
+        await EnsureColumnAsync(dbContext, "SyncOutboxItems", "ConflictVersion", "INTEGER", logger);
         await EnsureColumnAsync(dbContext, "SyncStates", "LastSalesSyncUtc", "TEXT", logger);
         await EnsureColumnAsync(dbContext, "SyncStates", "LastShiftsSyncUtc", "TEXT", logger);
         await EnsureColumnAsync(dbContext, "SyncStates", "LastInventorySyncUtc", "TEXT", logger);

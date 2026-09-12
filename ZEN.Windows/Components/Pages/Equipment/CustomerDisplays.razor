@@ -167,7 +167,7 @@ else
 
             try
             {
-                var refreshedDisplays = await CustomerDisplayService.GetCachedAsync();
+                var refreshedDisplays = await CustomerDisplayService.RefreshAsync(null);
                 _displays = FilterDisplays(refreshedDisplays);
             }
             catch (HttpRequestException)

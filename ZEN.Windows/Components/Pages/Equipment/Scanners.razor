@@ -173,7 +173,7 @@ else
 
             try
             {
-                var refreshedScanners = await ScannerService.GetCachedAsync();
+                var refreshedScanners = await ScannerService.RefreshAsync(null);
                 _scanners = FilterScanners(refreshedScanners);
             }
             catch (HttpRequestException)

@@ -308,7 +308,7 @@ else
 
             try
             {
-                var refreshedPrinters = await PrinterService.GetCachedAsync();
+                var refreshedPrinters = await PrinterService.RefreshAsync(null);
                 _printers = FilterPrinters(refreshedPrinters);
             }
             catch (HttpRequestException)
@@ -691,3 +691,4 @@ else
         public string? FiscalCloudBaseUrl { get; set; }
     }
 }
+
