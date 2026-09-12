@@ -9,5 +9,8 @@ public class SyncOutboxItem : BaseEntity
     public string Status { get; set; } = "Pending";
     public int RetryCount { get; set; }
     public DateTime? LastAttemptUtc { get; set; }
+    public DateTime? SyncedAtUtc { get; set; }
+    public long? BaseVersion { get; set; }
     public string? Error { get; set; }
 }
+

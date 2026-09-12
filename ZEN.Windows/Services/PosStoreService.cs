@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using ZEN.Application.DTOs.Admin;
 using ZEN.Domain.Entities;
@@ -39,8 +39,37 @@ public sealed class PosStoreService
         CancellationToken cancellationToken = default)
     {
         var stores = (await _apiClient.GetStoresAsync(cancellationToken)).ToList();
+        var pendingEntityIds = await _dbContext.SyncOutboxItems
+            .Where(x => x.EntityType.StartsWith("Store:")
+                && (x.Status == "Pending" || x.Status == "InProgress"))
+            .Select(x => x.EntityId)
+            .ToHashSetAsync(cancellationToken);
+        var pendingDeleteIds = await _dbContext.SyncOutboxItems
+            .Where(x => x.EntityType == "Store:Delete"
+                && (x.Status == "Pending" || x.Status == "InProgress"))
+            .Select(x => x.EntityId)
+            .ToHashSetAsync(cancellationToken);
+        stores = stores
+            .Where(x => !pendingDeleteIds.Contains(x.Id))
+            .ToList();
+        var serverIds = stores.Select(s => s.Id).ToHashSet();
+        var staleStores = await _dbContext.Stores
+            .IgnoreQueryFilters()
+            .Where(s => !s.IsDeleted && !serverIds.Contains(s.Id)
+                && !pendingEntityIds.Contains(s.Id))
+            .ToListAsync(cancellationToken);
+
+        foreach (var staleStore in staleStores)
+        {
+            staleStore.IsDeleted = true;
+        }
+
         foreach (var dto in stores)
         {
+            if (pendingDeleteIds.Contains(dto.Id))
+            {
+                continue;
+            }
             var existing = await _dbContext.Stores
                 .IgnoreQueryFilters()
                 .FirstOrDefaultAsync(s => s.Id == dto.Id, cancellationToken);
@@ -70,7 +99,7 @@ public sealed class PosStoreService
         CancellationToken cancellationToken = default)
     {
         var localRequest = request with { Id = request.Id ?? Guid.NewGuid() };
-        var serverSaved = await TryCreateOnServerAsync(localRequest, cancellationToken);
+        var serverSaved = false;
         var store = new Store
         {
             Id = localRequest.Id.Value,
@@ -98,7 +127,7 @@ public sealed class PosStoreService
         UpdateStoreRequest request,
         CancellationToken cancellationToken = default)
     {
-        var serverSaved = await TryUpdateOnServerAsync(request, cancellationToken);
+        var serverSaved = false;
         var store = await _dbContext.Stores.FirstOrDefaultAsync(s => s.Id == request.Id, cancellationToken)
             ?? throw new KeyNotFoundException($"Store with ID {request.Id} not found.");
 
@@ -123,7 +152,7 @@ public sealed class PosStoreService
         Guid id,
         CancellationToken cancellationToken = default)
     {
-        var serverDeleted = await TryDeleteOnServerAsync(id, cancellationToken);
+        var serverDeleted = false;
         var store = await _dbContext.Stores.FirstOrDefaultAsync(s => s.Id == id, cancellationToken);
         if (store is null)
             return false;
@@ -236,3 +265,4 @@ public sealed class PosStoreService
         store.Email,
         store.IsActive);
 }
+

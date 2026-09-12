@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using ZEN.Application.DTOs.Admin;
 using ZEN.Application.Services.Interfaces;
@@ -32,9 +32,37 @@ public sealed class PosScannerService
         CancellationToken cancellationToken = default)
     {
         var scanners = (await _apiClient.GetScannersAsync(storeId, cancellationToken)).ToList();
+        var pendingEntityIds = await _dbContext.SyncOutboxItems
+            .Where(x => x.EntityType.StartsWith("Scanner:")
+                && (x.Status == "Pending" || x.Status == "InProgress"))
+            .Select(x => x.EntityId)
+            .ToHashSetAsync(cancellationToken);
+        var pendingDeleteIds = await _dbContext.SyncOutboxItems
+            .Where(x => x.EntityType == "Scanner:Delete"
+                && (x.Status == "Pending" || x.Status == "InProgress"))
+            .Select(x => x.EntityId)
+            .ToHashSetAsync(cancellationToken);
+        scanners = scanners
+            .Where(x => !pendingDeleteIds.Contains(x.Id))
+            .ToList();
+        var serverIds = scanners.Select(s => s.Id).ToHashSet();
+        var staleScanners = await _dbContext.Scanners
+            .IgnoreQueryFilters()
+            .Where(s => !s.IsDeleted && !serverIds.Contains(s.Id)
+                && !pendingEntityIds.Contains(s.Id))
+            .ToListAsync(cancellationToken);
+
+        foreach (var staleScanner in staleScanners)
+        {
+            staleScanner.IsDeleted = true;
+        }
 
         foreach (var dto in scanners)
         {
+            if (pendingDeleteIds.Contains(dto.Id))
+            {
+                continue;
+            }
             var existing = await _dbContext.Scanners
                 .IgnoreQueryFilters()
                 .FirstOrDefaultAsync(s => s.Id == dto.Id, cancellationToken);
@@ -63,7 +91,7 @@ public sealed class PosScannerService
         CancellationToken cancellationToken = default)
     {
         var localRequest = request with { Id = request.Id ?? Guid.NewGuid() };
-        var serverSaved = await TryCreateOnServerAsync(localRequest, cancellationToken);
+        var serverSaved = false;
         var scanner = await _localScannerService.CreateAsync(localRequest, cancellationToken);
 
         if (!serverSaved)
@@ -78,7 +106,7 @@ public sealed class PosScannerService
         UpdateScannerRequest request,
         CancellationToken cancellationToken = default)
     {
-        var serverSaved = await TryUpdateOnServerAsync(request, cancellationToken);
+        var serverSaved = false;
         var scanner = await _localScannerService.UpdateAsync(request, cancellationToken);
 
         if (!serverSaved)
@@ -91,7 +119,7 @@ public sealed class PosScannerService
 
     public async Task<bool> DeleteAsync(Guid id, CancellationToken cancellationToken = default)
     {
-        var serverDeleted = await TryDeleteOnServerAsync(id, cancellationToken);
+        var serverDeleted = false;
         var deleted = await _localScannerService.DeleteAsync(id, cancellationToken);
 
         if (deleted && !serverDeleted)
@@ -188,3 +216,4 @@ public sealed class PosScannerService
         }
     }
 }
+

@@ -160,8 +160,16 @@ public static class EquipmentEndpoints
             CancellationToken ct) =>
         {
             if (id != request.Id) return Results.BadRequest();
-            var printer = await printerService.UpdateAsync(request, ct);
-            return Results.Ok(printer);
+
+            try
+            {
+                var printer = await printerService.UpdateAsync(request, ct);
+                return Results.Ok(printer);
+            }
+            catch (KeyNotFoundException)
+            {
+                return Results.NotFound();
+            }
         })
         .WithName("UpdatePrinter")
         .WithOpenApi()

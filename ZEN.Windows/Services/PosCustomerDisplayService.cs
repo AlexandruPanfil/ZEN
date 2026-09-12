@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using ZEN.Application.DTOs.Admin;
 using ZEN.Application.Services.Interfaces;
@@ -32,9 +32,37 @@ public sealed class PosCustomerDisplayService
         CancellationToken cancellationToken = default)
     {
         var displays = (await _apiClient.GetCustomerDisplaysAsync(storeId, cancellationToken)).ToList();
+        var pendingEntityIds = await _dbContext.SyncOutboxItems
+            .Where(x => x.EntityType.StartsWith("CustomerDisplay:")
+                && (x.Status == "Pending" || x.Status == "InProgress"))
+            .Select(x => x.EntityId)
+            .ToHashSetAsync(cancellationToken);
+        var pendingDeleteIds = await _dbContext.SyncOutboxItems
+            .Where(x => x.EntityType == "CustomerDisplay:Delete"
+                && (x.Status == "Pending" || x.Status == "InProgress"))
+            .Select(x => x.EntityId)
+            .ToHashSetAsync(cancellationToken);
+        displays = displays
+            .Where(x => !pendingDeleteIds.Contains(x.Id))
+            .ToList();
+        var serverIds = displays.Select(d => d.Id).ToHashSet();
+        var staleDisplays = await _dbContext.CustomerDisplays
+            .IgnoreQueryFilters()
+            .Where(d => !d.IsDeleted && !serverIds.Contains(d.Id)
+                && !pendingEntityIds.Contains(d.Id))
+            .ToListAsync(cancellationToken);
+
+        foreach (var staleDisplay in staleDisplays)
+        {
+            staleDisplay.IsDeleted = true;
+        }
 
         foreach (var dto in displays)
         {
+            if (pendingDeleteIds.Contains(dto.Id))
+            {
+                continue;
+            }
             var existing = await _dbContext.CustomerDisplays
                 .IgnoreQueryFilters()
                 .FirstOrDefaultAsync(d => d.Id == dto.Id, cancellationToken);
@@ -63,7 +91,7 @@ public sealed class PosCustomerDisplayService
         CancellationToken cancellationToken = default)
     {
         var localRequest = request with { Id = request.Id ?? Guid.NewGuid() };
-        var serverSaved = await TryCreateOnServerAsync(localRequest, cancellationToken);
+        var serverSaved = false;
         var display = await _localService.CreateAsync(localRequest, cancellationToken);
 
         if (!serverSaved)
@@ -78,7 +106,7 @@ public sealed class PosCustomerDisplayService
         UpdateCustomerDisplayRequest request,
         CancellationToken cancellationToken = default)
     {
-        var serverSaved = await TryUpdateOnServerAsync(request, cancellationToken);
+        var serverSaved = false;
         var display = await _localService.UpdateAsync(request, cancellationToken);
 
         if (!serverSaved)
@@ -91,7 +119,7 @@ public sealed class PosCustomerDisplayService
 
     public async Task<bool> DeleteAsync(Guid id, CancellationToken cancellationToken = default)
     {
-        var serverDeleted = await TryDeleteOnServerAsync(id, cancellationToken);
+        var serverDeleted = false;
         var deleted = await _localService.DeleteAsync(id, cancellationToken);
 
         if (deleted && !serverDeleted)
@@ -160,3 +188,4 @@ public sealed class PosCustomerDisplayService
         catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested) { return false; }
     }
 }
+

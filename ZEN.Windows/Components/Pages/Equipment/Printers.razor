@@ -1,4 +1,4 @@
-@page "/equipments/printers"
+﻿@page "/equipments/printers"
 @using ZEN.Windows.Services
 @using ZEN.Application.Services.Interfaces
 @using ZEN.Application.DTOs.Admin
@@ -171,7 +171,7 @@ else
                     }
                 </MudButton>
             }
-            <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="@(() => SavePrinter())" Disabled="@(!_formIsValid)" Size="Size.Small">Save</MudButton>
+            <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="@(() => SavePrinter())" Disabled="@(!_formIsValid || _isSaving)" Size="Size.Small">Save</MudButton>
         </DialogActions>
     </MudDialog>
 
@@ -274,6 +274,7 @@ else
     private bool _isEditMode = false;
     private bool _formIsValid = false;
     private bool _isTestingConnection = false;
+    private bool _isSaving = false;
     private MudForm? _form;
 
     // Configure dialog
@@ -307,7 +308,7 @@ else
 
             try
             {
-                var refreshedPrinters = await PrinterService.RefreshAsync(PosAuthState.StoreId);
+                var refreshedPrinters = await PrinterService.GetCachedAsync();
                 _printers = FilterPrinters(refreshedPrinters);
             }
             catch (HttpRequestException)
@@ -383,8 +384,12 @@ else
         CloseConfigureDialog();
     }
 
-    private async Task SavePrinter(bool closeDialog = true)
+    private async Task SavePrinter(bool closeDialog = true, bool waitForCompletion = false)
     {
+        if (_isSaving)
+        {
+            return;
+        }
         try
         {
             // Validate FiscalCloud fields for Fiscal printers
@@ -395,41 +400,35 @@ else
                 {
                     missingFields.Add("Fiscal Device Type");
                 }
-
                 if (missingFields.Count > 0)
                 {
                     Snackbar.Add($"Fiscal printer requires: {string.Join(", ", missingFields)}.", Severity.Error);
                     return;
                 }
-
-                // Validate FiscalCloud/ISFiscalCloud fields if selected
                 if (_editingPrinter.FiscalDeviceType is "FiscalCloud" or "ISFiscalCloud")
                 {
                     var missingFiscalFields = new List<string>();
                     if (string.IsNullOrWhiteSpace(_editingPrinter.ApiKey)) missingFiscalFields.Add("API Key");
                     if (string.IsNullOrWhiteSpace(_editingPrinter.ApiSecret)) missingFiscalFields.Add("API Secret");
                     if (string.IsNullOrWhiteSpace(_editingPrinter.DeviceId)) missingFiscalFields.Add("Device ID");
-
                     if (missingFiscalFields.Count > 0)
                     {
                         Snackbar.Add($"Fiscal printer ({_editingPrinter.FiscalDeviceType}) requires: {string.Join(", ", missingFiscalFields)}. Get these from your portal.", Severity.Error);
                         return;
                     }
-
-                    // Check for placeholder values
                     var placeholderFields = new List<string>();
                     if (_editingPrinter.ApiKey?.Contains("YOUR_") == true) placeholderFields.Add("API Key");
                     if (_editingPrinter.ApiSecret?.Contains("YOUR_") == true) placeholderFields.Add("API Secret");
                     if (_editingPrinter.DeviceId?.Contains("YOUR_") == true) placeholderFields.Add("Device ID");
                     if (_editingPrinter.PointOfSaleId?.Contains("YOUR_") == true) placeholderFields.Add("Point of Sale ID");
-
                     if (placeholderFields.Count > 0)
                     {
                         Snackbar.Add($"Please replace placeholder values for: {string.Join(", ", placeholderFields)} with actual credentials.", Severity.Warning);
                     }
                 }
             }
-
+            _isSaving = true;
+            Task saveTask;
             if (_isEditMode)
             {
                 var request = new UpdatePrinterRequest(
@@ -444,8 +443,7 @@ else
                     _editingPrinter.DeviceId,
                     _editingPrinter.PointOfSaleId,
                     _editingPrinter.FiscalCloudBaseUrl);
-                await PrinterService.UpdateAsync(request);
-                Snackbar.Add("Printer updated successfully.", Severity.Success);
+                saveTask = PersistUpdateAsync(request);
             }
             else
             {
@@ -460,31 +458,66 @@ else
                     _editingPrinter.DeviceId,
                     _editingPrinter.PointOfSaleId,
                     _editingPrinter.FiscalCloudBaseUrl);
-                var created = await PrinterService.CreateAsync(request);
-                // Keep editing the newly created printer so subsequent actions (e.g. test) target it
-                _editingPrinter.Id = created.Id;
-                _isEditMode = true;
-                Snackbar.Add("Printer created successfully.", Severity.Success);
+                saveTask = PersistCreateAsync(request);
             }
-            await LoadPrinters();
             if (closeDialog)
             {
                 CloseDialog();
             }
+            if (waitForCompletion)
+            {
+                await saveTask;
+            }
+        }
+        catch (Exception ex)
+        {
+            _isSaving = false;
+            Snackbar.Add($"Error saving printer: {ex.Message}", Severity.Error);
+        }
+    }
+    private async Task PersistCreateAsync(CreatePrinterRequest request)
+    {
+        try
+        {
+            await PrinterService.CreateAsync(request);
+            Snackbar.Add("Printer created successfully.", Severity.Success);
+            await LoadPrinters();
         }
         catch (Exception ex)
         {
             Snackbar.Add($"Error saving printer: {ex.Message}", Severity.Error);
         }
+        finally
+        {
+            _isSaving = false;
+            await InvokeAsync(StateHasChanged);
+        }
     }
-
+    private async Task PersistUpdateAsync(UpdatePrinterRequest request)
+    {
+        try
+        {
+            await PrinterService.UpdateAsync(request);
+            Snackbar.Add("Printer updated successfully.", Severity.Success);
+            await LoadPrinters();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error saving printer: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isSaving = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
     private async Task TestFiscalCloudConnection()
     {
         _isTestingConnection = true;
         try
         {
             // First, save the current changes so we test what the user just entered
-            await SavePrinter(closeDialog: false);
+            await SavePrinter(closeDialog: false, waitForCompletion: true);
 
             if (string.IsNullOrWhiteSpace(_editingPrinter.ApiKey) ||
                 string.IsNullOrWhiteSpace(_editingPrinter.ApiSecret) ||

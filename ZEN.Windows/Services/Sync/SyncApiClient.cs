@@ -56,6 +56,10 @@ public class SyncApiClient
 
     public bool IsApiAvailable { get; private set; } = false;
 
+    public bool HasBearerToken =>
+        string.Equals(_httpClient.DefaultRequestHeaders.Authorization?.Scheme, "Bearer", StringComparison.OrdinalIgnoreCase)
+        && !string.IsNullOrWhiteSpace(_httpClient.DefaultRequestHeaders.Authorization?.Parameter);
+
     public async Task<ProductsDeltaResponse?> GetProductsDeltaAsync(DateTime? sinceUtc, CancellationToken cancellationToken)
     {
         var sincePart = sinceUtc.HasValue
@@ -108,6 +112,14 @@ public class SyncApiClient
         CancellationToken cancellationToken = default)
     {
         using var response = await _httpClient.PutAsJsonAsync($"api/equipments/printers/{request.Id}", request, cancellationToken);
+        if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+        {
+            throw new HttpRequestException(
+                $"Printer with ID {request.Id} was not found on the server.",
+                null,
+                response.StatusCode);
+        }
+
         return response.IsSuccessStatusCode
             ? await response.Content.ReadFromJsonAsync<PrinterDto>(cancellationToken)
             : null;

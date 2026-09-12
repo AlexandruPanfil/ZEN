@@ -7,6 +7,7 @@ using ZEN.Application.DTOs.Sync;
 using ZEN.Application.Services.Interfaces;
 using ZEN.Domain.Entities;
 using ZEN.Infrastructure.Persistence;
+using ZEN.Windows.Services;
 
 namespace ZEN.Windows.Services.Sync;
 
@@ -15,13 +16,40 @@ public class PosSyncService : IPosSyncService
     private readonly ZenDbContext _dbContext;
     private readonly SyncApiClient _syncApiClient;
     private readonly ILogger<PosSyncService> _logger;
+    private readonly PosPrinterService _printerService;
+    private readonly PosScannerService _scannerService;
+    private readonly PosCustomerDisplayService _customerDisplayService;
+    private readonly PosCashDeskService _cashDeskService;
+    private readonly PosPaymentTerminalService _paymentTerminalService;
+    private readonly PosStoreService _storeService;
+    private readonly PosMenuService _menuService;
+    private readonly PosAuthState _authState;
     private readonly SemaphoreSlim _syncLock = new(1, 1);
 
-    public PosSyncService(ZenDbContext dbContext, SyncApiClient syncApiClient, ILogger<PosSyncService> logger)
+    public PosSyncService(
+        ZenDbContext dbContext,
+        SyncApiClient syncApiClient,
+        ILogger<PosSyncService> logger,
+        PosPrinterService printerService,
+        PosScannerService scannerService,
+        PosCustomerDisplayService customerDisplayService,
+        PosCashDeskService cashDeskService,
+        PosPaymentTerminalService paymentTerminalService,
+        PosStoreService storeService,
+        PosMenuService menuService,
+        PosAuthState authState)
     {
         _dbContext = dbContext;
         _syncApiClient = syncApiClient;
         _logger = logger;
+        _printerService = printerService;
+        _scannerService = scannerService;
+        _customerDisplayService = customerDisplayService;
+        _cashDeskService = cashDeskService;
+        _paymentTerminalService = paymentTerminalService;
+        _storeService = storeService;
+        _menuService = menuService;
+        _authState = authState;
     }
 
     public async Task RunSyncAsync(CancellationToken cancellationToken = default)
@@ -36,6 +64,21 @@ public class PosSyncService : IPosSyncService
         {
             var syncState = await GetOrCreateSyncStateAsync(cancellationToken);
 
+            if (!_syncApiClient.HasBearerToken)
+            {
+                syncState.LastError = "Synchronization is waiting for a server login token.";
+                await _dbContext.SaveChangesAsync(cancellationToken);
+                _logger.LogInformation("POS sync skipped because no server bearer token is available. Local changes remain queued.");
+                return;
+            }
+
+            await RecoverStaleOutboxItemsAsync(cancellationToken);
+            var pendingCount = await _dbContext.SyncOutboxItems
+                .CountAsync(x => x.Status == "Pending", cancellationToken);
+            _logger.LogInformation("POS sync started with {PendingCount} pending outbox item(s) for {User}.",
+                pendingCount,
+                _authState.UserName ?? "unknown user");
+
             await PushPendingPaymentsAsync(syncState, cancellationToken);
             await PushPendingPrintersAsync(cancellationToken);
             await PushPendingScannersAsync(cancellationToken);
@@ -44,6 +87,7 @@ public class PosSyncService : IPosSyncService
             await PushPendingPaymentTerminalsAsync(cancellationToken);
             await PushPendingStoresAsync(cancellationToken);
             await PushPendingMenusAsync(cancellationToken);
+            await PullEquipmentAsync(cancellationToken);
             await PullProductsAsync(syncState, cancellationToken);
 
             syncState.LastSuccessfulSyncUtc = DateTime.UtcNow;
@@ -62,6 +106,29 @@ public class PosSyncService : IPosSyncService
         {
             _syncLock.Release();
         }
+    }
+
+    private async Task RecoverStaleOutboxItemsAsync(CancellationToken cancellationToken)
+    {
+        var cutoffUtc = DateTime.UtcNow.Subtract(TimeSpan.FromMinutes(10));
+        var staleItems = await _dbContext.SyncOutboxItems
+            .Where(x => x.Status == "InProgress"
+                && (!x.LastAttemptUtc.HasValue || x.LastAttemptUtc.Value < cutoffUtc))
+            .ToListAsync(cancellationToken);
+
+        if (staleItems.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var item in staleItems)
+        {
+            item.Status = "Pending";
+            item.Error = "Recovered after an interrupted synchronization attempt.";
+        }
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+        _logger.LogWarning("Recovered {Count} stale outbox item(s) left InProgress.", staleItems.Count);
     }
 
     private async Task PushPendingPrintersAsync(CancellationToken cancellationToken)
@@ -90,7 +157,15 @@ public class PosSyncService : IPosSyncService
                 };
 
                 outbox.Status = succeeded ? "Synced" : "Pending";
+                outbox.SyncedAtUtc = succeeded ? DateTime.UtcNow : null;
                 outbox.Error = succeeded ? null : "Server rejected printer synchronization.";
+            }
+            catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
+            {
+                outbox.Status = "Failed";
+                outbox.SyncedAtUtc = null;
+                outbox.Error = ex.Message;
+                _logger.LogWarning("Printer synchronization was not applied because printer {PrinterId} does not exist on the server.", outbox.EntityId);
             }
             catch (HttpRequestException ex)
             {
@@ -151,6 +226,7 @@ public class PosSyncService : IPosSyncService
                 };
 
                 outbox.Status = succeeded ? "Synced" : "Pending";
+                outbox.SyncedAtUtc = succeeded ? DateTime.UtcNow : null;
                 outbox.Error = succeeded ? null : "Server rejected scanner synchronization.";
             }
             catch (HttpRequestException ex)
@@ -212,6 +288,7 @@ public class PosSyncService : IPosSyncService
                 };
 
                 outbox.Status = succeeded ? "Synced" : "Pending";
+                outbox.SyncedAtUtc = succeeded ? DateTime.UtcNow : null;
                 outbox.Error = succeeded ? null : "Server rejected customer display synchronization.";
             }
             catch (HttpRequestException ex)
@@ -269,6 +346,7 @@ public class PosSyncService : IPosSyncService
                 };
 
                 outbox.Status = succeeded ? "Synced" : "Pending";
+                outbox.SyncedAtUtc = succeeded ? DateTime.UtcNow : null;
                 outbox.Error = succeeded ? null : "Server rejected cash desk synchronization.";
             }
             catch (HttpRequestException ex)
@@ -330,6 +408,7 @@ public class PosSyncService : IPosSyncService
                 };
 
                 outbox.Status = succeeded ? "Synced" : "Pending";
+                outbox.SyncedAtUtc = succeeded ? DateTime.UtcNow : null;
                 outbox.Error = succeeded ? null : "Server rejected payment terminal synchronization.";
             }
             catch (HttpRequestException ex)
@@ -391,6 +470,7 @@ public class PosSyncService : IPosSyncService
                 };
 
                 outbox.Status = succeeded ? "Synced" : "Pending";
+                outbox.SyncedAtUtc = succeeded ? DateTime.UtcNow : null;
                 outbox.Error = succeeded ? null : "Server rejected store synchronization.";
             }
             catch (HttpRequestException ex)
@@ -452,6 +532,7 @@ public class PosSyncService : IPosSyncService
                 };
 
                 outbox.Status = succeeded ? "Synced" : "Pending";
+                outbox.SyncedAtUtc = succeeded ? DateTime.UtcNow : null;
                 outbox.Error = succeeded ? null : "Server rejected menu synchronization.";
             }
             catch (HttpRequestException ex)
@@ -554,6 +635,7 @@ public class PosSyncService : IPosSyncService
             if (result.Status is "Accepted" or "Duplicate")
             {
                 outbox.Status = "Synced";
+                outbox.SyncedAtUtc = DateTime.UtcNow;
                 outbox.Error = null;
             }
             else
@@ -564,6 +646,36 @@ public class PosSyncService : IPosSyncService
         }
 
         await _dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    private async Task PullEquipmentAsync(CancellationToken cancellationToken)
+    {
+        var pulls = new (string Name, Func<Task> Pull)[]
+        {
+            ("printers", async () => { await _printerService.RefreshAsync(null, cancellationToken); }),
+            ("scanners", async () => { await _scannerService.RefreshAsync(null, cancellationToken); }),
+            ("customer displays", async () => { await _customerDisplayService.RefreshAsync(null, cancellationToken); }),
+            ("cash desks", async () => { await _cashDeskService.RefreshAsync(null, cancellationToken); }),
+            ("payment terminals", async () => { await _paymentTerminalService.RefreshAsync(cancellationToken); }),
+            ("stores", async () => { await _storeService.RefreshAsync(cancellationToken); }),
+            ("menus", async () => { await _menuService.RefreshAsync(cancellationToken); })
+        };
+
+        foreach (var (name, pull) in pulls)
+        {
+            try
+            {
+                await pull();
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to pull {EquipmentType}; continuing with other synchronization work.", name);
+            }
+        }
     }
 
     private async Task PullProductsAsync(SyncState syncState, CancellationToken cancellationToken)

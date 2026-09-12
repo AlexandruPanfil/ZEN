@@ -1,4 +1,4 @@
-@page "/equipments/customer-displays"
+﻿@page "/equipments/customer-displays"
 @using ZEN.Windows.Services
 @using ZEN.Application.Services.Interfaces
 @using ZEN.Application.DTOs.Admin
@@ -167,7 +167,7 @@ else
 
             try
             {
-                var refreshedDisplays = await CustomerDisplayService.RefreshAsync(PosAuthState.StoreId);
+                var refreshedDisplays = await CustomerDisplayService.GetCachedAsync();
                 _displays = FilterDisplays(refreshedDisplays);
             }
             catch (HttpRequestException)

@@ -28,9 +28,9 @@ public sealed class PosAuthState
         IsAuthenticated = true;
         UserName = userName;
         Role = role;
-        Token = token;
-        StoreId = storeId;
-        CashDeskId = cashDeskId;
+        Token = token ?? Token;
+        StoreId = storeId ?? StoreId;
+        CashDeskId = cashDeskId ?? CashDeskId;
         ShiftId = null; // Reset shift on new login
         Changed?.Invoke();
     }

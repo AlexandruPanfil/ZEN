@@ -1,17 +1,21 @@
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace ZEN.Windows.Services.Sync;
 
 public sealed class PosSyncBackgroundWorker
 {
-    private readonly IPosSyncService _syncService;
+    private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<PosSyncBackgroundWorker> _logger;
     private CancellationTokenSource? _cts;
     private Task? _runTask;
+    private int _syncRequested;
 
-    public PosSyncBackgroundWorker(IPosSyncService syncService, ILogger<PosSyncBackgroundWorker> logger)
+    public PosSyncBackgroundWorker(
+        IServiceScopeFactory scopeFactory,
+        ILogger<PosSyncBackgroundWorker> logger)
     {
-        _syncService = syncService;
+        _scopeFactory = scopeFactory;
         _logger = logger;
     }
 
@@ -24,27 +28,78 @@ public sealed class PosSyncBackgroundWorker
 
         _cts = new CancellationTokenSource();
         _runTask = Task.Run(() => RunAsync(_cts.Token), _cts.Token);
+        _logger.LogInformation("POS background sync worker started; first run scheduled in 10 seconds, then every 10 seconds.");
     }
 
-private async Task RunAsync(CancellationToken cancellationToken)
-        {
-            try
-            {
-                await Task.Delay(TimeSpan.FromSeconds(30), cancellationToken);
+    public void RequestSync()
+    {
+        Interlocked.Exchange(ref _syncRequested, 1);
+        _logger.LogDebug("POS synchronization requested; the next scheduled run will process the outbox.");
+    }
 
-                while (!cancellationToken.IsCancellationRequested)
+    public async Task StopAsync()
+    {
+        if (_cts is null || _runTask is null)
+        {
+            return;
+        }
+
+        _cts.Cancel();
+        try
+        {
+            await _runTask;
+        }
+        catch (OperationCanceledException)
+        {
+            // normal shutdown
+        }
+        finally
+        {
+            _cts.Dispose();
+            _cts = null;
+            _runTask = null;
+        }
+        }
+
+    private async Task RunAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await Task.Delay(TimeSpan.FromSeconds(10), cancellationToken);
+
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                try
                 {
-                    await _syncService.RunSyncAsync(cancellationToken);
-                    await Task.Delay(TimeSpan.FromMinutes(5), cancellationToken);
+                    using var scope = _scopeFactory.CreateScope();
+                    var syncService = scope.ServiceProvider.GetRequiredService<IPosSyncService>();
+                    await syncService.RunSyncAsync(cancellationToken);
                 }
-            }
-            catch (OperationCanceledException)
-            {
-                // normal shutdown
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "POS background sync worker crashed.");
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "POS synchronization iteration failed; the worker will retry.");
+                }
+
+                if (Interlocked.Exchange(ref _syncRequested, 0) == 1)
+                {
+                    continue;
+                }
+
+                await Task.Delay(TimeSpan.FromSeconds(10), cancellationToken);
             }
         }
+        catch (OperationCanceledException)
+        {
+            // normal shutdown
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "POS background sync worker crashed.");
+        }
+    }
+
 }

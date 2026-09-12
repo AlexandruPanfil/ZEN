@@ -2565,6 +2565,9 @@ namespace ZEN.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<long?>("BaseVersion")
+                        .HasColumnType("bigint");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
@@ -2580,7 +2583,7 @@ namespace ZEN.Infrastructure.Migrations
 
                     b.Property<string>("IdempotencyKey")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasColumnType("nvarchar(450)");
 
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
@@ -2599,10 +2602,16 @@ namespace ZEN.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<DateTime?>("SyncedAtUtc")
+                        .HasColumnType("datetime2");
+
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("datetime2");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("IdempotencyKey")
+                        .IsUnique();
 
                     b.ToTable("SyncOutboxItems");
                 });
@@ -2619,19 +2628,37 @@ namespace ZEN.Infrastructure.Migrations
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
 
+                    b.Property<DateTime?>("LastEquipmentSyncUtc")
+                        .HasColumnType("datetime2");
+
                     b.Property<string>("LastError")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<DateTime?>("LastInventorySyncUtc")
+                        .HasColumnType("datetime2");
+
                     b.Property<DateTime?>("LastProductsSyncUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("LastSalesSyncUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("LastShiftsSyncUtc")
                         .HasColumnType("datetime2");
 
                     b.Property<DateTime?>("LastSuccessfulSyncUtc")
                         .HasColumnType("datetime2");
 
+                    b.Property<string>("PullCursor")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("datetime2");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("Id")
+                        .IsUnique();
 
                     b.ToTable("SyncStates");
                 });

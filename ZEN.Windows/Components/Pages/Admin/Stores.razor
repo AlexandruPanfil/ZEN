@@ -1,4 +1,4 @@
-@page "/admin/stores"
+﻿@page "/admin/stores"
 @using ZEN.Application.DTOs.Admin
 @using ZEN.Windows.Services
 @using MudBlazor
@@ -141,7 +141,7 @@ else
             _stores = await StoreService.GetCachedAsync();
             try
             {
-                _stores = await StoreService.RefreshAsync();
+                _stores = await StoreService.GetCachedAsync();
             }
             catch (HttpRequestException)
             {
@@ -269,3 +269,4 @@ else
         public bool IsActive { get; set; } = true;
     }
 }
+

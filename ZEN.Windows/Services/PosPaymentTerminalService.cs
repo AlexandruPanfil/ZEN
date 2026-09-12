@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using ZEN.Application.DTOs.Admin;
 using ZEN.Application.Services.Interfaces;
@@ -32,9 +32,37 @@ public sealed class PosPaymentTerminalService
         CancellationToken cancellationToken = default)
     {
         var terminals = (await _apiClient.GetPaymentTerminalsAsync(cancellationToken: cancellationToken)).ToList();
+        var pendingEntityIds = await _dbContext.SyncOutboxItems
+            .Where(x => x.EntityType.StartsWith("PaymentTerminal:")
+                && (x.Status == "Pending" || x.Status == "InProgress"))
+            .Select(x => x.EntityId)
+            .ToHashSetAsync(cancellationToken);
+        var pendingDeleteIds = await _dbContext.SyncOutboxItems
+            .Where(x => x.EntityType == "PaymentTerminal:Delete"
+                && (x.Status == "Pending" || x.Status == "InProgress"))
+            .Select(x => x.EntityId)
+            .ToHashSetAsync(cancellationToken);
+        terminals = terminals
+            .Where(x => !pendingDeleteIds.Contains(x.Id))
+            .ToList();
+        var serverIds = terminals.Select(t => t.Id).ToHashSet();
+        var staleTerminals = await _dbContext.PaymentTerminals
+            .IgnoreQueryFilters()
+            .Where(t => !t.IsDeleted && !serverIds.Contains(t.Id)
+                && !pendingEntityIds.Contains(t.Id))
+            .ToListAsync(cancellationToken);
+
+        foreach (var staleTerminal in staleTerminals)
+        {
+            staleTerminal.IsDeleted = true;
+        }
 
         foreach (var dto in terminals)
         {
+            if (pendingDeleteIds.Contains(dto.Id))
+            {
+                continue;
+            }
             var existing = await _dbContext.PaymentTerminals
                 .IgnoreQueryFilters()
                 .FirstOrDefaultAsync(t => t.Id == dto.Id, cancellationToken);
@@ -64,7 +92,7 @@ public sealed class PosPaymentTerminalService
         CancellationToken cancellationToken = default)
     {
         var localRequest = request with { Id = request.Id ?? Guid.NewGuid() };
-        var serverSaved = await TryCreateOnServerAsync(localRequest, cancellationToken);
+        var serverSaved = false;
         var terminal = await _localService.CreateAsync(localRequest, cancellationToken);
 
         if (!serverSaved)
@@ -79,7 +107,7 @@ public sealed class PosPaymentTerminalService
         UpdatePaymentTerminalRequest request,
         CancellationToken cancellationToken = default)
     {
-        var serverSaved = await TryUpdateOnServerAsync(request, cancellationToken);
+        var serverSaved = false;
         var terminal = await _localService.UpdateAsync(request, cancellationToken);
 
         if (!serverSaved)
@@ -94,7 +122,7 @@ public sealed class PosPaymentTerminalService
         Guid id,
         CancellationToken cancellationToken = default)
     {
-        var serverDeleted = await TryDeleteOnServerAsync(id, cancellationToken);
+        var serverDeleted = false;
         var deleted = await _localService.DeleteAsync(id, cancellationToken);
 
         if (deleted && !serverDeleted)
@@ -191,3 +219,4 @@ public sealed class PosPaymentTerminalService
         }
     }
 }
+

@@ -1,4 +1,4 @@
-@page "/equipments/scanners"
+﻿@page "/equipments/scanners"
 @using ZEN.Windows.Services
 @using ZEN.Application.Services.Interfaces
 @using ZEN.Application.DTOs.Admin
@@ -173,7 +173,7 @@ else
 
             try
             {
-                var refreshedScanners = await ScannerService.RefreshAsync(PosAuthState.StoreId);
+                var refreshedScanners = await ScannerService.GetCachedAsync();
                 _scanners = FilterScanners(refreshedScanners);
             }
             catch (HttpRequestException)

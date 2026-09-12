@@ -78,6 +78,11 @@ public static class DatabaseInitializer
                 "LastProductsSyncUtc" TEXT NULL,
                 "LastSuccessfulSyncUtc" TEXT NULL,
                 "LastError" TEXT NULL,
+                "LastSalesSyncUtc" TEXT NULL,
+                "LastShiftsSyncUtc" TEXT NULL,
+                "LastInventorySyncUtc" TEXT NULL,
+                "LastEquipmentSyncUtc" TEXT NULL,
+                "PullCursor" TEXT NULL,
                 "CreatedAt" TEXT NOT NULL,
                 "UpdatedAt" TEXT NOT NULL,
                 "IsDeleted" INTEGER NOT NULL
@@ -91,6 +96,8 @@ public static class DatabaseInitializer
                 "Status" TEXT NOT NULL,
                 "RetryCount" INTEGER NOT NULL,
                 "LastAttemptUtc" TEXT NULL,
+                "SyncedAtUtc" TEXT NULL,
+                "BaseVersion" INTEGER NULL,
                 "Error" TEXT NULL,
                 "CreatedAt" TEXT NOT NULL,
                 "UpdatedAt" TEXT NOT NULL,
@@ -113,7 +120,49 @@ public static class DatabaseInitializer
         }
 
         await command.ExecuteNonQueryAsync();
+        await EnsureColumnAsync(dbContext, "SyncOutboxItems", "SyncedAtUtc", "TEXT", logger);
+        await EnsureColumnAsync(dbContext, "SyncOutboxItems", "BaseVersion", "INTEGER", logger);
+        await EnsureColumnAsync(dbContext, "SyncStates", "LastSalesSyncUtc", "TEXT", logger);
+        await EnsureColumnAsync(dbContext, "SyncStates", "LastShiftsSyncUtc", "TEXT", logger);
+        await EnsureColumnAsync(dbContext, "SyncStates", "LastInventorySyncUtc", "TEXT", logger);
+        await EnsureColumnAsync(dbContext, "SyncStates", "LastEquipmentSyncUtc", "TEXT", logger);
+        await EnsureColumnAsync(dbContext, "SyncStates", "PullCursor", "TEXT", logger);
         logger.LogInformation("Verified local synchronization tables.");
+    }
+
+    private static async Task EnsureColumnAsync(
+        ZenDbContext dbContext,
+        string tableName,
+        string columnName,
+        string sqliteType,
+        ILogger logger)
+    {
+        var connection = dbContext.Database.GetDbConnection();
+        await using var checkCommand = connection.CreateCommand();
+        checkCommand.CommandText = $"PRAGMA table_info(\"{tableName}\");";
+
+        var exists = false;
+        await using (var reader = await checkCommand.ExecuteReaderAsync())
+        {
+            while (await reader.ReadAsync())
+            {
+                if (string.Equals(reader.GetString(1), columnName, StringComparison.OrdinalIgnoreCase))
+                {
+                    exists = true;
+                    break;
+                }
+            }
+        }
+
+        if (exists)
+        {
+            return;
+        }
+
+        await using var alterCommand = connection.CreateCommand();
+        alterCommand.CommandText = $"ALTER TABLE \"{tableName}\" ADD COLUMN \"{columnName}\" {sqliteType} NULL;";
+        await alterCommand.ExecuteNonQueryAsync();
+        logger.LogInformation("Added missing local database column {Table}.{Column}.", tableName, columnName);
     }
 
     private static async Task EnsureScannerTableAsync(ZenDbContext dbContext, ILogger logger)

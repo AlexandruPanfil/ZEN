@@ -100,6 +100,14 @@ public class ZenDbContext : IdentityDbContext<AppUser, AppRole, string>
 
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(ZenDbContext).Assembly);
 
+        modelBuilder.Entity<SyncOutboxItem>()
+            .HasIndex(x => x.IdempotencyKey)
+            .IsUnique();
+
+        modelBuilder.Entity<SyncState>()
+            .HasIndex(x => x.Id)
+            .IsUnique();
+
         ConfigureDefaultDecimalPrecision(modelBuilder);
 
         // Global query filter for soft delete
@@ -163,4 +171,3 @@ public class ZenDbContext : IdentityDbContext<AppUser, AppRole, string>
         }
     }
 }
-

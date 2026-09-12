@@ -1,4 +1,4 @@
-@page "/manager/equipments/terminals"
+﻿@page "/manager/equipments/terminals"
 @using ZEN.Application.DTOs.Admin
 @using ZEN.Windows.Services
 @using MudBlazor
@@ -192,7 +192,7 @@ else
 
             try
             {
-                var refreshed = await PosTerminalService.RefreshAsync();
+                var refreshed = await PosTerminalService.GetCachedAsync();
                 _terminals = refreshed.ToList();
             }
             catch (HttpRequestException)

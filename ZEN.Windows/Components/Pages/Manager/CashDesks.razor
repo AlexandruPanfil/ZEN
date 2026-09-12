@@ -1,4 +1,4 @@
-@page "/manager/equipments/cash-desks"
+﻿@page "/manager/equipments/cash-desks"
 @using ZEN.Windows.Services
 @using ZEN.Application.Services.Interfaces
 @using ZEN.Application.DTOs.Admin
@@ -236,7 +236,7 @@ else
             _stores = (await PosStoreService.GetCachedAsync()).Where(s => s.IsActive).ToList();
             try
             {
-                _stores = (await PosStoreService.RefreshAsync()).Where(s => s.IsActive).ToList();
+                _stores = (await PosStoreService.GetCachedAsync()).Where(s => s.IsActive).ToList();
             }
             catch (HttpRequestException)
             {
@@ -252,7 +252,7 @@ else
             _menus = await PosMenuService.GetCachedAsync();
             try
             {
-                _menus = await PosMenuService.RefreshAsync();
+                _menus = await PosMenuService.GetCachedAsync();
             }
             catch (HttpRequestException)
             {
@@ -279,7 +279,7 @@ else
         _terminals = (await PosTerminalService.GetCachedAsync()).ToList();
         try
         {
-            _terminals = (await PosTerminalService.RefreshAsync()).ToList();
+            _terminals = (await PosTerminalService.GetCachedAsync()).ToList();
         }
         catch (HttpRequestException)
         {
@@ -316,7 +316,7 @@ else
 
             try
             {
-                var refreshedCashDesks = await PosCashDeskService.RefreshAsync(PosAuthState.StoreId);
+                var refreshedCashDesks = await PosCashDeskService.GetCachedAsync(PosAuthState.StoreId);
                 ApplyCashDesks(refreshedCashDesks);
             }
             catch (HttpRequestException)

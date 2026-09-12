@@ -32,9 +32,40 @@ public sealed class PosPrinterService
         CancellationToken cancellationToken = default)
     {
         var printers = (await _apiClient.GetPrintersAsync(storeId, cancellationToken)).ToList();
+        var pendingEntityIds = await _dbContext.SyncOutboxItems
+            .Where(x => x.EntityType.StartsWith("Printer:")
+                && (x.Status == "Pending" || x.Status == "InProgress"))
+            .Select(x => x.EntityId)
+            .ToHashSetAsync(cancellationToken);
+        var pendingDeleteIds = await _dbContext.SyncOutboxItems
+            .Where(x => x.EntityType == "Printer:Delete"
+                && (x.Status == "Pending" || x.Status == "InProgress"))
+            .Select(x => x.EntityId)
+            .ToHashSetAsync(cancellationToken);
+
+        printers = printers
+            .Where(x => !pendingDeleteIds.Contains(x.Id))
+            .ToList();
+        var serverIds = printers.Select(p => p.Id).ToHashSet();
+        var stalePrinters = await _dbContext.Printers
+            .IgnoreQueryFilters()
+            .Where(p => !p.IsDeleted
+                && !serverIds.Contains(p.Id)
+                && !pendingEntityIds.Contains(p.Id))
+            .ToListAsync(cancellationToken);
+
+        foreach (var stalePrinter in stalePrinters)
+        {
+            stalePrinter.IsDeleted = true;
+        }
 
         foreach (var dto in printers)
         {
+            if (pendingDeleteIds.Contains(dto.Id))
+            {
+                continue;
+            }
+
             var existing = await _dbContext.Printers
                 .IgnoreQueryFilters()
                 .FirstOrDefaultAsync(p => p.Id == dto.Id, cancellationToken);
@@ -69,8 +100,8 @@ public sealed class PosPrinterService
         CancellationToken cancellationToken = default)
     {
         var localRequest = request with { Id = request.Id ?? Guid.NewGuid() };
-        var serverSaved = await TryCreateOnServerAsync(localRequest, cancellationToken);
         var printer = await _localPrinterService.CreateAsync(localRequest, cancellationToken);
+        var serverSaved = await TryCreateOnServerAsync(localRequest, cancellationToken);
         if (!serverSaved)
         {
             await QueueAsync("Create", printer.Id, localRequest, cancellationToken);
@@ -83,8 +114,8 @@ public sealed class PosPrinterService
         UpdatePrinterRequest request,
         CancellationToken cancellationToken = default)
     {
-        var serverSaved = await TryUpdateOnServerAsync(request, cancellationToken);
         var printer = await _localPrinterService.UpdateAsync(request, cancellationToken);
+        var serverSaved = await TryUpdateOnServerAsync(request, cancellationToken);
         if (!serverSaved)
         {
             await QueueAsync("Update", printer.Id, request, cancellationToken);
@@ -95,8 +126,8 @@ public sealed class PosPrinterService
 
     public async Task<bool> DeleteAsync(Guid id, CancellationToken cancellationToken = default)
     {
-        var serverDeleted = await TryDeleteOnServerAsync(id, cancellationToken);
         var deleted = await _localPrinterService.DeleteAsync(id, cancellationToken);
+        var serverDeleted = deleted && await TryDeleteOnServerAsync(id, cancellationToken);
         if (deleted && !serverDeleted)
         {
             await QueueAsync("Delete", id, new { Id = id }, cancellationToken);
@@ -189,3 +220,4 @@ public sealed class PosPrinterService
         }
     }
 }
+
