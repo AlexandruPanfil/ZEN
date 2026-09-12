@@ -1,4 +1,4 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using ZEN.Application.DTOs.Admin;
 using ZEN.Application.Services.Interfaces;
@@ -45,21 +45,9 @@ public sealed class PosCustomerDisplayService
         displays = displays
             .Where(x => !pendingDeleteIds.Contains(x.Id))
             .ToList();
-        var serverIds = displays.Select(d => d.Id).ToHashSet();
-        var staleDisplays = await _dbContext.CustomerDisplays
-            .IgnoreQueryFilters()
-            .Where(d => !d.IsDeleted && !serverIds.Contains(d.Id)
-                && !pendingEntityIds.Contains(d.Id))
-            .ToListAsync(cancellationToken);
-
-        foreach (var staleDisplay in staleDisplays)
-        {
-            staleDisplay.IsDeleted = true;
-        }
-
         foreach (var dto in displays)
         {
-            if (pendingDeleteIds.Contains(dto.Id))
+            if (pendingEntityIds.Contains(dto.Id))
             {
                 continue;
             }
@@ -79,10 +67,11 @@ public sealed class PosCustomerDisplayService
             existing.Size = dto.Size;
             existing.CashDeskId = dto.CashDeskId;
             existing.IsActive = dto.IsActive;
-            existing.IsDeleted = false;
+            existing.Version = dto.Version;
+            existing.IsDeleted = dto.IsDeleted;
         }
 
-        await _dbContext.SaveChangesAsync(cancellationToken);
+        await _dbContext.SaveServerSynchronizationAsync(cancellationToken);
         return displays;
     }
 
@@ -91,8 +80,8 @@ public sealed class PosCustomerDisplayService
         CancellationToken cancellationToken = default)
     {
         var localRequest = request with { Id = request.Id ?? Guid.NewGuid() };
-        var serverSaved = false;
         var display = await _localService.CreateAsync(localRequest, cancellationToken);
+        var serverSaved = await TryCreateOnServerAsync(localRequest, cancellationToken);
 
         if (!serverSaved)
         {
@@ -106,12 +95,18 @@ public sealed class PosCustomerDisplayService
         UpdateCustomerDisplayRequest request,
         CancellationToken cancellationToken = default)
     {
-        var serverSaved = false;
-        var display = await _localService.UpdateAsync(request, cancellationToken);
+        var baseVersion = await _dbContext.CustomerDisplays
+            .IgnoreQueryFilters()
+            .Where(x => x.Id == request.Id)
+            .Select(x => (long?)x.Version)
+            .FirstOrDefaultAsync(cancellationToken) ?? 0;
+        var localRequest = request with { BaseVersion = baseVersion };
+        var display = await _localService.UpdateAsync(localRequest, cancellationToken);
+        var serverSaved = await TryUpdateOnServerAsync(localRequest, cancellationToken);
 
         if (!serverSaved)
         {
-            await QueueAsync("Update", display.Id, request, cancellationToken);
+            await QueueAsync("Update", display.Id, localRequest, cancellationToken, baseVersion);
         }
 
         return display;
@@ -119,18 +114,23 @@ public sealed class PosCustomerDisplayService
 
     public async Task<bool> DeleteAsync(Guid id, CancellationToken cancellationToken = default)
     {
-        var serverDeleted = false;
+        var baseVersion = await _dbContext.CustomerDisplays
+            .IgnoreQueryFilters()
+            .Where(x => x.Id == id)
+            .Select(x => (long?)x.Version)
+            .FirstOrDefaultAsync(cancellationToken) ?? 0;
         var deleted = await _localService.DeleteAsync(id, cancellationToken);
+        var serverDeleted = deleted && await TryDeleteOnServerAsync(id, baseVersion, cancellationToken);
 
         if (deleted && !serverDeleted)
         {
-            await QueueAsync("Delete", id, new { Id = id }, cancellationToken);
+            await QueueAsync("Delete", id, new { Id = id }, cancellationToken, baseVersion);
         }
 
         return deleted;
     }
 
-    private async Task QueueAsync(string operation, Guid entityId, object payload, CancellationToken cancellationToken)
+    private async Task QueueAsync(string operation, Guid entityId, object payload, CancellationToken cancellationToken, long baseVersion = 0)
     {
         var idempotencyKey = $"customer-display:{entityId}:{operation}";
         var existing = await _dbContext.SyncOutboxItems
@@ -138,9 +138,16 @@ public sealed class PosCustomerDisplayService
                 x => x.IdempotencyKey == idempotencyKey && x.Status != "Failed",
                 cancellationToken);
 
+        if (existing?.Status == "Conflict")
+        {
+            idempotencyKey = $"{idempotencyKey}:{Guid.NewGuid():N}";
+            existing = null;
+        }
+
         if (existing is not null)
         {
             existing.PayloadJson = JsonSerializer.Serialize(payload);
+            existing.BaseVersion = existing.BaseVersion == 0 ? baseVersion : existing.BaseVersion;
             existing.Status = "Pending";
             existing.Error = null;
             await _dbContext.SaveChangesAsync(cancellationToken);
@@ -153,7 +160,8 @@ public sealed class PosCustomerDisplayService
             EntityId = entityId,
             PayloadJson = JsonSerializer.Serialize(payload),
             IdempotencyKey = idempotencyKey,
-            Status = "Pending"
+            Status = "Pending",
+            BaseVersion = baseVersion
         }, cancellationToken);
         await _dbContext.SaveChangesAsync(cancellationToken);
     }
@@ -178,14 +186,13 @@ public sealed class PosCustomerDisplayService
         catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested) { return false; }
     }
 
-    private async Task<bool> TryDeleteOnServerAsync(Guid id, CancellationToken cancellationToken)
+    private async Task<bool> TryDeleteOnServerAsync(Guid id, long baseVersion, CancellationToken cancellationToken)
     {
         try
         {
-            return await _apiClient.DeleteCustomerDisplayAsync(id, cancellationToken);
+            return await _apiClient.DeleteCustomerDisplayAsync(id, cancellationToken, baseVersion);
         }
         catch (HttpRequestException) { return false; }
         catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested) { return false; }
     }
 }
-

@@ -46,22 +46,9 @@ public sealed class PosPrinterService
         printers = printers
             .Where(x => !pendingDeleteIds.Contains(x.Id))
             .ToList();
-        var serverIds = printers.Select(p => p.Id).ToHashSet();
-        var stalePrinters = await _dbContext.Printers
-            .IgnoreQueryFilters()
-            .Where(p => !p.IsDeleted
-                && !serverIds.Contains(p.Id)
-                && !pendingEntityIds.Contains(p.Id))
-            .ToListAsync(cancellationToken);
-
-        foreach (var stalePrinter in stalePrinters)
-        {
-            stalePrinter.IsDeleted = true;
-        }
-
         foreach (var dto in printers)
         {
-            if (pendingDeleteIds.Contains(dto.Id))
+            if (pendingEntityIds.Contains(dto.Id))
             {
                 continue;
             }
@@ -88,10 +75,11 @@ public sealed class PosPrinterService
             existing.DeviceId = dto.DeviceId;
             existing.PointOfSaleId = dto.PointOfSaleId;
             existing.FiscalCloudBaseUrl = dto.FiscalCloudBaseUrl;
-            existing.IsDeleted = false;
+            existing.Version = dto.Version;
+            existing.IsDeleted = dto.IsDeleted;
         }
 
-        await _dbContext.SaveChangesAsync(cancellationToken);
+        await _dbContext.SaveServerSynchronizationAsync(cancellationToken);
         return printers;
     }
 
@@ -114,11 +102,17 @@ public sealed class PosPrinterService
         UpdatePrinterRequest request,
         CancellationToken cancellationToken = default)
     {
-        var printer = await _localPrinterService.UpdateAsync(request, cancellationToken);
-        var serverSaved = await TryUpdateOnServerAsync(request, cancellationToken);
+        var baseVersion = await _dbContext.Printers
+            .IgnoreQueryFilters()
+            .Where(x => x.Id == request.Id)
+            .Select(x => (long?)x.Version)
+            .FirstOrDefaultAsync(cancellationToken) ?? 0;
+        var localRequest = request with { BaseVersion = baseVersion };
+        var printer = await _localPrinterService.UpdateAsync(localRequest, cancellationToken);
+        var serverSaved = await TryUpdateOnServerAsync(localRequest, cancellationToken);
         if (!serverSaved)
         {
-            await QueueAsync("Update", printer.Id, request, cancellationToken);
+            await QueueAsync("Update", printer.Id, localRequest, cancellationToken, baseVersion);
         }
 
         return printer;
@@ -126,11 +120,16 @@ public sealed class PosPrinterService
 
     public async Task<bool> DeleteAsync(Guid id, CancellationToken cancellationToken = default)
     {
+        var baseVersion = await _dbContext.Printers
+            .IgnoreQueryFilters()
+            .Where(x => x.Id == id)
+            .Select(x => (long?)x.Version)
+            .FirstOrDefaultAsync(cancellationToken) ?? 0;
         var deleted = await _localPrinterService.DeleteAsync(id, cancellationToken);
-        var serverDeleted = deleted && await TryDeleteOnServerAsync(id, cancellationToken);
+        var serverDeleted = deleted && await TryDeleteOnServerAsync(id, baseVersion, cancellationToken);
         if (deleted && !serverDeleted)
         {
-            await QueueAsync("Delete", id, new { Id = id }, cancellationToken);
+            await QueueAsync("Delete", id, new { Id = id }, cancellationToken, baseVersion);
         }
 
         return deleted;
@@ -140,7 +139,8 @@ public sealed class PosPrinterService
         string operation,
         Guid entityId,
         object payload,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        long baseVersion = 0)
     {
         var idempotencyKey = $"printer:{entityId}:{operation}";
         var existing = await _dbContext.SyncOutboxItems
@@ -149,6 +149,7 @@ public sealed class PosPrinterService
         if (existing is not null)
         {
             existing.PayloadJson = JsonSerializer.Serialize(payload);
+            existing.BaseVersion = existing.BaseVersion == 0 ? baseVersion : existing.BaseVersion;
             existing.Status = "Pending";
             existing.Error = null;
             await _dbContext.SaveChangesAsync(cancellationToken);
@@ -161,7 +162,8 @@ public sealed class PosPrinterService
             EntityId = entityId,
             PayloadJson = JsonSerializer.Serialize(payload),
             IdempotencyKey = idempotencyKey,
-            Status = "Pending"
+            Status = "Pending",
+            BaseVersion = baseVersion
         }, cancellationToken);
         await _dbContext.SaveChangesAsync(cancellationToken);
     }
@@ -204,11 +206,12 @@ public sealed class PosPrinterService
 
     private async Task<bool> TryDeleteOnServerAsync(
         Guid id,
+        long baseVersion,
         CancellationToken cancellationToken)
     {
         try
         {
-            return await _apiClient.DeletePrinterAsync(id, cancellationToken);
+            return await _apiClient.DeletePrinterAsync(id, cancellationToken, baseVersion);
         }
         catch (HttpRequestException)
         {

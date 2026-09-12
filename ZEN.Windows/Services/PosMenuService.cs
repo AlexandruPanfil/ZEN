@@ -1,4 +1,4 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using ZEN.Application.DTOs.CashDeskMenu;
 using ZEN.Application.Services.Interfaces;
@@ -45,21 +45,9 @@ public sealed class PosMenuService
         menus = menus
             .Where(x => !pendingDeleteIds.Contains(x.Id))
             .ToList();
-        var serverIds = menus.Select(m => m.Id).ToHashSet();
-        var staleMenus = await _dbContext.Menus
-            .IgnoreQueryFilters()
-            .Where(m => !m.IsDeleted && !serverIds.Contains(m.Id)
-                && !pendingEntityIds.Contains(m.Id))
-            .ToListAsync(cancellationToken);
-
-        foreach (var staleMenu in staleMenus)
-        {
-            staleMenu.IsDeleted = true;
-        }
-
         foreach (var dto in menus)
         {
-            if (pendingDeleteIds.Contains(dto.Id))
+            if (pendingEntityIds.Contains(dto.Id))
             {
                 continue;
             }
@@ -75,10 +63,11 @@ public sealed class PosMenuService
 
             existing.Name = dto.Name;
             existing.StoreId = dto.StoreId;
-            existing.IsDeleted = false;
+            existing.Version = dto.Version;
+            existing.IsDeleted = dto.IsDeleted;
         }
 
-        await _dbContext.SaveChangesAsync(cancellationToken);
+        await _dbContext.SaveServerSynchronizationAsync(cancellationToken);
         return menus;
     }
 
@@ -87,8 +76,8 @@ public sealed class PosMenuService
         CancellationToken cancellationToken = default)
     {
         var localRequest = request with { Id = request.Id ?? Guid.NewGuid() };
-        var serverSaved = false;
         var menu = await _localService.CreateAsync(localRequest, cancellationToken);
+        var serverSaved = await TryCreateOnServerAsync(localRequest, cancellationToken);
 
         if (!serverSaved)
             await QueueAsync("Create", menu.Id, localRequest, cancellationToken);
@@ -100,11 +89,17 @@ public sealed class PosMenuService
         UpdateMenuRequest request,
         CancellationToken cancellationToken = default)
     {
-        var serverSaved = false;
-        var menu = await _localService.UpdateAsync(request, cancellationToken);
+        var baseVersion = await _dbContext.Menus
+            .IgnoreQueryFilters()
+            .Where(x => x.Id == request.Id)
+            .Select(x => (long?)x.Version)
+            .FirstOrDefaultAsync(cancellationToken) ?? 0;
+        var localRequest = request with { BaseVersion = baseVersion };
+        var menu = await _localService.UpdateAsync(localRequest, cancellationToken);
+        var serverSaved = await TryUpdateOnServerAsync(localRequest, cancellationToken);
 
         if (!serverSaved)
-            await QueueAsync("Update", menu.Id, request, cancellationToken);
+            await QueueAsync("Update", menu.Id, localRequest, cancellationToken, baseVersion);
 
         return menu;
     }
@@ -113,11 +108,16 @@ public sealed class PosMenuService
         Guid id,
         CancellationToken cancellationToken = default)
     {
-        var serverDeleted = false;
+        var baseVersion = await _dbContext.Menus
+            .IgnoreQueryFilters()
+            .Where(x => x.Id == id)
+            .Select(x => (long?)x.Version)
+            .FirstOrDefaultAsync(cancellationToken) ?? 0;
         var deleted = await _localService.DeleteAsync(id, cancellationToken);
+        var serverDeleted = deleted && await TryDeleteOnServerAsync(id, baseVersion, cancellationToken);
 
         if (deleted && !serverDeleted)
-            await QueueAsync("Delete", id, new { Id = id }, cancellationToken);
+            await QueueAsync("Delete", id, new { Id = id }, cancellationToken, baseVersion);
 
         return deleted;
     }
@@ -126,7 +126,8 @@ public sealed class PosMenuService
         string operation,
         Guid entityId,
         object payload,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        long baseVersion = 0)
     {
         var idempotencyKey = $"menu:{entityId}:{operation}";
         var existing = await _dbContext.SyncOutboxItems
@@ -134,9 +135,16 @@ public sealed class PosMenuService
                 x => x.IdempotencyKey == idempotencyKey && x.Status != "Failed",
                 cancellationToken);
 
+        if (existing?.Status == "Conflict")
+        {
+            idempotencyKey = $"{idempotencyKey}:{Guid.NewGuid():N}";
+            existing = null;
+        }
+
         if (existing is not null)
         {
             existing.PayloadJson = JsonSerializer.Serialize(payload);
+            existing.BaseVersion = existing.BaseVersion == 0 ? baseVersion : existing.BaseVersion;
             existing.Status = "Pending";
             existing.Error = null;
         }
@@ -148,7 +156,8 @@ public sealed class PosMenuService
                 EntityId = entityId,
                 PayloadJson = JsonSerializer.Serialize(payload),
                 IdempotencyKey = idempotencyKey,
-                Status = "Pending"
+                Status = "Pending",
+                BaseVersion = baseVersion
             }, cancellationToken);
         }
 
@@ -187,11 +196,11 @@ public sealed class PosMenuService
         }
     }
 
-    private async Task<bool> TryDeleteOnServerAsync(Guid id, CancellationToken cancellationToken)
+    private async Task<bool> TryDeleteOnServerAsync(Guid id, long baseVersion, CancellationToken cancellationToken)
     {
         try
         {
-            return await _apiClient.DeleteMenuAsync(id, cancellationToken);
+            return await _apiClient.DeleteMenuAsync(id, cancellationToken, baseVersion);
         }
         catch (HttpRequestException)
         {
@@ -203,4 +212,3 @@ public sealed class PosMenuService
         }
     }
 }
-

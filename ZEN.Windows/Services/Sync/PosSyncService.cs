@@ -152,7 +152,7 @@ public class PosSyncService : IPosSyncService
                 {
                     "Printer:Create" => await PushPrinterCreateAsync(outbox, cancellationToken),
                     "Printer:Update" => await PushPrinterUpdateAsync(outbox, cancellationToken),
-                    "Printer:Delete" => await _syncApiClient.DeletePrinterAsync(outbox.EntityId, cancellationToken),
+                    "Printer:Delete" => await _syncApiClient.DeletePrinterAsync(outbox.EntityId, cancellationToken, outbox.BaseVersion ?? 0),
                     _ => throw new InvalidOperationException($"Unknown printer sync operation '{outbox.EntityType}'.")
                 };
 
@@ -169,8 +169,10 @@ public class PosSyncService : IPosSyncService
             }
             catch (HttpRequestException ex)
             {
-                outbox.Status = "Pending";
+                outbox.Status = ex.StatusCode == System.Net.HttpStatusCode.Conflict ? "Conflict" : "Pending";
+                outbox.SyncedAtUtc = null;
                 outbox.Error = ex.Message;
+                SetConflictDetails(outbox, ex);
             }
             catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested)
             {
@@ -197,6 +199,7 @@ public class PosSyncService : IPosSyncService
     {
         var request = JsonSerializer.Deserialize<UpdatePrinterRequest>(outbox.PayloadJson)
             ?? throw new InvalidOperationException("Invalid printer update payload.");
+        request = request with { BaseVersion = (outbox.BaseVersion ?? 0) != 0 ? outbox.BaseVersion.GetValueOrDefault() : request.BaseVersion };
         return await _syncApiClient.UpdatePrinterAsync(request, cancellationToken) is not null;
     }
 
@@ -221,7 +224,7 @@ public class PosSyncService : IPosSyncService
                 {
                     "Scanner:Create" => await PushScannerCreateAsync(outbox, cancellationToken),
                     "Scanner:Update" => await PushScannerUpdateAsync(outbox, cancellationToken),
-                    "Scanner:Delete" => await _syncApiClient.DeleteScannerAsync(outbox.EntityId, cancellationToken),
+                    "Scanner:Delete" => await _syncApiClient.DeleteScannerAsync(outbox.EntityId, cancellationToken, outbox.BaseVersion ?? 0),
                     _ => throw new InvalidOperationException($"Unknown scanner sync operation '{outbox.EntityType}'.")
                 };
 
@@ -231,8 +234,10 @@ public class PosSyncService : IPosSyncService
             }
             catch (HttpRequestException ex)
             {
-                outbox.Status = "Pending";
+                outbox.Status = ex.StatusCode == System.Net.HttpStatusCode.Conflict ? "Conflict" : "Pending";
+                outbox.SyncedAtUtc = null;
                 outbox.Error = ex.Message;
+                SetConflictDetails(outbox, ex);
             }
             catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested)
             {
@@ -259,6 +264,7 @@ public class PosSyncService : IPosSyncService
     {
         var request = JsonSerializer.Deserialize<UpdateScannerRequest>(outbox.PayloadJson)
             ?? throw new InvalidOperationException("Invalid scanner update payload.");
+        request = request with { BaseVersion = (outbox.BaseVersion ?? 0) != 0 ? outbox.BaseVersion.GetValueOrDefault() : request.BaseVersion };
         return await _syncApiClient.UpdateScannerAsync(request, cancellationToken) is not null;
     }
 
@@ -283,7 +289,7 @@ public class PosSyncService : IPosSyncService
                 {
                     "CustomerDisplay:Create" => await PushCustomerDisplayCreateAsync(outbox, cancellationToken),
                     "CustomerDisplay:Update" => await PushCustomerDisplayUpdateAsync(outbox, cancellationToken),
-                    "CustomerDisplay:Delete" => await _syncApiClient.DeleteCustomerDisplayAsync(outbox.EntityId, cancellationToken),
+                    "CustomerDisplay:Delete" => await _syncApiClient.DeleteCustomerDisplayAsync(outbox.EntityId, cancellationToken, outbox.BaseVersion ?? 0),
                     _ => throw new InvalidOperationException($"Unknown customer display sync operation '{outbox.EntityType}'.")
                 };
 
@@ -293,8 +299,10 @@ public class PosSyncService : IPosSyncService
             }
             catch (HttpRequestException ex)
             {
-                outbox.Status = "Pending";
+                outbox.Status = ex.StatusCode == System.Net.HttpStatusCode.Conflict ? "Conflict" : "Pending";
+                outbox.SyncedAtUtc = null;
                 outbox.Error = ex.Message;
+                SetConflictDetails(outbox, ex);
             }
             catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested)
             {
@@ -317,6 +325,7 @@ public class PosSyncService : IPosSyncService
     {
         var request = JsonSerializer.Deserialize<UpdateCustomerDisplayRequest>(outbox.PayloadJson)
             ?? throw new InvalidOperationException("Invalid customer display update payload.");
+        request = request with { BaseVersion = (outbox.BaseVersion ?? 0) != 0 ? outbox.BaseVersion.GetValueOrDefault() : request.BaseVersion };
         return await _syncApiClient.UpdateCustomerDisplayAsync(request, cancellationToken) is not null;
     }
 
@@ -341,7 +350,7 @@ public class PosSyncService : IPosSyncService
                 {
                     "CashDesk:Create" => await PushCashDeskCreateAsync(outbox, cancellationToken),
                     "CashDesk:Update" => await PushCashDeskUpdateAsync(outbox, cancellationToken),
-                    "CashDesk:Delete" => await _syncApiClient.DeleteCashDeskAsync(outbox.EntityId, cancellationToken),
+                    "CashDesk:Delete" => await _syncApiClient.DeleteCashDeskAsync(outbox.EntityId, cancellationToken, outbox.BaseVersion ?? 0),
                     _ => throw new InvalidOperationException($"Unknown cash desk sync operation '{outbox.EntityType}'.")
                 };
 
@@ -351,8 +360,10 @@ public class PosSyncService : IPosSyncService
             }
             catch (HttpRequestException ex)
             {
-                outbox.Status = "Pending";
+                outbox.Status = ex.StatusCode == System.Net.HttpStatusCode.Conflict ? "Conflict" : "Pending";
+                outbox.SyncedAtUtc = null;
                 outbox.Error = ex.Message;
+                SetConflictDetails(outbox, ex);
             }
             catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested)
             {
@@ -379,6 +390,7 @@ public class PosSyncService : IPosSyncService
     {
         var request = JsonSerializer.Deserialize<UpdateCashDeskRequest>(outbox.PayloadJson)
             ?? throw new InvalidOperationException("Invalid cash desk update payload.");
+        request = request with { BaseVersion = (outbox.BaseVersion ?? 0) != 0 ? outbox.BaseVersion.GetValueOrDefault() : request.BaseVersion };
         return await _syncApiClient.UpdateCashDeskAsync(request, cancellationToken) is not null;
     }
 
@@ -403,7 +415,7 @@ public class PosSyncService : IPosSyncService
                 {
                     "PaymentTerminal:Create" => await PushPaymentTerminalCreateAsync(outbox, cancellationToken),
                     "PaymentTerminal:Update" => await PushPaymentTerminalUpdateAsync(outbox, cancellationToken),
-                    "PaymentTerminal:Delete" => await _syncApiClient.DeletePaymentTerminalAsync(outbox.EntityId, cancellationToken),
+                    "PaymentTerminal:Delete" => await _syncApiClient.DeletePaymentTerminalAsync(outbox.EntityId, cancellationToken, outbox.BaseVersion ?? 0),
                     _ => throw new InvalidOperationException($"Unknown payment terminal sync operation '{outbox.EntityType}'.")
                 };
 
@@ -413,8 +425,10 @@ public class PosSyncService : IPosSyncService
             }
             catch (HttpRequestException ex)
             {
-                outbox.Status = "Pending";
+                outbox.Status = ex.StatusCode == System.Net.HttpStatusCode.Conflict ? "Conflict" : "Pending";
+                outbox.SyncedAtUtc = null;
                 outbox.Error = ex.Message;
+                SetConflictDetails(outbox, ex);
             }
             catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested)
             {
@@ -441,6 +455,7 @@ public class PosSyncService : IPosSyncService
     {
         var request = JsonSerializer.Deserialize<UpdatePaymentTerminalRequest>(outbox.PayloadJson)
             ?? throw new InvalidOperationException("Invalid payment terminal update payload.");
+        request = request with { BaseVersion = (outbox.BaseVersion ?? 0) != 0 ? outbox.BaseVersion.GetValueOrDefault() : request.BaseVersion };
         return await _syncApiClient.UpdatePaymentTerminalAsync(request, cancellationToken) is not null;
     }
 
@@ -465,7 +480,7 @@ public class PosSyncService : IPosSyncService
                 {
                     "Store:Create" => await PushStoreCreateAsync(outbox, cancellationToken),
                     "Store:Update" => await PushStoreUpdateAsync(outbox, cancellationToken),
-                    "Store:Delete" => await _syncApiClient.DeleteStoreAsync(outbox.EntityId, cancellationToken),
+                    "Store:Delete" => await _syncApiClient.DeleteStoreAsync(outbox.EntityId, cancellationToken, outbox.BaseVersion ?? 0),
                     _ => throw new InvalidOperationException($"Unknown store sync operation '{outbox.EntityType}'.")
                 };
 
@@ -475,8 +490,10 @@ public class PosSyncService : IPosSyncService
             }
             catch (HttpRequestException ex)
             {
-                outbox.Status = "Pending";
+                outbox.Status = ex.StatusCode == System.Net.HttpStatusCode.Conflict ? "Conflict" : "Pending";
+                outbox.SyncedAtUtc = null;
                 outbox.Error = ex.Message;
+                SetConflictDetails(outbox, ex);
             }
             catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested)
             {
@@ -503,6 +520,7 @@ public class PosSyncService : IPosSyncService
     {
         var request = JsonSerializer.Deserialize<UpdateStoreRequest>(outbox.PayloadJson)
             ?? throw new InvalidOperationException("Invalid store update payload.");
+        request = request with { BaseVersion = (outbox.BaseVersion ?? 0) != 0 ? outbox.BaseVersion.GetValueOrDefault() : request.BaseVersion };
         return await _syncApiClient.UpdateStoreAsync(request, cancellationToken) is not null;
     }
 
@@ -527,7 +545,7 @@ public class PosSyncService : IPosSyncService
                 {
                     "Menu:Create" => await PushMenuCreateAsync(outbox, cancellationToken),
                     "Menu:Update" => await PushMenuUpdateAsync(outbox, cancellationToken),
-                    "Menu:Delete" => await _syncApiClient.DeleteMenuAsync(outbox.EntityId, cancellationToken),
+                    "Menu:Delete" => await _syncApiClient.DeleteMenuAsync(outbox.EntityId, cancellationToken, outbox.BaseVersion ?? 0),
                     _ => throw new InvalidOperationException($"Unknown menu sync operation '{outbox.EntityType}'.")
                 };
 
@@ -537,8 +555,10 @@ public class PosSyncService : IPosSyncService
             }
             catch (HttpRequestException ex)
             {
-                outbox.Status = "Pending";
+                outbox.Status = ex.StatusCode == System.Net.HttpStatusCode.Conflict ? "Conflict" : "Pending";
+                outbox.SyncedAtUtc = null;
                 outbox.Error = ex.Message;
+                SetConflictDetails(outbox, ex);
             }
             catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested)
             {
@@ -565,6 +585,7 @@ public class PosSyncService : IPosSyncService
     {
         var request = JsonSerializer.Deserialize<UpdateMenuRequest>(outbox.PayloadJson)
             ?? throw new InvalidOperationException("Invalid menu update payload.");
+        request = request with { BaseVersion = (outbox.BaseVersion ?? 0) != 0 ? outbox.BaseVersion.GetValueOrDefault() : request.BaseVersion };
         return await _syncApiClient.UpdateMenuAsync(request, cancellationToken) is not null;
     }
 
@@ -676,6 +697,17 @@ public class PosSyncService : IPosSyncService
                 _logger.LogWarning(ex, "Failed to pull {EquipmentType}; continuing with other synchronization work.", name);
             }
         }
+    }
+
+    private static void SetConflictDetails(SyncOutboxItem outbox, HttpRequestException exception)
+    {
+        if (exception is not SyncConflictHttpException conflict)
+        {
+            return;
+        }
+
+        outbox.ConflictVersion = conflict.CurrentVersion;
+        outbox.ConflictRecordJson = conflict.RecordJson;
     }
 
     private async Task PullProductsAsync(SyncState syncState, CancellationToken cancellationToken)

@@ -18,7 +18,7 @@ namespace ZEN.Infrastructure.Services
 
         public async Task<PrinterDto?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
         {
-            var printer = await _dbContext.Printers.FindAsync([id], cancellationToken);
+            var printer = await _dbContext.Printers.IgnoreQueryFilters().FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
             return printer == null ? null : new PrinterDto(
                 printer.Id,
                 printer.Name,
@@ -30,12 +30,17 @@ namespace ZEN.Infrastructure.Services
                 printer.ApiSecret,
                 printer.DeviceId,
                 printer.PointOfSaleId,
-                printer.FiscalCloudBaseUrl);
+                printer.FiscalCloudBaseUrl,
+                printer.Version,
+                printer.IsDeleted);
         }
 
-        public async Task<IEnumerable<PrinterDto>> GetAllAsync(CancellationToken cancellationToken = default)
+        public async Task<IEnumerable<PrinterDto>> GetAllAsync(
+            CancellationToken cancellationToken = default,
+            bool includeDeleted = false)
         {
-            var printers = await _dbContext.Printers.ToListAsync(cancellationToken);
+            var query = includeDeleted ? _dbContext.Printers.IgnoreQueryFilters() : _dbContext.Printers;
+            var printers = await query.ToListAsync(cancellationToken);
             return printers.Select(p => new PrinterDto(
                 p.Id,
                 p.Name,
@@ -47,7 +52,9 @@ namespace ZEN.Infrastructure.Services
                 p.ApiSecret,
                 p.DeviceId,
                 p.PointOfSaleId,
-                p.FiscalCloudBaseUrl));
+                p.FiscalCloudBaseUrl,
+                p.Version,
+                p.IsDeleted));
         }
 
         public IEnumerable<PrinterDto> GetAll()
@@ -64,7 +71,9 @@ namespace ZEN.Infrastructure.Services
                 p.ApiSecret,
                 p.DeviceId,
                 p.PointOfSaleId,
-                p.FiscalCloudBaseUrl));
+                p.FiscalCloudBaseUrl,
+                p.Version,
+                p.IsDeleted));
         }
 
         public async Task<IEnumerable<PrinterDto>> GetFiscalPrintersAsync(CancellationToken cancellationToken = default)
@@ -81,7 +90,9 @@ namespace ZEN.Infrastructure.Services
                 p.ApiSecret,
                 p.DeviceId,
                 p.PointOfSaleId,
-                p.FiscalCloudBaseUrl));
+                p.FiscalCloudBaseUrl,
+                p.Version,
+                p.IsDeleted));
         }
 
         public async Task<PrinterDto> CreateAsync(CreatePrinterRequest request, CancellationToken cancellationToken = default)
@@ -115,15 +126,25 @@ namespace ZEN.Infrastructure.Services
                 printer.ApiSecret,
                 printer.DeviceId,
                 printer.PointOfSaleId,
-                printer.FiscalCloudBaseUrl);
+                printer.FiscalCloudBaseUrl,
+                printer.Version,
+                printer.IsDeleted);
         }
 
         public async Task<PrinterDto> UpdateAsync(UpdatePrinterRequest request, CancellationToken cancellationToken = default)
         {
-            var printer = await _dbContext.Printers.FindAsync([request.Id], cancellationToken);
+            var printer = await _dbContext.Printers.IgnoreQueryFilters().FirstOrDefaultAsync(x => x.Id == request.Id, cancellationToken);
             if (printer == null)
             {
                 throw new KeyNotFoundException($"Printer with ID {request.Id} not found.");
+            }
+
+            if (printer.IsDeleted || (request.BaseVersion != 0 && request.BaseVersion != printer.Version))
+            {
+                throw new ZEN.Application.Services.Exceptions.SyncConflictException(
+                    printer.Id,
+                    request.BaseVersion,
+                    printer.Version);
             }
 
             printer.Name = request.Name;
@@ -150,15 +171,25 @@ namespace ZEN.Infrastructure.Services
                 printer.ApiSecret,
                 printer.DeviceId,
                 printer.PointOfSaleId,
-                printer.FiscalCloudBaseUrl);
+                printer.FiscalCloudBaseUrl,
+                printer.Version,
+                printer.IsDeleted);
         }
 
-        public async Task<bool> DeleteAsync(Guid id, CancellationToken cancellationToken = default)
+        public async Task<bool> DeleteAsync(Guid id, CancellationToken cancellationToken = default, long baseVersion = 0)
         {
-            var printer = await _dbContext.Printers.FindAsync([id], cancellationToken);
+            var printer = await _dbContext.Printers.IgnoreQueryFilters().FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
             if (printer == null)
             {
                 return false;
+            }
+
+            if (printer.IsDeleted || (baseVersion != 0 && baseVersion != printer.Version))
+            {
+                throw new ZEN.Application.Services.Exceptions.SyncConflictException(
+                    printer.Id,
+                    baseVersion,
+                    printer.Version);
             }
 
             _dbContext.Printers.Remove(printer);

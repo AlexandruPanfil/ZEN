@@ -15,12 +15,15 @@ public class MenuService : IMenuService
         _dbContext = dbContext;
     }
 
-    public async Task<IEnumerable<MenuSummaryDto>> GetAllSummariesAsync(CancellationToken cancellationToken = default)
+    public async Task<IEnumerable<MenuSummaryDto>> GetAllSummariesAsync(CancellationToken cancellationToken = default, bool includeDeleted = false)
     {
-        return await _dbContext.Menus
-            .Where(m => !m.IsDeleted)
+        var query = includeDeleted
+            ? _dbContext.Menus.IgnoreQueryFilters()
+            : _dbContext.Menus;
+
+        return await query
             .OrderBy(m => m.Name)
-            .Select(m => new MenuSummaryDto(m.Id, m.Name, m.StoreId))
+            .Select(m => new MenuSummaryDto(m.Id, m.Name, m.StoreId, m.Version, m.IsDeleted))
             .ToListAsync(cancellationToken);
     }
 
@@ -50,9 +53,12 @@ public class MenuService : IMenuService
 
     public async Task<MenuDto> UpdateAsync(UpdateMenuRequest request, CancellationToken cancellationToken = default)
     {
-        var menu = await _dbContext.Menus.FindAsync([request.Id], cancellationToken);
+        var menu = await _dbContext.Menus.IgnoreQueryFilters().FirstOrDefaultAsync(m => m.Id == request.Id, cancellationToken);
         if (menu == null)
             throw new KeyNotFoundException($"Menu with ID {request.Id} not found.");
+
+        if (menu.IsDeleted || (request.BaseVersion != 0 && request.BaseVersion != menu.Version))
+            throw new ZEN.Application.Services.Exceptions.SyncConflictException(menu.Id, request.BaseVersion, menu.Version);
 
         menu.Name = request.Name;
         menu.StoreId = request.StoreId;
@@ -60,11 +66,13 @@ public class MenuService : IMenuService
         return (await GetByIdAsync(menu.Id, cancellationToken))!;
     }
 
-    public async Task<bool> DeleteAsync(Guid id, CancellationToken cancellationToken = default)
+    public async Task<bool> DeleteAsync(Guid id, CancellationToken cancellationToken = default, long baseVersion = 0)
     {
-        var menu = await _dbContext.Menus.FindAsync([id], cancellationToken);
+        var menu = await _dbContext.Menus.IgnoreQueryFilters().FirstOrDefaultAsync(m => m.Id == id, cancellationToken);
         if (menu == null)
             return false;
+        if (menu.IsDeleted || (baseVersion != 0 && baseVersion != menu.Version))
+            throw new ZEN.Application.Services.Exceptions.SyncConflictException(menu.Id, baseVersion, menu.Version);
 
         _dbContext.Menus.Remove(menu);
         await _dbContext.SaveChangesAsync(cancellationToken);
@@ -203,7 +211,7 @@ public class MenuService : IMenuService
 
     public async Task<GroupDto> UpdateGroupAsync(UpdateGroupRequest request, CancellationToken cancellationToken = default)
     {
-        var group = await _dbContext.Groups.FindAsync([request.Id], cancellationToken);
+        var group = await _dbContext.Groups.IgnoreQueryFilters().FirstOrDefaultAsync(m => m.Id == request.Id, cancellationToken);
         if (group == null)
             throw new KeyNotFoundException($"Group with ID {request.Id} not found.");
 

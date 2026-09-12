@@ -30,7 +30,9 @@ public record StoreDto(
     string? City,
     string? Phone,
     string? Email,
-    bool IsActive);
+    bool IsActive,
+    long Version = 0,
+    bool IsDeleted = false);
 
 public record CreateStoreRequest(
     string Name,
@@ -49,29 +51,14 @@ public record UpdateStoreRequest(
     string? City,
     string? Phone,
     string? Email,
-    bool IsActive);
+    bool IsActive,
+    long BaseVersion = 0);
 
-public record TaxDto(
-    Guid Id,
-    string Name,
-    decimal Rate,
-    bool IsDefault,
-    bool IsActive);
+public record TaxDto(Guid Id, string Name, decimal Rate, bool IsDefault, bool IsActive);
 
-public record CurrencyDto(
-    Guid Id,
-    string Code,
-    string Name,
-    string Symbol,
-    bool IsDefault);
+public record CurrencyDto(Guid Id, string Code, string Name, string Symbol, bool IsDefault);
 
-public record WarehouseDto(
-    Guid Id,
-    string Name,
-    string Code,
-    Guid StoreId,
-    string StoreName,
-    bool IsActive);
+public record WarehouseDto(Guid Id, string Name, string Code, Guid StoreId, string StoreName, bool IsActive);
 
 public record PrinterDto(
     Guid Id,
@@ -84,7 +71,9 @@ public record PrinterDto(
     string? ApiSecret,
     string? DeviceId,
     string? PointOfSaleId,
-    string? FiscalCloudBaseUrl);
+    string? FiscalCloudBaseUrl,
+    long Version = 0,
+    bool IsDeleted = false);
 
 public record PaymentTerminalDto(
     Guid Id,
@@ -94,7 +83,9 @@ public record PaymentTerminalDto(
     string? IpAddress,
     int Port,
     Guid? CashDeskId,
-    bool IsActive);
+    bool IsActive,
+    long Version = 0,
+    bool IsDeleted = false);
 
 public record ScannerDto(
     Guid Id,
@@ -103,7 +94,9 @@ public record ScannerDto(
     string? ConnectionType,
     string? ConnectionString,
     Guid? CashDeskId,
-    bool IsActive);
+    bool IsActive,
+    long Version = 0,
+    bool IsDeleted = false);
 
 public record CustomerDisplayDto(
     Guid Id,
@@ -112,7 +105,9 @@ public record CustomerDisplayDto(
     string? ConnectionString,
     string? Size,
     Guid? CashDeskId,
-    bool IsActive);
+    bool IsActive,
+    long Version = 0,
+    bool IsDeleted = false);
 
 public record CashDeskDto(
     Guid Id,
@@ -123,7 +118,9 @@ public record CashDeskDto(
     Guid? CustomerDisplayId,
     Guid? MenuId,
     DateTime? LastActivityUtc,
-    bool IsOnline);
+    bool IsOnline,
+    long Version = 0,
+    bool IsDeleted = false);
 
 public record CashDeskDetailDto(
     Guid Id,
@@ -138,4 +135,6 @@ public record CashDeskDetailDto(
     IEnumerable<PaymentTerminalDto> PaymentTerminals,
     IEnumerable<ScannerDto> Scanners,
     DateTime? LastActivityUtc,
-    bool IsOnline);
+    bool IsOnline,
+    long Version = 0,
+    bool IsDeleted = false);

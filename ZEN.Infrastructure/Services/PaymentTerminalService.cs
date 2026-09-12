@@ -17,7 +17,7 @@ namespace ZEN.Infrastructure.Services
 
         public async Task<PaymentTerminalDto?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
         {
-            var terminal = await _dbContext.PaymentTerminals.FindAsync([id], cancellationToken);
+            var terminal = await _dbContext.PaymentTerminals.IgnoreQueryFilters().FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
             return terminal == null ? null : new PaymentTerminalDto(
                 terminal.Id,
                 terminal.Name,
@@ -26,12 +26,17 @@ namespace ZEN.Infrastructure.Services
                 terminal.IpAddress,
                 terminal.Port,
                 terminal.CashDeskId,
-                terminal.IsActive);
+                terminal.IsActive,
+                terminal.Version,
+                terminal.IsDeleted);
         }
 
-        public async Task<IEnumerable<PaymentTerminalDto>> GetAllAsync(CancellationToken cancellationToken = default)
+        public async Task<IEnumerable<PaymentTerminalDto>> GetAllAsync(
+            CancellationToken cancellationToken = default,
+            bool includeDeleted = false)
         {
-            var terminals = await _dbContext.PaymentTerminals.ToListAsync(cancellationToken);
+            var query = includeDeleted ? _dbContext.PaymentTerminals.IgnoreQueryFilters() : _dbContext.PaymentTerminals;
+            var terminals = await query.ToListAsync(cancellationToken);
             return terminals.Select(t => new PaymentTerminalDto(
                 t.Id,
                 t.Name,
@@ -40,7 +45,9 @@ namespace ZEN.Infrastructure.Services
                 t.IpAddress,
                 t.Port,
                 t.CashDeskId,
-                t.IsActive));
+                t.IsActive,
+                t.Version,
+                t.IsDeleted));
         }
 
         public IEnumerable<PaymentTerminalDto> GetAll()
@@ -54,7 +61,9 @@ namespace ZEN.Infrastructure.Services
                 t.IpAddress,
                 t.Port,
                 t.CashDeskId,
-                t.IsActive));
+                t.IsActive,
+                t.Version,
+                t.IsDeleted));
         }
 
         public async Task<PaymentTerminalDto> CreateAsync(CreatePaymentTerminalRequest request, CancellationToken cancellationToken = default)
@@ -81,15 +90,25 @@ namespace ZEN.Infrastructure.Services
                 terminal.IpAddress,
                 terminal.Port,
                 terminal.CashDeskId,
-                terminal.IsActive);
+                terminal.IsActive,
+                terminal.Version,
+                terminal.IsDeleted);
         }
 
         public async Task<PaymentTerminalDto> UpdateAsync(UpdatePaymentTerminalRequest request, CancellationToken cancellationToken = default)
         {
-            var terminal = await _dbContext.PaymentTerminals.FindAsync([request.Id], cancellationToken);
+            var terminal = await _dbContext.PaymentTerminals.IgnoreQueryFilters().FirstOrDefaultAsync(x => x.Id == request.Id, cancellationToken);
             if (terminal == null)
             {
                 throw new KeyNotFoundException($"Payment terminal with ID {request.Id} not found.");
+            }
+
+            if (terminal.IsDeleted || (request.BaseVersion != 0 && request.BaseVersion != terminal.Version))
+            {
+                throw new ZEN.Application.Services.Exceptions.SyncConflictException(
+                    terminal.Id,
+                    request.BaseVersion,
+                    terminal.Version);
             }
 
             terminal.Name = request.Name;
@@ -109,15 +128,25 @@ namespace ZEN.Infrastructure.Services
                 terminal.IpAddress,
                 terminal.Port,
                 terminal.CashDeskId,
-                terminal.IsActive);
+                terminal.IsActive,
+                terminal.Version,
+                terminal.IsDeleted);
         }
 
-        public async Task<bool> DeleteAsync(Guid id, CancellationToken cancellationToken = default)
+        public async Task<bool> DeleteAsync(Guid id, CancellationToken cancellationToken = default, long baseVersion = 0)
         {
-            var terminal = await _dbContext.PaymentTerminals.FindAsync([id], cancellationToken);
+            var terminal = await _dbContext.PaymentTerminals.IgnoreQueryFilters().FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
             if (terminal == null)
             {
                 return false;
+            }
+
+            if (terminal.IsDeleted || (baseVersion != 0 && baseVersion != terminal.Version))
+            {
+                throw new ZEN.Application.Services.Exceptions.SyncConflictException(
+                    terminal.Id,
+                    baseVersion,
+                    terminal.Version);
             }
 
             _dbContext.PaymentTerminals.Remove(terminal);

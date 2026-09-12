@@ -1,4 +1,4 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using ZEN.Application.DTOs.Admin;
 using ZEN.Application.Services.Interfaces;
@@ -47,23 +47,9 @@ public sealed class PosCashDeskService
         cashDesks = cashDesks
             .Where(x => !pendingDeleteIds.Contains(x.Id))
             .ToList();
-        var serverIds = cashDesks.Select(c => c.Id).ToHashSet();
-        var staleCashDesks = await _dbContext.CashDesks
-            .IgnoreQueryFilters()
-            .Where(c => !c.IsDeleted
-                && (!storeId.HasValue || c.StoreId == storeId.Value)
-                && !serverIds.Contains(c.Id)
-                && !pendingEntityIds.Contains(c.Id))
-            .ToListAsync(cancellationToken);
-
-        foreach (var staleCashDesk in staleCashDesks)
-        {
-            staleCashDesk.IsDeleted = true;
-        }
-
         foreach (var dto in cashDesks)
         {
-            if (pendingDeleteIds.Contains(dto.Id))
+            if (pendingEntityIds.Contains(dto.Id))
             {
                 continue;
             }
@@ -85,10 +71,11 @@ public sealed class PosCashDeskService
             existing.LastActivityUtc = dto.LastActivityUtc;
             existing.IsOnline = dto.IsOnline;
             existing.MenuId = dto.MenuId;
-            existing.IsDeleted = false;
+            existing.Version = dto.Version;
+            existing.IsDeleted = dto.IsDeleted;
         }
 
-        await _dbContext.SaveChangesAsync(cancellationToken);
+        await _dbContext.SaveServerSynchronizationAsync(cancellationToken);
         return cashDesks;
     }
 
@@ -102,8 +89,8 @@ public sealed class PosCashDeskService
         CancellationToken cancellationToken = default)
     {
         var localRequest = request with { Id = request.Id ?? Guid.NewGuid() };
-        var serverSaved = false;
         var cashDesk = await _localService.CreateAsync(localRequest, cancellationToken);
+        var serverSaved = await TryCreateOnServerAsync(localRequest, cancellationToken);
 
         if (!serverSaved)
         {
@@ -117,12 +104,18 @@ public sealed class PosCashDeskService
         UpdateCashDeskRequest request,
         CancellationToken cancellationToken = default)
     {
-        var serverSaved = false;
-        var cashDesk = await _localService.UpdateAsync(request, cancellationToken);
+        var baseVersion = await _dbContext.CashDesks
+            .IgnoreQueryFilters()
+            .Where(x => x.Id == request.Id)
+            .Select(x => (long?)x.Version)
+            .FirstOrDefaultAsync(cancellationToken) ?? 0;
+        var localRequest = request with { BaseVersion = baseVersion };
+        var cashDesk = await _localService.UpdateAsync(localRequest, cancellationToken);
+        var serverSaved = await TryUpdateOnServerAsync(localRequest, cancellationToken);
 
         if (!serverSaved)
         {
-            await QueueAsync("Update", cashDesk.Id, request, cancellationToken);
+            await QueueAsync("Update", cashDesk.Id, localRequest, cancellationToken, baseVersion);
         }
 
         return cashDesk;
@@ -132,12 +125,17 @@ public sealed class PosCashDeskService
         Guid id,
         CancellationToken cancellationToken = default)
     {
-        var serverDeleted = false;
+        var baseVersion = await _dbContext.CashDesks
+            .IgnoreQueryFilters()
+            .Where(x => x.Id == id)
+            .Select(x => (long?)x.Version)
+            .FirstOrDefaultAsync(cancellationToken) ?? 0;
         var deleted = await _localService.DeleteAsync(id, cancellationToken);
+        var serverDeleted = deleted && await TryDeleteOnServerAsync(id, baseVersion, cancellationToken);
 
         if (deleted && !serverDeleted)
         {
-            await QueueAsync("Delete", id, new { Id = id }, cancellationToken);
+            await QueueAsync("Delete", id, new { Id = id }, cancellationToken, baseVersion);
         }
 
         return deleted;
@@ -147,7 +145,8 @@ public sealed class PosCashDeskService
         string operation,
         Guid entityId,
         object payload,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        long baseVersion = 0)
     {
         var idempotencyKey = $"cash-desk:{entityId}:{operation}";
         var existing = await _dbContext.SyncOutboxItems
@@ -155,9 +154,16 @@ public sealed class PosCashDeskService
                 x => x.IdempotencyKey == idempotencyKey && x.Status != "Failed",
                 cancellationToken);
 
+        if (existing?.Status == "Conflict")
+        {
+            idempotencyKey = $"{idempotencyKey}:{Guid.NewGuid():N}";
+            existing = null;
+        }
+
         if (existing is not null)
         {
             existing.PayloadJson = JsonSerializer.Serialize(payload);
+            existing.BaseVersion = existing.BaseVersion == 0 ? baseVersion : existing.BaseVersion;
             existing.Status = "Pending";
             existing.Error = null;
             await _dbContext.SaveChangesAsync(cancellationToken);
@@ -170,7 +176,8 @@ public sealed class PosCashDeskService
             EntityId = entityId,
             PayloadJson = JsonSerializer.Serialize(payload),
             IdempotencyKey = idempotencyKey,
-            Status = "Pending"
+            Status = "Pending",
+            BaseVersion = baseVersion
         }, cancellationToken);
         await _dbContext.SaveChangesAsync(cancellationToken);
     }
@@ -213,11 +220,12 @@ public sealed class PosCashDeskService
 
     private async Task<bool> TryDeleteOnServerAsync(
         Guid id,
+        long baseVersion,
         CancellationToken cancellationToken)
     {
         try
         {
-            return await _apiClient.DeleteCashDeskAsync(id, cancellationToken);
+            return await _apiClient.DeleteCashDeskAsync(id, cancellationToken, baseVersion);
         }
         catch (HttpRequestException)
         {
@@ -229,4 +237,3 @@ public sealed class PosCashDeskService
         }
     }
 }
-

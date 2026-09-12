@@ -15,10 +15,11 @@ public static class EquipmentEndpoints
     public static RouteGroupBuilder MapEquipmentEndpoints(this RouteGroupBuilder group)
     {
         group.MapGet("/stores", async (
+            [FromQuery] bool includeDeleted,
             ZenDbContext dbContext,
             CancellationToken ct) =>
         {
-            var stores = await dbContext.Stores
+            var stores = await (includeDeleted ? dbContext.Stores.IgnoreQueryFilters() : dbContext.Stores)
                 .AsNoTracking()
                 .OrderBy(s => s.Name)
                 .Select(s => new StoreDto(
@@ -29,7 +30,9 @@ public static class EquipmentEndpoints
                     s.City,
                     s.Phone,
                     s.Email,
-                    s.IsActive))
+                    s.IsActive,
+                    s.Version,
+                    s.IsDeleted))
                 .ToListAsync(ct);
             return Results.Ok(stores);
         })
@@ -71,9 +74,20 @@ public static class EquipmentEndpoints
             if (id != request.Id)
                 return Results.BadRequest();
 
-            var store = await dbContext.Stores.FirstOrDefaultAsync(s => s.Id == id, ct);
+            var store = await dbContext.Stores
+                .IgnoreQueryFilters()
+                .FirstOrDefaultAsync(s => s.Id == id, ct);
             if (store is null)
                 return Results.NotFound();
+
+            if (store.IsDeleted || (request.BaseVersion != 0 && request.BaseVersion != store.Version))
+                return Results.Conflict(new
+                {
+                    EntityId = store.Id,
+                    ExpectedVersion = request.BaseVersion,
+                    CurrentVersion = store.Version,
+                    Record = ToStoreDto(store)
+                });
 
             store.Name = request.Name;
             store.Code = request.Code;
@@ -91,12 +105,31 @@ public static class EquipmentEndpoints
 
         group.MapDelete("/stores/{id:guid}", async (
             Guid id,
+            [FromQuery] long baseVersion,
             ZenDbContext dbContext,
             CancellationToken ct) =>
         {
-            var store = await dbContext.Stores.FirstOrDefaultAsync(s => s.Id == id, ct);
+            var store = await dbContext.Stores.IgnoreQueryFilters().FirstOrDefaultAsync(s => s.Id == id, ct);
             if (store is null)
                 return Results.NotFound();
+
+            if (store.IsDeleted)
+                return Results.Conflict(new
+                {
+                    EntityId = store.Id,
+                    ExpectedVersion = baseVersion,
+                    CurrentVersion = store.Version,
+                    Record = ToStoreDto(store)
+                });
+
+            if (baseVersion != 0 && baseVersion != store.Version)
+                return Results.Conflict(new
+                {
+                    EntityId = store.Id,
+                    ExpectedVersion = baseVersion,
+                    CurrentVersion = store.Version,
+                    Record = ToStoreDto(store)
+                });
 
             dbContext.Stores.Remove(store);
             await dbContext.SaveChangesAsync(ct);
@@ -108,10 +141,11 @@ public static class EquipmentEndpoints
 
         // Printers
         group.MapGet("/printers", async (
+            [FromQuery] bool includeDeleted,
             IPrinterService printerService,
             CancellationToken ct) =>
         {
-            var printers = await printerService.GetAllAsync(ct);
+            var printers = await printerService.GetAllAsync(ct, includeDeleted);
             return Results.Ok(printers);
         })
         .WithName("GetPrinters")
@@ -170,6 +204,10 @@ public static class EquipmentEndpoints
             {
                 return Results.NotFound();
             }
+            catch (ZEN.Application.Services.Exceptions.SyncConflictException ex)
+            {
+                return Results.Conflict(new { ex.EntityId, ex.ExpectedVersion, ex.CurrentVersion, Record = (await printerService.GetAllAsync(ct, includeDeleted: true)).FirstOrDefault(x => x.Id == ex.EntityId) });
+            }
         })
         .WithName("UpdatePrinter")
         .WithOpenApi()
@@ -177,11 +215,19 @@ public static class EquipmentEndpoints
 
         group.MapDelete("/printers/{id:guid}", async (
             Guid id,
+            [FromQuery] long baseVersion,
             IPrinterService printerService,
             CancellationToken ct) =>
         {
-            var deleted = await printerService.DeleteAsync(id, ct);
-            return deleted ? Results.NoContent() : Results.NotFound();
+            try
+            {
+                var deleted = await printerService.DeleteAsync(id, ct, baseVersion);
+                return deleted ? Results.NoContent() : Results.NotFound();
+            }
+            catch (ZEN.Application.Services.Exceptions.SyncConflictException ex)
+            {
+                return Results.Conflict(new { ex.EntityId, ex.ExpectedVersion, ex.CurrentVersion, Record = (await printerService.GetAllAsync(ct, includeDeleted: true)).FirstOrDefault(x => x.Id == ex.EntityId) });
+            }
         })
         .WithName("DeletePrinter")
         .WithOpenApi()
@@ -227,10 +273,11 @@ public static class EquipmentEndpoints
 
         // Payment Terminals
         group.MapGet("/payment-terminals", async (
+            [FromQuery] bool includeDeleted,
             IPaymentTerminalService terminalService,
             CancellationToken ct) =>
         {
-            var terminals = await terminalService.GetAllAsync(ct);
+            var terminals = await terminalService.GetAllAsync(ct, includeDeleted);
             return Results.Ok(terminals);
         })
         .WithName("GetPaymentTerminals")
@@ -268,8 +315,15 @@ public static class EquipmentEndpoints
             CancellationToken ct) =>
         {
             if (id != request.Id) return Results.BadRequest();
-            var terminal = await terminalService.UpdateAsync(request, ct);
-            return Results.Ok(terminal);
+            try
+            {
+                var terminal = await terminalService.UpdateAsync(request, ct);
+                return Results.Ok(terminal);
+            }
+            catch (ZEN.Application.Services.Exceptions.SyncConflictException ex)
+            {
+                return Results.Conflict(new { ex.EntityId, ex.ExpectedVersion, ex.CurrentVersion, Record = (await terminalService.GetAllAsync(ct, includeDeleted: true)).FirstOrDefault(x => x.Id == ex.EntityId) });
+            }
         })
         .WithName("UpdatePaymentTerminal")
         .WithOpenApi()
@@ -277,11 +331,19 @@ public static class EquipmentEndpoints
 
         group.MapDelete("/payment-terminals/{id:guid}", async (
             Guid id,
+            [FromQuery] long baseVersion,
             IPaymentTerminalService terminalService,
             CancellationToken ct) =>
         {
-            var deleted = await terminalService.DeleteAsync(id, ct);
-            return deleted ? Results.NoContent() : Results.NotFound();
+            try
+            {
+                var deleted = await terminalService.DeleteAsync(id, ct, baseVersion);
+                return deleted ? Results.NoContent() : Results.NotFound();
+            }
+            catch (ZEN.Application.Services.Exceptions.SyncConflictException ex)
+            {
+                return Results.Conflict(new { ex.EntityId, ex.ExpectedVersion, ex.CurrentVersion, Record = (await terminalService.GetAllAsync(ct, includeDeleted: true)).FirstOrDefault(x => x.Id == ex.EntityId) });
+            }
         })
         .WithName("DeletePaymentTerminal")
         .WithOpenApi()
@@ -289,10 +351,11 @@ public static class EquipmentEndpoints
 
         // Scanners
         group.MapGet("/scanners", async (
+            [FromQuery] bool includeDeleted,
             IScannerService scannerService,
             CancellationToken ct) =>
         {
-            var scanners = await scannerService.GetAllAsync(ct);
+            var scanners = await scannerService.GetAllAsync(ct, includeDeleted);
             return Results.Ok(scanners);
         })
         .WithName("GetScanners")
@@ -330,8 +393,15 @@ public static class EquipmentEndpoints
             CancellationToken ct) =>
         {
             if (id != request.Id) return Results.BadRequest();
-            var scanner = await scannerService.UpdateAsync(request, ct);
-            return Results.Ok(scanner);
+            try
+            {
+                var scanner = await scannerService.UpdateAsync(request, ct);
+                return Results.Ok(scanner);
+            }
+            catch (ZEN.Application.Services.Exceptions.SyncConflictException ex)
+            {
+                return Results.Conflict(new { ex.EntityId, ex.ExpectedVersion, ex.CurrentVersion, Record = (await scannerService.GetAllAsync(ct, includeDeleted: true)).FirstOrDefault(x => x.Id == ex.EntityId) });
+            }
         })
         .WithName("UpdateScanner")
         .WithOpenApi()
@@ -339,11 +409,19 @@ public static class EquipmentEndpoints
 
         group.MapDelete("/scanners/{id:guid}", async (
             Guid id,
+            [FromQuery] long baseVersion,
             IScannerService scannerService,
             CancellationToken ct) =>
         {
-            var deleted = await scannerService.DeleteAsync(id, ct);
-            return deleted ? Results.NoContent() : Results.NotFound();
+            try
+            {
+                var deleted = await scannerService.DeleteAsync(id, ct, baseVersion);
+                return deleted ? Results.NoContent() : Results.NotFound();
+            }
+            catch (ZEN.Application.Services.Exceptions.SyncConflictException ex)
+            {
+                return Results.Conflict(new { ex.EntityId, ex.ExpectedVersion, ex.CurrentVersion, Record = (await scannerService.GetAllAsync(ct, includeDeleted: true)).FirstOrDefault(x => x.Id == ex.EntityId) });
+            }
         })
         .WithName("DeleteScanner")
         .WithOpenApi()
@@ -351,10 +429,11 @@ public static class EquipmentEndpoints
 
         // Customer Displays
         group.MapGet("/customer-displays", async (
+            [FromQuery] bool includeDeleted,
             ICustomerDisplayService displayService,
             CancellationToken ct) =>
         {
-            var displays = await displayService.GetAllAsync(ct);
+            var displays = await displayService.GetAllAsync(ct, includeDeleted);
             return Results.Ok(displays);
         })
         .WithName("GetCustomerDisplays")
@@ -392,8 +471,15 @@ public static class EquipmentEndpoints
             CancellationToken ct) =>
         {
             if (id != request.Id) return Results.BadRequest();
-            var display = await displayService.UpdateAsync(request, ct);
-            return Results.Ok(display);
+            try
+            {
+                var display = await displayService.UpdateAsync(request, ct);
+                return Results.Ok(display);
+            }
+            catch (ZEN.Application.Services.Exceptions.SyncConflictException ex)
+            {
+                return Results.Conflict(new { ex.EntityId, ex.ExpectedVersion, ex.CurrentVersion, Record = (await displayService.GetAllAsync(ct, includeDeleted: true)).FirstOrDefault(x => x.Id == ex.EntityId) });
+            }
         })
         .WithName("UpdateCustomerDisplay")
         .WithOpenApi()
@@ -401,11 +487,19 @@ public static class EquipmentEndpoints
 
         group.MapDelete("/customer-displays/{id:guid}", async (
             Guid id,
+            [FromQuery] long baseVersion,
             ICustomerDisplayService displayService,
             CancellationToken ct) =>
         {
-            var deleted = await displayService.DeleteAsync(id, ct);
-            return deleted ? Results.NoContent() : Results.NotFound();
+            try
+            {
+                var deleted = await displayService.DeleteAsync(id, ct, baseVersion);
+                return deleted ? Results.NoContent() : Results.NotFound();
+            }
+            catch (ZEN.Application.Services.Exceptions.SyncConflictException ex)
+            {
+                return Results.Conflict(new { ex.EntityId, ex.ExpectedVersion, ex.CurrentVersion, Record = (await displayService.GetAllAsync(ct, includeDeleted: true)).FirstOrDefault(x => x.Id == ex.EntityId) });
+            }
         })
         .WithName("DeleteCustomerDisplay")
         .WithOpenApi()
@@ -414,12 +508,13 @@ public static class EquipmentEndpoints
         // Cash Desks
         group.MapGet("/cash-desks", async (
             [FromQuery] Guid? storeId,
+            [FromQuery] bool includeDeleted,
             ICashDeskService cashDeskService,
             CancellationToken ct) =>
         {
             var cashDesks = storeId.HasValue
-                ? await cashDeskService.GetAllAsync(storeId.Value, ct)
-                : await cashDeskService.GetAllAsync(cancellationToken: ct);
+                ? await cashDeskService.GetAllAsync(storeId.Value, ct, includeDeleted)
+                : await cashDeskService.GetAllAsync(cancellationToken: ct, includeDeleted: includeDeleted);
             return Results.Ok(cashDesks);
         })
         .WithName("GetCashDesks")
@@ -497,8 +592,15 @@ public static class EquipmentEndpoints
             CancellationToken ct) =>
         {
             if (id != request.Id) return Results.BadRequest();
-            var cashDesk = await cashDeskService.UpdateAsync(request, ct);
-            return Results.Ok(cashDesk);
+            try
+            {
+                var cashDesk = await cashDeskService.UpdateAsync(request, ct);
+                return Results.Ok(cashDesk);
+            }
+            catch (ZEN.Application.Services.Exceptions.SyncConflictException ex)
+            {
+                return Results.Conflict(new { ex.EntityId, ex.ExpectedVersion, ex.CurrentVersion, Record = (await cashDeskService.GetAllAsync(cancellationToken: ct, includeDeleted: true)).FirstOrDefault(x => x.Id == ex.EntityId) });
+            }
         })
         .WithName("UpdateCashDesk")
         .WithOpenApi()
@@ -506,11 +608,19 @@ public static class EquipmentEndpoints
 
         group.MapDelete("/cash-desks/{id:guid}", async (
             Guid id,
+            [FromQuery] long baseVersion,
             ICashDeskService cashDeskService,
             CancellationToken ct) =>
         {
-            var deleted = await cashDeskService.DeleteAsync(id, ct);
-            return deleted ? Results.NoContent() : Results.NotFound();
+            try
+            {
+                var deleted = await cashDeskService.DeleteAsync(id, ct, baseVersion);
+                return deleted ? Results.NoContent() : Results.NotFound();
+            }
+            catch (ZEN.Application.Services.Exceptions.SyncConflictException ex)
+            {
+                return Results.Conflict(new { ex.EntityId, ex.ExpectedVersion, ex.CurrentVersion, Record = (await cashDeskService.GetAllAsync(cancellationToken: ct, includeDeleted: true)).FirstOrDefault(x => x.Id == ex.EntityId) });
+            }
         })
         .WithName("DeleteCashDesk")
         .WithOpenApi()
@@ -591,10 +701,11 @@ return Results.Ok(new
 
         // Menus
         group.MapGet("/menus", async (
+            [FromQuery] bool includeDeleted,
             IMenuService menuService,
             CancellationToken ct) =>
         {
-            var menus = await menuService.GetAllSummariesAsync(ct);
+            var menus = await menuService.GetAllSummariesAsync(ct, includeDeleted);
             return Results.Ok(menus);
         })
         .WithName("GetMenus")
@@ -632,8 +743,15 @@ return Results.Ok(new
             CancellationToken ct) =>
         {
             if (id != request.Id) return Results.BadRequest();
-            var menu = await menuService.UpdateAsync(request, ct);
-            return Results.Ok(menu);
+            try
+            {
+                var menu = await menuService.UpdateAsync(request, ct);
+                return Results.Ok(menu);
+            }
+            catch (ZEN.Application.Services.Exceptions.SyncConflictException ex)
+            {
+                return Results.Conflict(new { ex.EntityId, ex.ExpectedVersion, ex.CurrentVersion, Record = (await menuService.GetAllSummariesAsync(ct, includeDeleted: true)).FirstOrDefault(x => x.Id == ex.EntityId) });
+            }
         })
         .WithName("UpdateMenu")
         .WithOpenApi()
@@ -641,11 +759,19 @@ return Results.Ok(new
 
         group.MapDelete("/menus/{id:guid}", async (
             Guid id,
+            [FromQuery] long baseVersion,
             IMenuService menuService,
             CancellationToken ct) =>
         {
-            var deleted = await menuService.DeleteAsync(id, ct);
-            return deleted ? Results.NoContent() : Results.NotFound();
+            try
+            {
+                var deleted = await menuService.DeleteAsync(id, ct, baseVersion);
+                return deleted ? Results.NoContent() : Results.NotFound();
+            }
+            catch (ZEN.Application.Services.Exceptions.SyncConflictException ex)
+            {
+                return Results.Conflict(new { ex.EntityId, ex.ExpectedVersion, ex.CurrentVersion, Record = (await menuService.GetAllSummariesAsync(ct, includeDeleted: true)).FirstOrDefault(x => x.Id == ex.EntityId) });
+            }
         })
         .WithName("DeleteMenu")
         .WithOpenApi()
@@ -844,5 +970,7 @@ return Results.Ok(new
         store.City,
         store.Phone,
         store.Email,
-        store.IsActive);
+        store.IsActive,
+        store.Version,
+        store.IsDeleted);
 }

@@ -19,7 +19,7 @@ public class CashDeskService : ICashDeskService
 
     public async Task<CashDeskDto?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
-        var cashDesk = await _dbContext.CashDesks.FindAsync([id], cancellationToken);
+        var cashDesk = await _dbContext.CashDesks.IgnoreQueryFilters().FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
         return cashDesk == null ? null : ToDto(cashDesk);
     }
 
@@ -53,7 +53,9 @@ public class CashDeskService : ICashDeskService
                 pt.IpAddress,
                 pt.Port,
                 pt.CashDeskId,
-                pt.IsActive)),
+                pt.IsActive,
+                pt.Version,
+                pt.IsDeleted)),
             cashDesk.Scanners.Select(s => new ScannerDto(
                 s.Id,
                 s.Name,
@@ -61,14 +63,26 @@ public class CashDeskService : ICashDeskService
                 s.ConnectionType,
                 s.ConnectionString,
                 s.CashDeskId,
-                s.IsActive)),
+                s.IsActive,
+                s.Version,
+                s.IsDeleted)),
             cashDesk.LastActivityUtc,
-            cashDesk.IsOnline);
+            cashDesk.IsOnline,
+            cashDesk.Version,
+            cashDesk.IsDeleted);
     }
 
-    public async Task<IEnumerable<CashDeskDto>> GetAllAsync(Guid? storeId = null, CancellationToken cancellationToken = default)
+    public async Task<IEnumerable<CashDeskDto>> GetAllAsync(
+        Guid? storeId = null,
+        CancellationToken cancellationToken = default,
+        bool includeDeleted = false)
     {
         var query = _dbContext.CashDesks.AsQueryable();
+
+        if (includeDeleted)
+        {
+            query = query.IgnoreQueryFilters();
+        }
 
         if (storeId.HasValue)
         {
@@ -107,10 +121,18 @@ public class CashDeskService : ICashDeskService
 
     public async Task<CashDeskDto> UpdateAsync(UpdateCashDeskRequest request, CancellationToken cancellationToken = default)
     {
-        var cashDesk = await _dbContext.CashDesks.FindAsync([request.Id], cancellationToken);
+        var cashDesk = await _dbContext.CashDesks.IgnoreQueryFilters().FirstOrDefaultAsync(x => x.Id == request.Id, cancellationToken);
         if (cashDesk == null)
         {
             throw new KeyNotFoundException($"Cash desk with ID {request.Id} not found.");
+        }
+
+        if (cashDesk.IsDeleted || (request.BaseVersion != 0 && request.BaseVersion != cashDesk.Version))
+        {
+            throw new ZEN.Application.Services.Exceptions.SyncConflictException(
+                cashDesk.Id,
+                request.BaseVersion,
+                cashDesk.Version);
         }
 
         await ValidateReferences(request.StoreId, request.FiscalPrinterId, request.CustomerDisplayId, request.MenuId, cancellationToken);
@@ -192,12 +214,20 @@ public class CashDeskService : ICashDeskService
         }
     }
 
-    public async Task<bool> DeleteAsync(Guid id, CancellationToken cancellationToken = default)
+    public async Task<bool> DeleteAsync(Guid id, CancellationToken cancellationToken = default, long baseVersion = 0)
     {
-        var cashDesk = await _dbContext.CashDesks.FindAsync([id], cancellationToken);
+        var cashDesk = await _dbContext.CashDesks.IgnoreQueryFilters().FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
         if (cashDesk == null)
         {
             return false;
+        }
+
+        if (cashDesk.IsDeleted || (baseVersion != 0 && baseVersion != cashDesk.Version))
+        {
+            throw new ZEN.Application.Services.Exceptions.SyncConflictException(
+                cashDesk.Id,
+                baseVersion,
+                cashDesk.Version);
         }
 
         var terminals = await _dbContext.PaymentTerminals
@@ -278,5 +308,7 @@ public class CashDeskService : ICashDeskService
         cashDesk.CustomerDisplayId,
         cashDesk.MenuId,
         cashDesk.LastActivityUtc,
-        cashDesk.IsOnline);
+        cashDesk.IsOnline,
+        cashDesk.Version,
+        cashDesk.IsDeleted);
 }

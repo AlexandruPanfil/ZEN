@@ -11,6 +11,7 @@ public class SyncOutboxItem : BaseEntity
     public DateTime? LastAttemptUtc { get; set; }
     public DateTime? SyncedAtUtc { get; set; }
     public long? BaseVersion { get; set; }
+    public long? ConflictVersion { get; set; }
+    public string? ConflictRecordJson { get; set; }
     public string? Error { get; set; }
 }
-

@@ -66,6 +66,7 @@ public static class DatabaseInitializer
         }
 
         await command.ExecuteNonQueryAsync();
+        await EnsureVersionColumnAsync(dbContext, "Printers", logger);
         logger.LogInformation("Verified local Printers table.");
     }
 
@@ -165,6 +166,36 @@ public static class DatabaseInitializer
         logger.LogInformation("Added missing local database column {Table}.{Column}.", tableName, columnName);
     }
 
+    private static async Task EnsureVersionColumnAsync(
+        ZenDbContext dbContext,
+        string tableName,
+        ILogger logger)
+    {
+        var connection = dbContext.Database.GetDbConnection();
+        await using var checkCommand = connection.CreateCommand();
+        checkCommand.CommandText = $"PRAGMA table_info(\"{tableName}\");";
+        var exists = false;
+        await using (var reader = await checkCommand.ExecuteReaderAsync())
+        {
+            while (await reader.ReadAsync())
+            {
+                if (string.Equals(reader.GetString(1), "Version", StringComparison.OrdinalIgnoreCase))
+                {
+                    exists = true;
+                    break;
+                }
+            }
+        }
+        if (exists)
+        {
+            return;
+        }
+        await using var alterCommand = connection.CreateCommand();
+        alterCommand.CommandText = $"ALTER TABLE \"{tableName}\" ADD COLUMN \"Version\" INTEGER NOT NULL DEFAULT 1;";
+        await alterCommand.ExecuteNonQueryAsync();
+        logger.LogInformation("Added missing local database column {Table}.{Column}.", tableName, "Version");
+    }
+
     private static async Task EnsureScannerTableAsync(ZenDbContext dbContext, ILogger logger)
     {
         await using var command = dbContext.Database.GetDbConnection().CreateCommand();
@@ -191,6 +222,7 @@ public static class DatabaseInitializer
         }
 
         await command.ExecuteNonQueryAsync();
+        await EnsureVersionColumnAsync(dbContext, "Scanners", logger);
         logger.LogInformation("Verified local Scanners table.");
     }
 
@@ -220,6 +252,7 @@ public static class DatabaseInitializer
         }
 
         await command.ExecuteNonQueryAsync();
+        await EnsureVersionColumnAsync(dbContext, "CustomerDisplays", logger);
         logger.LogInformation("Verified local CustomerDisplays table.");
     }
 
@@ -251,6 +284,7 @@ public static class DatabaseInitializer
         }
 
         await command.ExecuteNonQueryAsync();
+        await EnsureVersionColumnAsync(dbContext, "CashDesks", logger);
         logger.LogInformation("Verified local CashDesks table.");
     }
 
@@ -281,6 +315,7 @@ public static class DatabaseInitializer
         }
 
         await command.ExecuteNonQueryAsync();
+        await EnsureVersionColumnAsync(dbContext, "PaymentTerminals", logger);
         logger.LogInformation("Verified local PaymentTerminals table.");
     }
 
@@ -314,6 +349,7 @@ public static class DatabaseInitializer
         }
 
         await command.ExecuteNonQueryAsync();
+        await EnsureVersionColumnAsync(dbContext, "Stores", logger);
         logger.LogInformation("Verified local Stores table.");
     }
 
@@ -339,6 +375,7 @@ public static class DatabaseInitializer
         }
 
         await command.ExecuteNonQueryAsync();
+        await EnsureVersionColumnAsync(dbContext, "Menus", logger);
         logger.LogInformation("Verified local Menus table.");
     }
 }

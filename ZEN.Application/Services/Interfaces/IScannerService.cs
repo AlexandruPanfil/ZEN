@@ -5,11 +5,13 @@ namespace ZEN.Application.Services.Interfaces;
 public interface IScannerService
 {
     Task<ScannerDto?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
-    Task<IEnumerable<ScannerDto>> GetAllAsync(CancellationToken cancellationToken = default);
+    Task<IEnumerable<ScannerDto>> GetAllAsync(
+        CancellationToken cancellationToken = default,
+        bool includeDeleted = false);
     IEnumerable<ScannerDto> GetAll();
     Task<ScannerDto> CreateAsync(CreateScannerRequest request, CancellationToken cancellationToken = default);
     Task<ScannerDto> UpdateAsync(UpdateScannerRequest request, CancellationToken cancellationToken = default);
-    Task<bool> DeleteAsync(Guid id, CancellationToken cancellationToken = default);
+    Task<bool> DeleteAsync(Guid id, CancellationToken cancellationToken = default, long baseVersion = 0);
 }
 
 public record CreateScannerRequest(
@@ -26,4 +28,5 @@ public record UpdateScannerRequest(
     string ScannerType,
     string? ConnectionType,
     string? ConnectionString,
-    bool IsActive);
+    bool IsActive,
+    long BaseVersion = 0);

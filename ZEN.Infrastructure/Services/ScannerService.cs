@@ -18,7 +18,7 @@ public class ScannerService : IScannerService
 
     public async Task<ScannerDto?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
-        var scanner = await _dbContext.Scanners.FindAsync([id], cancellationToken);
+        var scanner = await _dbContext.Scanners.IgnoreQueryFilters().FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
         return scanner == null ? null : new ScannerDto(
             scanner.Id,
             scanner.Name,
@@ -26,12 +26,17 @@ public class ScannerService : IScannerService
             scanner.ConnectionType,
             scanner.ConnectionString,
             scanner.CashDeskId,
-            scanner.IsActive);
+            scanner.IsActive,
+            scanner.Version,
+            scanner.IsDeleted);
     }
 
-    public async Task<IEnumerable<ScannerDto>> GetAllAsync(CancellationToken cancellationToken = default)
+    public async Task<IEnumerable<ScannerDto>> GetAllAsync(
+        CancellationToken cancellationToken = default,
+        bool includeDeleted = false)
     {
-        var scanners = await _dbContext.Scanners.ToListAsync(cancellationToken);
+        var query = includeDeleted ? _dbContext.Scanners.IgnoreQueryFilters() : _dbContext.Scanners;
+        var scanners = await query.ToListAsync(cancellationToken);
         return scanners.Select(s => new ScannerDto(
             s.Id,
             s.Name,
@@ -39,7 +44,9 @@ public class ScannerService : IScannerService
             s.ConnectionType,
             s.ConnectionString,
             s.CashDeskId,
-            s.IsActive));
+            s.IsActive,
+            s.Version,
+            s.IsDeleted));
     }
 
     public IEnumerable<ScannerDto> GetAll()
@@ -52,7 +59,9 @@ public class ScannerService : IScannerService
             s.ConnectionType,
             s.ConnectionString,
             s.CashDeskId,
-            s.IsActive));
+            s.IsActive,
+            s.Version,
+            s.IsDeleted));
     }
 
     public async Task<ScannerDto> CreateAsync(CreateScannerRequest request, CancellationToken cancellationToken = default)
@@ -77,15 +86,25 @@ public class ScannerService : IScannerService
             scanner.ConnectionType,
             scanner.ConnectionString,
             scanner.CashDeskId,
-            scanner.IsActive);
+            scanner.IsActive,
+            scanner.Version,
+            scanner.IsDeleted);
     }
 
     public async Task<ScannerDto> UpdateAsync(UpdateScannerRequest request, CancellationToken cancellationToken = default)
     {
-        var scanner = await _dbContext.Scanners.FindAsync([request.Id], cancellationToken);
+        var scanner = await _dbContext.Scanners.IgnoreQueryFilters().FirstOrDefaultAsync(x => x.Id == request.Id, cancellationToken);
         if (scanner == null)
         {
             throw new KeyNotFoundException($"Scanner with ID {request.Id} not found.");
+        }
+
+        if (scanner.IsDeleted || (request.BaseVersion != 0 && request.BaseVersion != scanner.Version))
+        {
+            throw new ZEN.Application.Services.Exceptions.SyncConflictException(
+                scanner.Id,
+                request.BaseVersion,
+                scanner.Version);
         }
 
         scanner.Name = request.Name;
@@ -103,15 +122,25 @@ public class ScannerService : IScannerService
             scanner.ConnectionType,
             scanner.ConnectionString,
             scanner.CashDeskId,
-            scanner.IsActive);
+            scanner.IsActive,
+            scanner.Version,
+            scanner.IsDeleted);
     }
 
-    public async Task<bool> DeleteAsync(Guid id, CancellationToken cancellationToken = default)
+    public async Task<bool> DeleteAsync(Guid id, CancellationToken cancellationToken = default, long baseVersion = 0)
     {
-        var scanner = await _dbContext.Scanners.FindAsync([id], cancellationToken);
+        var scanner = await _dbContext.Scanners.IgnoreQueryFilters().FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
         if (scanner == null)
         {
             return false;
+        }
+
+        if (scanner.IsDeleted || (baseVersion != 0 && baseVersion != scanner.Version))
+        {
+            throw new ZEN.Application.Services.Exceptions.SyncConflictException(
+                scanner.Id,
+                baseVersion,
+                scanner.Version);
         }
 
         _dbContext.Scanners.Remove(scanner);

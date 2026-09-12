@@ -9,6 +9,7 @@ namespace ZEN.Infrastructure.Persistence;
 public class ZenDbContext : IdentityDbContext<AppUser, AppRole, string>
 {
     private readonly ICurrentUserService? _currentUserService;
+    private bool _serverSynchronizationSave;
 
     public ZenDbContext(
         DbContextOptions<ZenDbContext> options,
@@ -137,22 +138,40 @@ public class ZenDbContext : IdentityDbContext<AppUser, AppRole, string>
                 case EntityState.Added:
                     entry.Entity.CreatedAt = now;
                     entry.Entity.UpdatedAt = now;
+                    entry.Entity.Version = Math.Max(entry.Entity.Version, 1);
                     entry.Entity.IsDeleted = false;
                     break;
 
                 case EntityState.Modified:
                     entry.Entity.UpdatedAt = now;
+                    if (!_serverSynchronizationSave)
+                        entry.Entity.Version = Math.Max(entry.Entity.Version + 1, 1);
                     break;
 
                 case EntityState.Deleted:
                     entry.State = EntityState.Modified;
                     entry.Entity.IsDeleted = true;
                     entry.Entity.UpdatedAt = now;
+                    if (!_serverSynchronizationSave)
+                        entry.Entity.Version = Math.Max(entry.Entity.Version + 1, 1);
                     break;
             }
         }
 
         return await base.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task<int> SaveServerSynchronizationAsync(CancellationToken cancellationToken = default)
+    {
+        _serverSynchronizationSave = true;
+        try
+        {
+            return await SaveChangesAsync(cancellationToken);
+        }
+        finally
+        {
+            _serverSynchronizationSave = false;
+        }
     }
 
     private static void ConfigureDefaultDecimalPrecision(ModelBuilder modelBuilder)

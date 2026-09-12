@@ -1,5 +1,6 @@
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Text.Json;
 using ZEN.Application.DTOs.Admin;
 using ZEN.Application.Services.Interfaces;
 using ZEN.Application.DTOs.Auth;
@@ -10,6 +11,26 @@ using ZEN.Application.DTOs.Shifts;
 using ZEN.Application.DTOs.Sync;
 
 namespace ZEN.Windows.Services.Sync;
+
+public sealed class SyncConflictHttpException : HttpRequestException
+{
+    public SyncConflictHttpException(
+        string entityType,
+        string responseBody,
+        long? expectedVersion,
+        long? currentVersion,
+        string? recordJson)
+        : base($"Synchronization conflict for {entityType}: {responseBody}", null, System.Net.HttpStatusCode.Conflict)
+    {
+        ExpectedVersion = expectedVersion;
+        CurrentVersion = currentVersion;
+        RecordJson = recordJson;
+    }
+
+    public long? ExpectedVersion { get; }
+    public long? CurrentVersion { get; }
+    public string? RecordJson { get; }
+}
 
 public class SyncApiClient
 {
@@ -84,8 +105,8 @@ public class SyncApiClient
     public async Task<IEnumerable<PrinterDto>> GetPrintersAsync(Guid? storeId = null, CancellationToken cancellationToken = default)
     {
         var uri = storeId.HasValue
-            ? $"api/equipments/printers?storeId={storeId.Value}"
-            : "api/equipments/printers";
+            ? $"api/equipments/printers?storeId={storeId.Value}&includeDeleted=true"
+            : "api/equipments/printers?includeDeleted=true";
         return await _httpClient.GetFromJsonAsync<IEnumerable<PrinterDto>>(uri, cancellationToken) ?? [];
     }
 
@@ -112,6 +133,7 @@ public class SyncApiClient
         CancellationToken cancellationToken = default)
     {
         using var response = await _httpClient.PutAsJsonAsync($"api/equipments/printers/{request.Id}", request, cancellationToken);
+        await ThrowIfConflictAsync(response, "printer", cancellationToken);
         if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
         {
             throw new HttpRequestException(
@@ -127,9 +149,13 @@ public class SyncApiClient
 
     public async Task<bool> DeletePrinterAsync(
         Guid id,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        long baseVersion = 0)
     {
-        using var response = await _httpClient.DeleteAsync($"api/equipments/printers/{id}", cancellationToken);
+        using var response = await _httpClient.DeleteAsync(
+            $"api/equipments/printers/{id}?baseVersion={baseVersion}",
+            cancellationToken);
+        await ThrowIfConflictAsync(response, "printer", cancellationToken);
         return response.IsSuccessStatusCode;
     }
 
@@ -148,6 +174,7 @@ public class SyncApiClient
         CancellationToken cancellationToken = default)
     {
         using var response = await _httpClient.PutAsJsonAsync($"api/equipments/scanners/{request.Id}", request, cancellationToken);
+        await ThrowIfConflictAsync(response, "scanner", cancellationToken);
         return response.IsSuccessStatusCode
             ? await response.Content.ReadFromJsonAsync<ScannerDto>(cancellationToken)
             : null;
@@ -155,9 +182,13 @@ public class SyncApiClient
 
     public async Task<bool> DeleteScannerAsync(
         Guid id,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        long baseVersion = 0)
     {
-        using var response = await _httpClient.DeleteAsync($"api/equipments/scanners/{id}", cancellationToken);
+        using var response = await _httpClient.DeleteAsync(
+            $"api/equipments/scanners/{id}?baseVersion={baseVersion}",
+            cancellationToken);
+        await ThrowIfConflictAsync(response, "scanner", cancellationToken);
         return response.IsSuccessStatusCode;
     }
 
@@ -176,6 +207,7 @@ public class SyncApiClient
         CancellationToken cancellationToken = default)
     {
         using var response = await _httpClient.PutAsJsonAsync($"api/equipments/customer-displays/{request.Id}", request, cancellationToken);
+        await ThrowIfConflictAsync(response, "customer display", cancellationToken);
         return response.IsSuccessStatusCode
             ? await response.Content.ReadFromJsonAsync<CustomerDisplayDto>(cancellationToken)
             : null;
@@ -183,23 +215,27 @@ public class SyncApiClient
 
     public async Task<bool> DeleteCustomerDisplayAsync(
         Guid id,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        long baseVersion = 0)
     {
-        using var response = await _httpClient.DeleteAsync($"api/equipments/customer-displays/{id}", cancellationToken);
+        using var response = await _httpClient.DeleteAsync(
+            $"api/equipments/customer-displays/{id}?baseVersion={baseVersion}",
+            cancellationToken);
+        await ThrowIfConflictAsync(response, "customer display", cancellationToken);
         return response.IsSuccessStatusCode;
     }
 
     public async Task<IEnumerable<PaymentTerminalDto>> GetPaymentTerminalsAsync(Guid? storeId = null, CancellationToken cancellationToken = default)
     {
         var uri = storeId.HasValue
-            ? $"api/equipments/payment-terminals?storeId={storeId.Value}"
-            : "api/equipments/payment-terminals";
+            ? $"api/equipments/payment-terminals?storeId={storeId.Value}&includeDeleted=true"
+            : "api/equipments/payment-terminals?includeDeleted=true";
         return await _httpClient.GetFromJsonAsync<IEnumerable<PaymentTerminalDto>>(uri, cancellationToken) ?? [];
     }
 
     public async Task<IEnumerable<PaymentTerminalDto>> GetPaymentTerminalsAsync(Guid cashDeskId, CancellationToken cancellationToken = default)
     {
-        var uri = $"api/equipments/payment-terminals?cashDeskId={cashDeskId}";
+        var uri = $"api/equipments/payment-terminals?cashDeskId={cashDeskId}&includeDeleted=true";
         return await _httpClient.GetFromJsonAsync<IEnumerable<PaymentTerminalDto>>(uri, cancellationToken) ?? [];
     }
 
@@ -228,6 +264,7 @@ public class SyncApiClient
         CancellationToken cancellationToken = default)
     {
         using var response = await _httpClient.PutAsJsonAsync($"api/equipments/payment-terminals/{request.Id}", request, cancellationToken);
+        await ThrowIfConflictAsync(response, "payment terminal", cancellationToken);
         return response.IsSuccessStatusCode
             ? await response.Content.ReadFromJsonAsync<PaymentTerminalDto>(cancellationToken)
             : null;
@@ -235,33 +272,37 @@ public class SyncApiClient
 
     public async Task<bool> DeletePaymentTerminalAsync(
         Guid id,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        long baseVersion = 0)
     {
-        using var response = await _httpClient.DeleteAsync($"api/equipments/payment-terminals/{id}", cancellationToken);
+        using var response = await _httpClient.DeleteAsync(
+            $"api/equipments/payment-terminals/{id}?baseVersion={baseVersion}",
+            cancellationToken);
+        await ThrowIfConflictAsync(response, "payment terminal", cancellationToken);
         return response.IsSuccessStatusCode;
     }
 
     public async Task<IEnumerable<ScannerDto>> GetScannersAsync(Guid? storeId = null, CancellationToken cancellationToken = default)
     {
         var uri = storeId.HasValue
-            ? $"api/equipments/scanners?storeId={storeId.Value}"
-            : "api/equipments/scanners";
+            ? $"api/equipments/scanners?storeId={storeId.Value}&includeDeleted=true"
+            : "api/equipments/scanners?includeDeleted=true";
         return await _httpClient.GetFromJsonAsync<IEnumerable<ScannerDto>>(uri, cancellationToken) ?? [];
     }
 
     public async Task<IEnumerable<CustomerDisplayDto>> GetCustomerDisplaysAsync(Guid? storeId = null, CancellationToken cancellationToken = default)
     {
         var uri = storeId.HasValue
-            ? $"api/equipments/customer-displays?storeId={storeId.Value}"
-            : "api/equipments/customer-displays";
+            ? $"api/equipments/customer-displays?storeId={storeId.Value}&includeDeleted=true"
+            : "api/equipments/customer-displays?includeDeleted=true";
         return await _httpClient.GetFromJsonAsync<IEnumerable<CustomerDisplayDto>>(uri, cancellationToken) ?? [];
     }
 
     public async Task<IEnumerable<CashDeskDto>> GetCashDesksAsync(Guid? storeId = null, CancellationToken cancellationToken = default)
     {
         var uri = storeId.HasValue
-            ? $"api/equipments/cash-desks?storeId={storeId.Value}"
-            : "api/equipments/cash-desks";
+            ? $"api/equipments/cash-desks?storeId={storeId.Value}&includeDeleted=true"
+            : "api/equipments/cash-desks?includeDeleted=true";
         return await _httpClient.GetFromJsonAsync<IEnumerable<CashDeskDto>>(uri, cancellationToken) ?? [];
     }
 
@@ -290,6 +331,7 @@ public class SyncApiClient
         CancellationToken cancellationToken = default)
     {
         using var response = await _httpClient.PutAsJsonAsync($"api/equipments/cash-desks/{request.Id}", request, cancellationToken);
+        await ThrowIfConflictAsync(response, "cash desk", cancellationToken);
         return response.IsSuccessStatusCode
             ? await response.Content.ReadFromJsonAsync<CashDeskDto>(cancellationToken)
             : null;
@@ -297,9 +339,13 @@ public class SyncApiClient
 
     public async Task<bool> DeleteCashDeskAsync(
         Guid id,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        long baseVersion = 0)
     {
-        using var response = await _httpClient.DeleteAsync($"api/equipments/cash-desks/{id}", cancellationToken);
+        using var response = await _httpClient.DeleteAsync(
+            $"api/equipments/cash-desks/{id}?baseVersion={baseVersion}",
+            cancellationToken);
+        await ThrowIfConflictAsync(response, "cash desk", cancellationToken);
         return response.IsSuccessStatusCode;
     }
 
@@ -307,7 +353,7 @@ public class SyncApiClient
         CancellationToken cancellationToken = default)
     {
         return await _httpClient.GetFromJsonAsync<IEnumerable<StoreDto>>(
-            "api/equipments/stores",
+            "api/equipments/stores?includeDeleted=true",
             cancellationToken) ?? [];
     }
 
@@ -326,6 +372,7 @@ public class SyncApiClient
         CancellationToken cancellationToken = default)
     {
         using var response = await _httpClient.PutAsJsonAsync($"api/equipments/stores/{request.Id}", request, cancellationToken);
+        await ThrowIfConflictAsync(response, "store", cancellationToken);
         return response.IsSuccessStatusCode
             ? await response.Content.ReadFromJsonAsync<StoreDto>(cancellationToken)
             : null;
@@ -333,9 +380,13 @@ public class SyncApiClient
 
     public async Task<bool> DeleteStoreAsync(
         Guid id,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        long baseVersion = 0)
     {
-        using var response = await _httpClient.DeleteAsync($"api/equipments/stores/{id}", cancellationToken);
+        using var response = await _httpClient.DeleteAsync(
+            $"api/equipments/stores/{id}?baseVersion={baseVersion}",
+            cancellationToken);
+        await ThrowIfConflictAsync(response, "store", cancellationToken);
         return response.IsSuccessStatusCode;
     }
 
@@ -343,7 +394,7 @@ public class SyncApiClient
         CancellationToken cancellationToken = default)
     {
         return await _httpClient.GetFromJsonAsync<IEnumerable<MenuSummaryDto>>(
-            "api/equipments/menus",
+            "api/equipments/menus?includeDeleted=true",
             cancellationToken) ?? [];
     }
 
@@ -362,6 +413,7 @@ public class SyncApiClient
         CancellationToken cancellationToken = default)
     {
         using var response = await _httpClient.PutAsJsonAsync($"api/equipments/menus/{request.Id}", request, cancellationToken);
+        await ThrowIfConflictAsync(response, "menu", cancellationToken);
         return response.IsSuccessStatusCode
             ? await response.Content.ReadFromJsonAsync<MenuDto>(cancellationToken)
             : null;
@@ -369,9 +421,13 @@ public class SyncApiClient
 
     public async Task<bool> DeleteMenuAsync(
         Guid id,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        long baseVersion = 0)
     {
-        using var response = await _httpClient.DeleteAsync($"api/equipments/menus/{id}", cancellationToken);
+        using var response = await _httpClient.DeleteAsync(
+            $"api/equipments/menus/{id}?baseVersion={baseVersion}",
+            cancellationToken);
+        await ThrowIfConflictAsync(response, "menu", cancellationToken);
         return response.IsSuccessStatusCode;
     }
 
@@ -577,6 +633,54 @@ public class SyncApiClient
         }
 
         return content.Length > 500 ? content[..500] : content;
+    }
+
+    private static async Task ThrowIfConflictAsync(
+        HttpResponseMessage response,
+        string entityType,
+        CancellationToken cancellationToken)
+    {
+        if (response.StatusCode != System.Net.HttpStatusCode.Conflict)
+        {
+            return;
+        }
+
+        var body = await response.Content.ReadAsStringAsync(cancellationToken);
+        long? expectedVersion = null;
+        long? currentVersion = null;
+        string? recordJson = null;
+
+        try
+        {
+            using var document = JsonDocument.Parse(body);
+            if (document.RootElement.TryGetProperty("expectedVersion", out var expected)
+                && expected.TryGetInt64(out var expectedValue))
+            {
+                expectedVersion = expectedValue;
+            }
+
+            if (document.RootElement.TryGetProperty("currentVersion", out var current)
+                && current.TryGetInt64(out var currentValue))
+            {
+                currentVersion = currentValue;
+            }
+
+            if (document.RootElement.TryGetProperty("record", out var record))
+            {
+                recordJson = record.GetRawText();
+            }
+        }
+        catch (JsonException)
+        {
+            // Preserve the raw response in the exception when the server did not return JSON.
+        }
+
+        throw new SyncConflictHttpException(
+            entityType,
+            body,
+            expectedVersion,
+            currentVersion,
+            recordJson);
     }
 
     // Cash Desk Status and Heartbeat

@@ -1,4 +1,4 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using ZEN.Application.DTOs.Admin;
 using ZEN.Domain.Entities;
@@ -31,7 +31,9 @@ public sealed class PosStoreService
                 s.City,
                 s.Phone,
                 s.Email,
-                s.IsActive))
+                s.IsActive,
+                s.Version,
+                s.IsDeleted))
             .ToListAsync(cancellationToken);
     }
 
@@ -52,21 +54,9 @@ public sealed class PosStoreService
         stores = stores
             .Where(x => !pendingDeleteIds.Contains(x.Id))
             .ToList();
-        var serverIds = stores.Select(s => s.Id).ToHashSet();
-        var staleStores = await _dbContext.Stores
-            .IgnoreQueryFilters()
-            .Where(s => !s.IsDeleted && !serverIds.Contains(s.Id)
-                && !pendingEntityIds.Contains(s.Id))
-            .ToListAsync(cancellationToken);
-
-        foreach (var staleStore in staleStores)
-        {
-            staleStore.IsDeleted = true;
-        }
-
         foreach (var dto in stores)
         {
-            if (pendingDeleteIds.Contains(dto.Id))
+            if (pendingEntityIds.Contains(dto.Id))
             {
                 continue;
             }
@@ -87,10 +77,11 @@ public sealed class PosStoreService
             existing.Phone = dto.Phone;
             existing.Email = dto.Email;
             existing.IsActive = dto.IsActive;
-            existing.IsDeleted = false;
+            existing.Version = dto.Version;
+            existing.IsDeleted = dto.IsDeleted;
         }
 
-        await _dbContext.SaveChangesAsync(cancellationToken);
+        await _dbContext.SaveServerSynchronizationAsync(cancellationToken);
         return stores;
     }
 
@@ -99,7 +90,6 @@ public sealed class PosStoreService
         CancellationToken cancellationToken = default)
     {
         var localRequest = request with { Id = request.Id ?? Guid.NewGuid() };
-        var serverSaved = false;
         var store = new Store
         {
             Id = localRequest.Id.Value,
@@ -114,6 +104,7 @@ public sealed class PosStoreService
 
         await _dbContext.Stores.AddAsync(store, cancellationToken);
         await _dbContext.SaveChangesAsync(cancellationToken);
+        var serverSaved = await TryCreateOnServerAsync(localRequest, cancellationToken);
 
         if (!serverSaved)
         {
@@ -127,9 +118,10 @@ public sealed class PosStoreService
         UpdateStoreRequest request,
         CancellationToken cancellationToken = default)
     {
-        var serverSaved = false;
         var store = await _dbContext.Stores.FirstOrDefaultAsync(s => s.Id == request.Id, cancellationToken)
             ?? throw new KeyNotFoundException($"Store with ID {request.Id} not found.");
+        var baseVersion = store.Version;
+        var localRequest = request with { BaseVersion = baseVersion };
 
         store.Name = request.Name;
         store.Code = request.Code;
@@ -139,10 +131,10 @@ public sealed class PosStoreService
         store.Email = request.Email;
         store.IsActive = request.IsActive;
         await _dbContext.SaveChangesAsync(cancellationToken);
-
+        var serverSaved = await TryUpdateOnServerAsync(localRequest, cancellationToken);
         if (!serverSaved)
         {
-            await QueueAsync("Update", store.Id, request, cancellationToken);
+            await QueueAsync("Update", store.Id, localRequest, cancellationToken, baseVersion);
         }
 
         return ToDto(store);
@@ -152,17 +144,18 @@ public sealed class PosStoreService
         Guid id,
         CancellationToken cancellationToken = default)
     {
-        var serverDeleted = false;
         var store = await _dbContext.Stores.FirstOrDefaultAsync(s => s.Id == id, cancellationToken);
         if (store is null)
             return false;
+        var baseVersion = store.Version;
 
         _dbContext.Stores.Remove(store);
         await _dbContext.SaveChangesAsync(cancellationToken);
 
+        var serverDeleted = await TryDeleteOnServerAsync(id, baseVersion, cancellationToken);
         if (!serverDeleted)
         {
-            await QueueAsync("Delete", id, new { Id = id }, cancellationToken);
+            await QueueAsync("Delete", id, new { Id = id }, cancellationToken, baseVersion);
         }
 
         return true;
@@ -172,7 +165,8 @@ public sealed class PosStoreService
         string operation,
         Guid entityId,
         object payload,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        long baseVersion = 0)
     {
         var idempotencyKey = $"store:{entityId}:{operation}";
         var existing = await _dbContext.SyncOutboxItems
@@ -180,9 +174,16 @@ public sealed class PosStoreService
                 x => x.IdempotencyKey == idempotencyKey && x.Status != "Failed",
                 cancellationToken);
 
+        if (existing?.Status == "Conflict")
+        {
+            idempotencyKey = $"{idempotencyKey}:{Guid.NewGuid():N}";
+            existing = null;
+        }
+
         if (existing is not null)
         {
             existing.PayloadJson = JsonSerializer.Serialize(payload);
+            existing.BaseVersion = existing.BaseVersion == 0 ? baseVersion : existing.BaseVersion;
             existing.Status = "Pending";
             existing.Error = null;
         }
@@ -194,7 +195,8 @@ public sealed class PosStoreService
                 EntityId = entityId,
                 PayloadJson = JsonSerializer.Serialize(payload),
                 IdempotencyKey = idempotencyKey,
-                Status = "Pending"
+                Status = "Pending",
+                BaseVersion = baseVersion
             }, cancellationToken);
         }
 
@@ -239,11 +241,12 @@ public sealed class PosStoreService
 
     private async Task<bool> TryDeleteOnServerAsync(
         Guid id,
+        long baseVersion,
         CancellationToken cancellationToken)
     {
         try
         {
-            return await _apiClient.DeleteStoreAsync(id, cancellationToken);
+            return await _apiClient.DeleteStoreAsync(id, cancellationToken, baseVersion);
         }
         catch (HttpRequestException)
         {
@@ -263,6 +266,8 @@ public sealed class PosStoreService
         store.City,
         store.Phone,
         store.Email,
-        store.IsActive);
+        store.IsActive,
+        store.Version,
+        store.IsDeleted);
 }
 
