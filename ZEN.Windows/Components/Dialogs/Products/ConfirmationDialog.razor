@@ -1,0 +1,35 @@
+@using MudBlazor
+
+<MudDialog @bind-Visible="Visible" Options="new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseButton = true }">
+    <TitleContent>
+        <MudText Typo="Typo.subtitle1" Class="font-weight-bold">
+            <MudIcon Icon="@Icons.Material.Filled.Delete" Class="mr-2" /> @Title
+        </MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudText Typo="Typo.body1">@Message</MudText>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel" Size="Size.Small" Variant="Variant.Text">Cancel</MudButton>
+        <MudButton Color="Color.Error" Variant="Variant.Filled" OnClick="Confirm" Size="Size.Small">Delete</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [Parameter] public bool Visible { get; set; }
+    [Parameter] public string Title { get; set; } = "Confirm Delete";
+    [Parameter] public string Message { get; set; } = "Are you sure you want to delete this item?";
+    [Parameter] public EventCallback<bool> OnResult { get; set; }
+
+    private void Cancel()
+    {
+        Visible = false;
+        OnResult.InvokeAsync(false);
+    }
+
+    private void Confirm()
+    {
+        Visible = false;
+        OnResult.InvokeAsync(true);
+    }
+}

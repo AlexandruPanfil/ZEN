@@ -1,0 +1,78 @@
+@using MudBlazor
+@using ZEN.Application.DTOs.Products
+
+<MudDialog @bind-Visible="Visible" Options="new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseButton = true }">
+    <TitleContent>
+        <MudText Typo="Typo.subtitle1" Class="font-weight-bold">
+            <MudIcon Icon="@Icons.Material.Filled.Category" Class="mr-2" /> @(IsEditMode ? "Modify Category" : "Add Category Entry")
+        </MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudForm @ref="_form" @bind-IsValid="@_formIsValid">
+            <MudGrid Spacing="2">
+                <MudItem xs="12">
+                    <MudTextField Label="Category Name" Variant="Variant.Outlined" @bind-Value="Model.Name" Required="true" For="@(() => Model.Name)" Margin="Margin.Dense" Style="font-size: 0.8rem;" />
+                </MudItem>
+                <MudItem xs="12">
+                    <MudTextField Label="Description" Variant="Variant.Outlined" @bind-Value="Model.Description" Multiline="true" Lines="2" Margin="Margin.Dense" Style="font-size: 0.8rem;" />
+                </MudItem>
+                <MudItem xs="12">
+                    <MudSelect T="Guid?" Label="Parent Category" Variant="Variant.Outlined" @bind-Value="Model.ParentCategoryId" AnchorOrigin="Origin.BottomLeft" Margin="Margin.Dense" Style="font-size: 0.8rem;">
+                        <MudSelectItem T="Guid?" Value="@null">None</MudSelectItem>
+                        @foreach (var cat in Categories.Where(c => c.Id != Model.Id))
+                        {
+                            <MudSelectItem T="Guid?" Value="@cat.Id">@cat.Name</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudNumericField @bind-Value="Model.SortOrder" Label="Sort Order" Min="0" Variant="Variant.Outlined" Margin="Margin.Dense" Style="font-size: 0.8rem;" />
+                </MudItem>
+                <MudItem xs="12" sm="6" Class="d-flex align-center">
+                    <MudSwitch @bind-Value="Model.IsActive" Color="Color.Primary" Label="Active" Dense="true" Style="font-size: 0.75rem;" />
+                </MudItem>
+            </MudGrid>
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="CloseDialog" Size="Size.Small">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveCategory" Disabled="@(!_formIsValid)" Size="Size.Small">@(IsEditMode ? "Update" : "Create")</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [Parameter] public bool Visible { get; set; }
+    [Parameter] public bool IsEditMode { get; set; }
+    [Parameter] public CategoryFormModel Model { get; set; } = new();
+    [Parameter] public IEnumerable<CategoryDto> Categories { get; set; } = new List<CategoryDto>();
+    [Parameter] public EventCallback<CategoryFormModel> OnSave { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private MudForm _form = default!;
+    private bool _formIsValid = false;
+
+    private void CloseDialog()
+    {
+        Visible = false;
+        OnClose.InvokeAsync();
+    }
+
+    private async Task SaveCategory()
+    {
+        await _form.ValidateAsync();
+        if (!_formIsValid) return;
+
+        await OnSave.InvokeAsync(Model);
+        CloseDialog();
+    }
+
+    public class CategoryFormModel
+    {
+        public Guid Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string? Description { get; set; }
+        public Guid? ParentCategoryId { get; set; }
+        public int SortOrder { get; set; }
+        public bool IsActive { get; set; } = true;
+    }
+}
