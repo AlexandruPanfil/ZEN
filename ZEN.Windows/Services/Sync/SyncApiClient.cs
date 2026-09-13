@@ -5,10 +5,15 @@ using ZEN.Application.DTOs.Admin;
 using ZEN.Application.Services.Interfaces;
 using ZEN.Application.DTOs.Auth;
 using ZEN.Application.DTOs.CashDeskMenu;
+using ZEN.Application.DTOs.Products;
 using ZEN.Application.DTOs.Reports;
 using ZEN.Application.DTOs.Sales;
 using ZEN.Application.DTOs.Shifts;
 using ZEN.Application.DTOs.Sync;
+using ZEN.Application.Services.Interfaces;
+using ServiceTaxDto = ZEN.Application.Services.Interfaces.TaxDto;
+using ServiceCreateTaxRequest = ZEN.Application.Services.Interfaces.CreateTaxRequest;
+using ServiceUpdateTaxRequest = ZEN.Application.Services.Interfaces.UpdateTaxRequest;
 
 namespace ZEN.Windows.Services.Sync;
 
@@ -757,6 +762,246 @@ public class SyncApiClient
         catch
         {
             return [];
+        }
+    }
+
+    // Product CRUD
+    public async Task<IEnumerable<ProductDto>> GetProductsAsync(string? searchTerm = null, CancellationToken cancellationToken = default)
+    {
+        var uri = string.IsNullOrWhiteSpace(searchTerm)
+            ? "api/products"
+            : $"api/products/search/{Uri.EscapeDataString(searchTerm)}";
+        return await _httpClient.GetFromJsonAsync<IEnumerable<ProductDto>>(uri, cancellationToken) ?? [];
+    }
+
+    public async Task<ProductDto?> GetProductByIdAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            return await _httpClient.GetFromJsonAsync<ProductDto>($"api/products/{id}", cancellationToken);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    public async Task<ProductDto?> CreateProductAsync(CreateProductRequest request, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var response = await _httpClient.PostAsJsonAsync("api/products", request, cancellationToken);
+            if (response.IsSuccessStatusCode)
+            {
+                return await response.Content.ReadFromJsonAsync<ProductDto>(cancellationToken);
+            }
+            return null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    public async Task<ProductDto?> UpdateProductAsync(UpdateProductRequest request, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var response = await _httpClient.PutAsJsonAsync($"api/products/{request.Id}", request, cancellationToken);
+            if (response.IsSuccessStatusCode)
+            {
+                return await response.Content.ReadFromJsonAsync<ProductDto>(cancellationToken);
+            }
+            return null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    public async Task<bool> DeleteProductAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var response = await _httpClient.DeleteAsync($"api/products/{id}", cancellationToken);
+            return response.IsSuccessStatusCode;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    // Category CRUD
+    public async Task<IEnumerable<CategoryDto>> GetCategoriesAsync(CancellationToken cancellationToken = default)
+    {
+        return await _httpClient.GetFromJsonAsync<IEnumerable<CategoryDto>>("api/products/categories", cancellationToken) ?? [];
+    }
+
+    public async Task<CategoryDto?> CreateCategoryAsync(CreateCategoryRequest request, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var response = await _httpClient.PostAsJsonAsync("api/products/categories", request, cancellationToken);
+            if (response.IsSuccessStatusCode)
+            {
+                return await response.Content.ReadFromJsonAsync<CategoryDto>(cancellationToken);
+            }
+            return null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    public async Task<CategoryDto?> UpdateCategoryAsync(UpdateCategoryRequest request, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var response = await _httpClient.PutAsJsonAsync($"api/products/categories/{request.Id}", request, cancellationToken);
+            if (response.IsSuccessStatusCode)
+            {
+                return await response.Content.ReadFromJsonAsync<CategoryDto>(cancellationToken);
+            }
+            return null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    public async Task<bool> DeleteCategoryAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var response = await _httpClient.DeleteAsync($"api/products/categories/{id}", cancellationToken);
+            return response.IsSuccessStatusCode;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    // Brand CRUD
+    public async Task<IEnumerable<BrandDto>> GetBrandsAsync(CancellationToken cancellationToken = default)
+    {
+        return await _httpClient.GetFromJsonAsync<IEnumerable<BrandDto>>("api/products/brands", cancellationToken) ?? [];
+    }
+
+    public async Task<BrandDto?> CreateBrandAsync(CreateBrandRequest request, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var response = await _httpClient.PostAsJsonAsync("api/products/brands", request, cancellationToken);
+            if (response.IsSuccessStatusCode)
+            {
+                return await response.Content.ReadFromJsonAsync<BrandDto>(cancellationToken);
+            }
+            return null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    public async Task<BrandDto?> UpdateBrandAsync(UpdateBrandRequest request, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var response = await _httpClient.PutAsJsonAsync($"api/products/brands/{request.Id}", request, cancellationToken);
+            if (response.IsSuccessStatusCode)
+            {
+                return await response.Content.ReadFromJsonAsync<BrandDto>(cancellationToken);
+            }
+            return null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    public async Task<bool> DeleteBrandAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var response = await _httpClient.DeleteAsync($"api/products/brands/{id}", cancellationToken);
+            return response.IsSuccessStatusCode;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    // Tax CRUD
+    public async Task<IEnumerable<ServiceTaxDto>> GetTaxesAsync(CancellationToken cancellationToken = default)
+    {
+        return await _httpClient.GetFromJsonAsync<IEnumerable<ServiceTaxDto>>("api/taxes", cancellationToken) ?? [];
+    }
+
+    public async Task<ServiceTaxDto?> CreateTaxAsync(ServiceCreateTaxRequest request, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var response = await _httpClient.PostAsJsonAsync("api/taxes", request, cancellationToken);
+            if (response.IsSuccessStatusCode)
+            {
+                return await response.Content.ReadFromJsonAsync<ServiceTaxDto>(cancellationToken);
+            }
+            return null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    public async Task<ServiceTaxDto?> UpdateTaxAsync(ServiceUpdateTaxRequest request, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var response = await _httpClient.PutAsJsonAsync($"api/taxes/{request.Id}", request, cancellationToken);
+            if (response.IsSuccessStatusCode)
+            {
+                return await response.Content.ReadFromJsonAsync<ServiceTaxDto>(cancellationToken);
+            }
+            return null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    public async Task<bool> DeleteTaxAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var response = await _httpClient.DeleteAsync($"api/taxes/{id}", cancellationToken);
+            return response.IsSuccessStatusCode;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    public async Task<bool> SetDefaultTaxAsync(Guid taxId, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var response = await _httpClient.PutAsJsonAsync($"api/taxes/{taxId}/set-default", new { }, cancellationToken);
+            return response.IsSuccessStatusCode;
+        }
+        catch
+        {
+            return false;
         }
     }
 }

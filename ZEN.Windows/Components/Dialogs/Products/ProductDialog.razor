@@ -1,0 +1,120 @@
+@using MudBlazor
+@using ZEN.Application.DTOs.Products
+@using ZEN.Application.Services.Interfaces
+@using ServiceTaxDto = ZEN.Application.Services.Interfaces.TaxDto
+
+<MudDialog @bind-Visible="Visible" Options="new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true, CloseButton = true }">
+    <TitleContent>
+        <MudText Typo="Typo.subtitle1" Class="font-weight-bold">
+            <MudIcon Icon="@(IsEditMode ? Icons.Material.Filled.EditNote : Icons.Material.Filled.PostAdd)" Class="mr-2" />
+            @(IsEditMode ? $"Modify Product: {Model.Name}" : "Establish New Product Unit Node")
+        </MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudForm @ref="_form" @bind-IsValid="@_formIsValid">
+            <MudGrid Spacing="2" Class="py-1">
+                <MudItem xs="12" sm="6">
+                    <MudTextField Label="Product Standard Designation Name" Variant="Variant.Outlined" @bind-Value="Model.Name" Required="true" For="@(() => Model.Name)" Margin="Margin.Dense" Style="font-size: 0.8rem;" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudTextField Label="Stock Keeping Unit (SKU Tag)" Variant="Variant.Outlined" @bind-Value="Model.SKU" For="@(() => Model.SKU)" Margin="Margin.Dense" Style="font-size: 0.8rem;" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudTextField Label="EAN / Barcode Value Code" Variant="Variant.Outlined" @bind-Value="Model.Barcode" For="@(() => Model.Barcode)" Margin="Margin.Dense" Style="font-size: 0.8rem;" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudSelect T="Guid?" Label="Assigned Taxonomical Category" Variant="Variant.Outlined" @bind-Value="Model.CategoryId" AnchorOrigin="Origin.BottomLeft" Margin="Margin.Dense" Style="font-size: 0.8rem;">
+                        <MudSelectItem T="Guid?" Value="@(null)">Unassigned / Base Context</MudSelectItem>
+                        @foreach (var cat in Categories)
+                        {
+                            <MudSelectItem T="Guid?" Value="@cat.Id">@cat.Name</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudSelect T="Guid?" Label="Tax Rate (TVA)" Variant="Variant.Outlined" @bind-Value="Model.TaxId" AnchorOrigin="Origin.BottomLeft" Margin="Margin.Dense" Style="font-size: 0.8rem;">
+                        <MudSelectItem T="Guid?" Value="@(null)">No Tax / Exempt</MudSelectItem>
+                        @foreach (var tax in Taxes.Where(t => t.IsActive))
+                        {
+                            <MudSelectItem T="Guid?" Value="@tax.Id">@tax.Name (@tax.Rate%)</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudSelect T="Guid?" Label="Brand Context Label" Variant="Variant.Outlined" @bind-Value="Model.BrandId" AnchorOrigin="Origin.BottomLeft" Margin="Margin.Dense" Style="font-size: 0.8rem;">
+                        <MudSelectItem T="Guid?" Value="@(null)">Generic Brand Entity</MudSelectItem>
+                        @foreach (var brand in Brands)
+                        {
+                            <MudSelectItem T="Guid?" Value="@brand.Id">@brand.Name</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <div class="d-flex align-center h-100 ps-1">
+                        @if (IsEditMode)
+                        {
+                            <MudSwitch @bind-Value="Model.IsActive" Color="Color.Primary" Label="Active and tradable inside POS instances" Dense="true" Style="font-size: 0.75rem;" />
+                        }
+                    </div>
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudNumericField Label="Base Core Purchase Cost" Variant="Variant.Outlined" @bind-Value="Model.CostPrice" Format="C" Min="0.00m" Margin="Margin.Dense" Style="font-size: 0.8rem;" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudNumericField Label="Standard Outbound Retail Price" Variant="Variant.Outlined" @bind-Value="Model.SalePrice" Format="C" Min="0.00m" Margin="Margin.Dense" Style="font-size: 0.8rem;" />
+                </MudItem>
+                <MudItem xs="12">
+                    <MudTextField Label="Detailed Inventory Description Manifest" Variant="Variant.Outlined" @bind-Value="Model.Description" For="@(() => Model.Description)" Multiline="true" Lines="2" Style="font-size: 0.8rem;" />
+                </MudItem>
+            </MudGrid>
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="CloseDialog" Size="Size.Small">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveProduct" Disabled="@(!_formIsValid)" Size="Size.Small">Save Product</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [Parameter] public bool Visible { get; set; }
+    [Parameter] public bool IsEditMode { get; set; }
+    [Parameter] public ProductFormModel Model { get; set; } = new();
+    [Parameter] public IEnumerable<CategoryDto> Categories { get; set; } = new List<CategoryDto>();
+    [Parameter] public IEnumerable<BrandDto> Brands { get; set; } = new List<BrandDto>();
+    [Parameter] public IEnumerable<ServiceTaxDto> Taxes { get; set; } = new List<ServiceTaxDto>();
+    [Parameter] public EventCallback<ProductFormModel> OnSave { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private MudForm _form = default!;
+    private bool _formIsValid = false;
+
+    private void CloseDialog()
+    {
+        Visible = false;
+        OnClose.InvokeAsync();
+    }
+
+    private async Task SaveProduct()
+    {
+        await _form.ValidateAsync();
+        if (!_formIsValid) return;
+
+        await OnSave.InvokeAsync(Model);
+        CloseDialog();
+    }
+
+    public class ProductFormModel
+    {
+        public Guid Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string? Description { get; set; }
+        public string? Barcode { get; set; }
+        public string? SKU { get; set; }
+        public decimal CostPrice { get; set; }
+        public decimal SalePrice { get; set; }
+        public Guid? CategoryId { get; set; }
+        public Guid? BrandId { get; set; }
+        public Guid? TaxId { get; set; }
+        public bool IsActive { get; set; } = true;
+    }
+}

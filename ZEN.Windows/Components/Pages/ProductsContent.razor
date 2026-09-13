@@ -1,0 +1,585 @@
+@using MudBlazor
+@using ZEN.Application.DTOs.Products
+@using ServiceTaxDto = ZEN.Application.Services.Interfaces.TaxDto
+@using ZEN.Windows.Components.Dialogs.Products
+@using ZEN.Windows.Services.Sync
+@inject SyncApiClient ApiClient
+@inject ISnackbar Snackbar
+
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-2 px-2">
+    <!-- Top Action Bar -->
+    <div class="d-flex justify-space-between align-center mb-3">
+        <MudText Typo="Typo.h5" Class="font-weight-bold" Color="Color.Primary">Products Matrix</MudText>
+        <MudButton Variant="Variant.Filled"
+                   Color="Color.Primary"
+                   StartIcon="@Icons.Material.Filled.Add"
+                   Size="Size.Small"
+                   OnClick="OpenCreateProductDialog">
+            Add Product Entry
+        </MudButton>
+    </div>
+
+    <MudGrid Spacing="2">
+        <!-- LEFT DATA PANEL: CORE PRODUCTS MATRIX WORKSPACE -->
+        <MudItem xs="12" md="9">
+            <!-- Inline Search Toolbar -->
+            <MudPaper Class="pa-2 mb-2" Outlined="true">
+                <MudTextField T="string"
+                              @bind-Value="_searchTerm"
+                              Placeholder="Filter live warehouse records matching search criteria..."
+                              Variant="Variant.Outlined"
+                              Adornment="Adornment.Start"
+                              AdornmentIcon="@Icons.Material.Filled.Search"
+                              OnKeyDown="HandleKeyDown"
+                              Clearable="true"
+                              OnClearButtonClick="LoadProducts"
+                              Margin="Margin.Dense"
+                              Style="font-size: 0.8rem;" />
+            </MudPaper>
+
+            <!-- PRODUCTS DATAGRID -->
+            <MudDataGrid T="ProductDto" Items="_products" Hover="true" Striped="true" Outlined="true" Dense="true" Loading="@_isLoading" LoadingProgressColor="Color.Info" MultiSorting="true">
+                <Columns>
+                    <PropertyColumn Property="x => x.Name" Title="Identity Designation" Sortable="true" Width="200px">
+                        <CellTemplate>
+                            <MudText Class="font-weight-bold" Style="font-size: 0.78rem;">@context.Item.Name</MudText>
+                        </CellTemplate>
+                    </PropertyColumn>
+                    <PropertyColumn Property="x => x.SKU" Title="SKU Code" Width="120px">
+                        <CellTemplate>
+                            <code class="px-1 font-monospace style-code-box">@(string.IsNullOrWhiteSpace(context.Item.SKU) ? "—" : context.Item.SKU)</code>
+                        </CellTemplate>
+                    </PropertyColumn>
+                    <PropertyColumn Property="x => x.Barcode" Title="Barcode ID" Width="140px">
+                        <CellTemplate>
+                            <MudText Style="font-size: 0.75rem;">@(string.IsNullOrWhiteSpace(context.Item.Barcode) ? "—" : context.Item.Barcode)</MudText>
+                        </CellTemplate>
+                    </PropertyColumn>
+                    <PropertyColumn Property="x => x.CostPrice" Title="Cost Price" Sortable="true" Width="110px" Class="text-end">
+                        <CellTemplate>
+                            <MudText Style="font-size: 0.75rem;">@context.Item.CostPrice.ToString("C")</MudText>
+                        </CellTemplate>
+                    </PropertyColumn>
+                    <PropertyColumn Property="x => x.SalePrice" Title="Retail Price" Sortable="true" Width="110px" Class="text-end">
+                        <CellTemplate>
+                            <MudText Class="font-weight-bold text-success" Style="font-size: 0.75rem;">@context.Item.SalePrice.ToString("C")</MudText>
+                        </CellTemplate>
+                    </PropertyColumn>
+                    <PropertyColumn Property="x => x.CategoryName" Title="Category" Width="140px">
+                        <CellTemplate>
+                            <MudText Style="font-size: 0.75rem;">@context.Item.CategoryName</MudText>
+                        </CellTemplate>
+                    </PropertyColumn>
+                    <PropertyColumn Property="x => x.BrandName" Title="Brand Axis" Width="140px">
+                        <CellTemplate>
+                            <MudText Style="font-size: 0.75rem;">@context.Item.BrandName</MudText>
+                        </CellTemplate>
+                    </PropertyColumn>
+                    <TemplateColumn Title="Tax (TVA)" Width="140px">
+                        <CellTemplate>
+                            <MudText Style="font-size: 0.75rem;">@(context.Item.TaxName != null ? $"{context.Item.TaxName} ({context.Item.TaxRate}%)" : "—")</MudText>
+                        </CellTemplate>
+                    </TemplateColumn>
+                    <PropertyColumn Property="x => x.IsActive" Title="Status" Width="100px">
+                        <CellTemplate>
+                            <MudChip T="string" Color="@(context.Item.IsActive ? Color.Success : Color.Error)" Variant="Variant.Text" Size="Size.Small" Class="font-weight-bold pa-0" Style="font-size: 0.72rem; margin: 0;">
+                                @(context.Item.IsActive ? "Active" : "Inactive")
+                            </MudChip>
+                        </CellTemplate>
+                    </PropertyColumn>
+                    <TemplateColumn Title="Actions" Width="90px" Class="text-end">
+                        <CellTemplate>
+                            <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Info" Size="Size.Small" Class="pa-1" OnClick="@(() => OpenEditProductDialog(context.Item))" />
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small" Class="pa-1" OnClick="@(() => DeleteProduct(context.Item))" />
+                        </CellTemplate>
+                    </TemplateColumn>
+                </Columns>
+                <PagerContent>
+                    <MudDataGridPager T="ProductDto" RowsPerPageString="Rows View:" PageSizeOptions="new int[] { 10, 25, 50, 100 }" />
+                </PagerContent>
+                <NoRecordsContent>
+                    <MudText Align="Align.Center" Class="pa-3" Style="font-size: 0.75rem;">No matching storage items located.</MudText>
+                </NoRecordsContent>
+            </MudDataGrid>
+        </MudItem>
+
+        <!-- RIGHT UTILITY PANEL: TAXONOMY SUB-CRUD ENGINE -->
+        <MudItem xs="12" md="3">
+            <MudPaper Class="pa-3 mb-2" Outlined="true">
+                <div class="d-flex align-center justify-space-between mb-3">
+                    <MudText Typo="Typo.subtitle2" Class="font-weight-bold">System Lookups</MudText>
+                    <MudToggleGroup T="string" @bind-Value="_activeLookupTab" Color="Color.Primary" Size="Size.Small" Outline="true">
+                        <MudToggleItem Value="@("categories")">Categories</MudToggleItem>
+                        <MudToggleItem Value="@("brands")">Brands</MudToggleItem>
+                    </MudToggleGroup>
+                </div>
+
+                @if (_activeLookupTab == "categories")
+                {
+                    <div class="d-flex align-center justify-space-between mb-2">
+                        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="font-weight-bold">Product Categories Registry</MudText>
+                        <MudIconButton Icon="@Icons.Material.Filled.AddCircle" Color="Color.Primary" Size="Size.Small" OnClick="OpenCreateCategoryDialog" />
+                    </div>
+                    <div style="max-height: 520px; overflow-y: auto;">
+                        <MudList T="CategoryDto" Dense="true" Clickable="false" Class="pa-0">
+                            @foreach (var cat in _categories)
+                            {
+                                <div class="d-flex align-center justify-space-between mud-width-full py-1 border-bottom border-solid mud-border-default">
+                                    <div class="d-flex flex-column">
+                                        <MudText Typo="Typo.caption" Class="font-weight-bold">@cat.Name</MudText>
+                                        @if (!string.IsNullOrWhiteSpace(cat.ParentCategoryName))
+                                        {
+                                            <MudText Typo="Typo.caption" Style="font-size: 0.7rem;" Color="Color.Secondary">Parent: @cat.ParentCategoryName</MudText>
+                                        }
+                                    </div>
+                                    <div class="d-flex">
+                                        <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" Color="Color.Info" Class="pa-1" OnClick="() => OpenEditCategoryDialog(cat)" />
+                                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" Class="pa-1" OnClick="() => DeleteCategory(cat)" />
+                                    </div>
+                                </div>
+                            }
+                        </MudList>
+                    </div>
+                }
+                else
+                {
+                    <div class="d-flex align-center justify-space-between mb-2">
+                        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="font-weight-bold">Product Brands Registry</MudText>
+                        <MudIconButton Icon="@Icons.Material.Filled.AddCircle" Color="Color.Primary" Size="Size.Small" OnClick="OpenCreateBrandDialog" />
+                    </div>
+                    <div style="max-height: 520px; overflow-y: auto;">
+                        <MudList T="BrandDto" Dense="true" Clickable="false" Class="pa-0">
+                            @foreach (var brand in _brands)
+                            {
+                                <div class="d-flex align-center justify-space-between mud-width-full py-1 border-bottom border-solid mud-border-default">
+                                    <MudText Typo="Typo.caption" Class="font-weight-bold">@brand.Name</MudText>
+                                    <div class="d-flex">
+                                        <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" Color="Color.Info" Class="pa-1" OnClick="() => OpenEditBrandDialog(brand)" />
+                                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" Class="pa-1" OnClick="() => DeleteBrand(brand)" />
+                                    </div>
+                                </div>
+                            }
+                        </MudList>
+                    </div>
+                }
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+</MudContainer>
+
+<!-- Product Dialog -->
+<ProductDialog @ref="_productDialog"
+               Visible="@_isProductDialogOpen"
+               IsEditMode="@_isProductEditMode"
+               Model="@_editingProduct"
+               Categories="@_categories"
+               Brands="@_brands"
+               Taxes="@_taxes"
+               OnSave="SaveProduct"
+               OnClose="CloseProductDialog" />
+
+<!-- Category Dialog -->
+<CategoryDialog @ref="_categoryDialog"
+                Visible="@_isCategoryDialogOpen"
+                IsEditMode="@_isCategoryEditMode"
+                Model="@_editingCategory"
+                Categories="@_categories"
+                OnSave="SaveCategory"
+                OnClose="CloseCategoryDialog" />
+
+<!-- Brand Dialog -->
+<BrandDialog @ref="_brandDialog"
+             Visible="@_isBrandDialogOpen"
+             IsEditMode="@_isBrandEditMode"
+             Model="@_editingBrand"
+             OnSave="SaveBrand"
+             OnClose="CloseBrandDialog" />
+
+<!-- Confirmation Dialogs -->
+<ConfirmationDialog @ref="_confirmDeleteProduct"
+                    Visible="@_showConfirmDeleteProduct"
+                    Title="Purge Ledger Product"
+                    Message="@_confirmDeleteMessage"
+                    OnResult="ConfirmDeleteProduct" />
+
+<ConfirmationDialog @ref="_confirmDeleteCategory"
+                    Visible="@_showConfirmDeleteCategory"
+                    Title="Purge Category Link"
+                    Message="@_confirmDeleteMessage"
+                    OnResult="ConfirmDeleteCategory" />
+
+<ConfirmationDialog @ref="_confirmDeleteBrand"
+                    Visible="@_showConfirmDeleteBrand"
+                    Title="Purge Brand Unit"
+                    Message="@_confirmDeleteMessage"
+                    OnResult="ConfirmDeleteBrand" />
+
+<style>
+    .style-code-box {
+        background-color: var(--mud-palette-background-grey);
+        border-radius: 4px;
+        letter-spacing: 0.5px;
+        font-size: 0.72rem;
+    }
+</style>
+
+@code {
+    private IEnumerable<ProductDto> _products = new List<ProductDto>();
+    private IEnumerable<CategoryDto> _categories = new List<CategoryDto>();
+    private IEnumerable<BrandDto> _brands = new List<BrandDto>();
+    private IEnumerable<ServiceTaxDto> _taxes = new List<ServiceTaxDto>();
+
+    private string _searchTerm = string.Empty;
+    private string _activeLookupTab = "categories";
+    private bool _isLoading = true;
+
+    // Dialog visibility
+    private bool _isProductDialogOpen = false;
+    private bool _isProductEditMode = false;
+    private bool _isCategoryDialogOpen = false;
+    private bool _isCategoryEditMode = false;
+    private bool _isBrandDialogOpen = false;
+    private bool _isBrandEditMode = false;
+
+    // Confirmation dialogs
+    private bool _showConfirmDeleteProduct = false;
+    private bool _showConfirmDeleteCategory = false;
+    private bool _showConfirmDeleteBrand = false;
+    private string _confirmDeleteMessage = string.Empty;
+    private ProductDto? _productToDelete;
+    private CategoryDto? _categoryToDelete;
+    private BrandDto? _brandToDelete;
+
+    // Dialog refs
+    private ProductDialog? _productDialog;
+    private CategoryDialog? _categoryDialog;
+    private BrandDialog? _brandDialog;
+    private ConfirmationDialog? _confirmDeleteProduct;
+    private ConfirmationDialog? _confirmDeleteCategory;
+    private ConfirmationDialog? _confirmDeleteBrand;
+
+    // View Models
+    private ProductDialog.ProductFormModel _editingProduct = new();
+    private CategoryDialog.CategoryFormModel _editingCategory = new();
+    private BrandDialog.BrandFormModel _editingBrand = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadLookups();
+        await LoadProducts();
+    }
+
+    private async Task LoadLookups()
+    {
+        try
+        {
+            _categories = await ApiClient.GetCategoriesAsync();
+            _brands = await ApiClient.GetBrandsAsync();
+            _taxes = await ApiClient.GetTaxesAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error loading lookups: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task LoadProducts()
+    {
+        _isLoading = true;
+        try
+        {
+            _products = string.IsNullOrWhiteSpace(_searchTerm)
+                ? await ApiClient.GetProductsAsync()
+                : await ApiClient.GetProductsAsync(_searchTerm);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await LoadProducts();
+    }
+
+    // Product Dialog
+    private void OpenCreateProductDialog()
+    {
+        _isProductEditMode = false;
+        _editingProduct = new ProductDialog.ProductFormModel();
+        _isProductDialogOpen = true;
+    }
+
+    private void OpenEditProductDialog(ProductDto product)
+    {
+        _isProductEditMode = true;
+        _editingProduct = new ProductDialog.ProductFormModel
+        {
+            Id = product.Id,
+            Name = product.Name,
+            Description = product.Description,
+            Barcode = product.Barcode,
+            SKU = product.SKU,
+            CostPrice = product.CostPrice,
+            SalePrice = product.SalePrice,
+            CategoryId = product.CategoryId,
+            BrandId = product.BrandId,
+            TaxId = product.TaxId,
+            IsActive = product.IsActive
+        };
+        _isProductDialogOpen = true;
+    }
+
+    private async Task SaveProduct(ProductDialog.ProductFormModel model)
+    {
+        try
+        {
+            if (_isProductEditMode)
+            {
+                var updateRequest = new UpdateProductRequest(model.Id, model.Name, model.Description, model.Barcode, model.SKU, model.CostPrice, model.SalePrice, model.CategoryId, model.BrandId, model.TaxId, model.IsActive);
+                var result = await ApiClient.UpdateProductAsync(updateRequest);
+                if (result != null)
+                {
+                    Snackbar.Add("Product node configured.", Severity.Success);
+                }
+                else
+                {
+                    Snackbar.Add("Failed to update product.", Severity.Error);
+                }
+            }
+            else
+            {
+                var createRequest = new CreateProductRequest(model.Name, model.Description, model.Barcode, model.SKU, model.CostPrice, model.SalePrice, model.CategoryId, model.BrandId, model.TaxId, null, true, model.IsActive);
+                var result = await ApiClient.CreateProductAsync(createRequest);
+                if (result != null)
+                {
+                    Snackbar.Add("Product listing recorded.", Severity.Success);
+                }
+                else
+                {
+                    Snackbar.Add("Failed to create product.", Severity.Error);
+                }
+            }
+            await LoadProducts();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private void CloseProductDialog() => _isProductDialogOpen = false;
+
+    private void DeleteProduct(ProductDto product)
+    {
+        _productToDelete = product;
+        _confirmDeleteMessage = $"Drop target catalog product mapping {product.Name}?";
+        _showConfirmDeleteProduct = true;
+    }
+
+    private async Task ConfirmDeleteProduct(bool confirmed)
+    {
+        if (!confirmed || _productToDelete == null) return;
+
+        try
+        {
+            if (await ApiClient.DeleteProductAsync(_productToDelete.Id))
+            {
+                Snackbar.Add("Product data model dropped out of catalog registry.", Severity.Success);
+                await LoadProducts();
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _productToDelete = null;
+        }
+    }
+
+    // Category Dialog
+    private void OpenCreateCategoryDialog()
+    {
+        _isCategoryEditMode = false;
+        _editingCategory = new CategoryDialog.CategoryFormModel();
+        _isCategoryDialogOpen = true;
+    }
+
+    private void OpenEditCategoryDialog(CategoryDto item)
+    {
+        _isCategoryEditMode = true;
+        _editingCategory = new CategoryDialog.CategoryFormModel
+        {
+            Id = item.Id,
+            Name = item.Name,
+            ParentCategoryId = item.ParentCategoryId,
+            IsActive = true
+        };
+        _isCategoryDialogOpen = true;
+    }
+
+    private async Task SaveCategory(CategoryDialog.CategoryFormModel model)
+    {
+        try
+        {
+            if (_isCategoryEditMode)
+            {
+                var request = new UpdateCategoryRequest(model.Id, model.Name, model.Description, model.ParentCategoryId, model.SortOrder, model.IsActive);
+                var result = await ApiClient.UpdateCategoryAsync(request);
+                if (result != null)
+                {
+                    Snackbar.Add("Category mapping altered.", Severity.Success);
+                }
+                else
+                {
+                    Snackbar.Add("Failed to update category.", Severity.Error);
+                }
+            }
+            else
+            {
+                var request = new CreateCategoryRequest(model.Name, model.Description, model.ParentCategoryId, model.SortOrder, model.IsActive);
+                var result = await ApiClient.CreateCategoryAsync(request);
+                if (result != null)
+                {
+                    Snackbar.Add("Category node recorded.", Severity.Success);
+                }
+                else
+                {
+                    Snackbar.Add("Failed to create category.", Severity.Error);
+                }
+            }
+            await LoadLookups();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private void CloseCategoryDialog() => _isCategoryDialogOpen = false;
+
+    private void DeleteCategory(CategoryDto item)
+    {
+        _categoryToDelete = item;
+        _confirmDeleteMessage = $"Drop active structural category link: {item.Name}?";
+        _showConfirmDeleteCategory = true;
+    }
+
+    private async Task ConfirmDeleteCategory(bool confirmed)
+    {
+        if (!confirmed || _categoryToDelete == null) return;
+
+        try
+        {
+            if (await ApiClient.DeleteCategoryAsync(_categoryToDelete.Id))
+            {
+                Snackbar.Add("Category context disconnected.", Severity.Success);
+                await LoadLookups();
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _categoryToDelete = null;
+        }
+    }
+
+    // Brand Dialog
+    private void OpenCreateBrandDialog()
+    {
+        _isBrandEditMode = false;
+        _editingBrand = new BrandDialog.BrandFormModel();
+        _isBrandDialogOpen = true;
+    }
+
+    private void OpenEditBrandDialog(BrandDto item)
+    {
+        _isBrandEditMode = true;
+        _editingBrand = new BrandDialog.BrandFormModel
+        {
+            Id = item.Id,
+            Name = item.Name,
+            IsActive = true
+        };
+        _isBrandDialogOpen = true;
+    }
+
+    private async Task SaveBrand(BrandDialog.BrandFormModel model)
+    {
+        try
+        {
+            if (_isBrandEditMode)
+            {
+                var request = new UpdateBrandRequest(model.Id, model.Name, model.Description, model.IsActive);
+                var result = await ApiClient.UpdateBrandAsync(request);
+                if (result != null)
+                {
+                    Snackbar.Add("Brand properties verified.", Severity.Success);
+                }
+                else
+                {
+                    Snackbar.Add("Failed to update brand.", Severity.Error);
+                }
+            }
+            else
+            {
+                var request = new CreateBrandRequest(model.Name, model.Description, model.IsActive);
+                var result = await ApiClient.CreateBrandAsync(request);
+                if (result != null)
+                {
+                    Snackbar.Add("Brand schema recorded.", Severity.Success);
+                }
+                else
+                {
+                    Snackbar.Add("Failed to create brand.", Severity.Error);
+                }
+            }
+            await LoadLookups();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private void CloseBrandDialog() => _isBrandDialogOpen = false;
+
+    private void DeleteBrand(BrandDto item)
+    {
+        _brandToDelete = item;
+        _confirmDeleteMessage = $"Drop brand context registration label {item.Name}?";
+        _showConfirmDeleteBrand = true;
+    }
+
+    private async Task ConfirmDeleteBrand(bool confirmed)
+    {
+        if (!confirmed || _brandToDelete == null) return;
+
+        try
+        {
+            if (await ApiClient.DeleteBrandAsync(_brandToDelete.Id))
+            {
+                Snackbar.Add("Brand node dropped.", Severity.Success);
+                await LoadLookups();
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _brandToDelete = null;
+        }
+    }
+}

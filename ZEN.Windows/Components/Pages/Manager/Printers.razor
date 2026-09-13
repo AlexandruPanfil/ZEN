@@ -128,10 +128,19 @@ else
         {
             if (_pin == "3333" || _pin == "1234")
             {
-                var role = _pin == "3333" ? PosRoles.Manager : PosRoles.Administrator;
-                PosAuthState.SignIn(PosAuthState.UserName ?? "user@zen.pos", role);
-                await LoadPrintersAsync();
-                _dataLoaded = true;
+                // Call API to get token with elevated role
+                var loginResponse = await ApiClient.LoginWithPinAsync(_pin);
+                if (loginResponse != null)
+                {
+                    var role = _pin == "3333" ? PosRoles.Manager : PosRoles.Administrator;
+                    PosAuthState.SignIn(loginResponse.UserName, role, loginResponse.Token, loginResponse.StoreId, loginResponse.CashDeskId);
+                    await LoadPrintersAsync();
+                    _dataLoaded = true;
+                }
+                else
+                {
+                    _error = "Failed to authenticate with API. Please check connection.";
+                }
             }
             else
             {

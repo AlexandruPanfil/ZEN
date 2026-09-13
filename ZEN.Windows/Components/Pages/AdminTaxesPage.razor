@@ -1,0 +1,110 @@
+@page "/admin/taxes"
+@using MudBlazor
+@using ZEN.Application.DTOs.Admin
+@using ZEN.Windows.Components.Dialogs.Products
+@using ZEN.Windows.Services.Sync
+@using ZEN.Windows.Services
+@inject SyncApiClient ApiClient
+@inject ISnackbar Snackbar
+@inject NavigationManager Navigation
+@inject PosAuthState PosAuthState
+
+<PageTitle>Tax Rates - ZEN POS</PageTitle>
+
+@if (!PosAuthState.IsAuthenticated)
+{
+    <MudPaper Class="pa-4" Elevation="3">
+        <MudText Typo="Typo.h5" GutterBottom="true">Please login first.</MudText>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="GoToLogin">PIN Login</MudButton>
+    </MudPaper>
+}
+else if (!PosAuthState.IsManager && !PosAuthState.IsAdmin)
+{
+    <MudPaper Class="pa-4" Elevation="3">
+        <MudText Typo="Typo.h5" GutterBottom="true">Manager access required.</MudText>
+        <MudText Typo="Typo.body2" Class="mb-3">Cashiers can elevate to Manager by entering a Manager or Admin PIN.</MudText>
+
+        <MudTextField @bind-Value="_pin"
+                     Label="Enter Manager/Admin PIN"
+                     InputType="InputType.Password"
+                     MaxLength="6"
+                     Variant="Variant.Filled"
+                     Class="mb-2"
+                     @onkeypress="HandlePinKeyPress" />
+
+        @if (!string.IsNullOrWhiteSpace(_pinError))
+        {
+            <MudAlert Severity="Severity.Error" Class="mt-2">@_pinError</MudAlert>
+        }
+
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="ValidatePin" Disabled="_isPinProcessing" Class="mt-3">
+            @if (_isPinProcessing)
+            {
+                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                <span>Validating...</span>
+            }
+            else
+            {
+                <span>Confirm</span>
+            }
+        </MudButton>
+    </MudPaper>
+}
+else
+{
+    <TaxContent />
+}
+
+@code {
+    // PIN elevation
+    private string _pin = string.Empty;
+    private string? _pinError;
+    private bool _isPinProcessing = false;
+
+    private void GoToLogin()
+    {
+        Navigation.NavigateTo("/");
+    }
+
+    private async Task HandlePinKeyPress(KeyboardEventArgs args)
+    {
+        if (args.Key == "Enter")
+            await ValidatePin();
+    }
+
+    private async Task ValidatePin()
+    {
+        if (_isPinProcessing) return;
+
+        _pinError = null;
+        _isPinProcessing = true;
+        await InvokeAsync(StateHasChanged);
+
+        try
+        {
+            if (_pin == "3333" || _pin == "1234")
+            {
+                // Call API to get token with elevated role
+                var loginResponse = await ApiClient.LoginWithPinAsync(_pin);
+                if (loginResponse != null)
+                {
+                    var role = _pin == "3333" ? PosRoles.Manager : PosRoles.Administrator;
+                    PosAuthState.SignIn(loginResponse.UserName, role, loginResponse.Token, loginResponse.StoreId, loginResponse.CashDeskId);
+                }
+                else
+                {
+                    _pinError = "Failed to authenticate with API. Please check connection.";
+                }
+            }
+            else
+            {
+                _pinError = "Invalid PIN. Enter Manager PIN (3333) or Admin PIN (1234).";
+            }
+        }
+        finally
+        {
+            _isPinProcessing = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+}
