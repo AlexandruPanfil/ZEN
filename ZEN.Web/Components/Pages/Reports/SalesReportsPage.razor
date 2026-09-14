@@ -2,29 +2,45 @@
 @using Microsoft.AspNetCore.Authorization
 @using ZEN.Application.Services.Interfaces
 @using ZEN.Application.DTOs.Reports
+@using ZEN.Application.DTOs.Admin
+@using ZEN.Web.Components.Pages.Reports.Filters
+@using MudBlazor
 @inject IReportService ReportService
+@inject IStoreService StoreService
 @inject ISnackbar Snackbar
+@inject IDialogService DialogService
+@inject IJSRuntime JSRuntime
 @attribute [Authorize(Roles = "Administrator,Manager,Accountant")]
+@implements IAsyncDisposable
 
 <PageTitle>Sales Reports - ZEN POS</PageTitle>
 
-<MudText Typo="Typo.h3" GutterBottom="true">Sales Reports</MudText>
-
-<MudPaper Class="pa-4 mb-4">
+<MudPaper Class="pa-4 mb-4" Elevation="0">
     <MudGrid>
-        <MudItem xs="12" sm="4">
-            <MudDatePicker Label="Start Date" @bind-Date="_startDate" />
+        <MudItem xs="12" sm="6" md="4" Class="d-flex align-center">
+            <MudText Typo="Typo.h3" Class="mb-0 me-4">Sales Reports</MudText>
         </MudItem>
-        <MudItem xs="12" sm="4">
-            <MudDatePicker Label="End Date" @bind-Date="_endDate" />
+        <MudItem xs="12" sm="6" md="2" Class="d-flex align-center">
+            <MudDatePicker Label="Start Date" Date="_filter.StartDate" DateChanged="@OnStartDateChanged" Variant="Variant.Text" />
         </MudItem>
-        <MudItem xs="12" sm="4" Class="d-flex align-center">
+        <MudItem xs="12" sm="6" md="2" Class="d-flex align-center">
+            <MudDatePicker Label="End Date" Date="_filter.EndDate" DateChanged="@OnEndDateChanged" Variant="Variant.Text" />
+        </MudItem>
+        <MudItem xs="12" sm="6" md="2" Class="d-flex align-center">
             <MudButton Variant="Variant.Filled" 
                        Color="Color.Primary" 
                        OnClick="GenerateReport" 
                        StartIcon="@Icons.Material.Filled.Analytics"
-                       FullWidth="true">
-                Generate Report
+                       Disabled="_isLoading">
+                @(_isLoading ? "Generating..." : "Generate")
+            </MudButton>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="2" Class="d-flex align-center justify-end">
+            <MudButton Variant="Variant.Outlined" 
+                       Color="Color.Primary" 
+                       OnClick="OpenAdvancedFiltersDialog"
+                       StartIcon="@Icons.Material.Filled.Tune">
+                Advanced Filters
             </MudButton>
         </MudItem>
     </MudGrid>
@@ -37,87 +53,74 @@
 else if (_report == null)
 {
     <MudAlert Severity="Severity.Info" Variant="Variant.Filled" Class="mt-4">
-        Please select a date range and generate the report.
+        Please select filters and generate the report.
     </MudAlert>
 }
 else
 {
-    <MudGrid Class="mt-4">
-        <MudItem xs="12" sm="6" md="3">
-            <MudCard Elevation="2">
-                <MudCardContent>
-                    <MudText Typo="Typo.subtitle2" Color="Color.Secondary">Total Sales</MudText>
-                    <MudText Typo="Typo.h4">@_report.TotalSales.ToString("C")</MudText>
-                </MudCardContent>
-            </MudCard>
-        </MudItem>
-        <MudItem xs="12" sm="6" md="3">
-            <MudCard Elevation="2">
-                <MudCardContent>
-                    <MudText Typo="Typo.subtitle2" Color="Color.Secondary">Net Sales</MudText>
-                    <MudText Typo="Typo.h4">@_report.NetSales.ToString("C")</MudText>
-                </MudCardContent>
-            </MudCard>
-        </MudItem>
-        <MudItem xs="12" sm="6" md="3">
-            <MudCard Elevation="2">
-                <MudCardContent>
-                    <MudText Typo="Typo.subtitle2" Color="Color.Secondary">Total Tax</MudText>
-                    <MudText Typo="Typo.h4">@_report.TotalTax.ToString("C")</MudText>
-                </MudCardContent>
-            </MudCard>
-        </MudItem>
-        <MudItem xs="12" sm="6" md="3">
-            <MudCard Elevation="2">
-                <MudCardContent>
-                    <MudText Typo="Typo.subtitle2" Color="Color.Secondary">Total Discount</MudText>
-                    <MudText Typo="Typo.h4">@_report.TotalDiscount.ToString("C")</MudText>
-                </MudCardContent>
-            </MudCard>
-        </MudItem>
-        <MudItem xs="12" sm="6" md="3">
-            <MudCard Elevation="2">
-                <MudCardContent>
-                    <MudText Typo="Typo.subtitle2" Color="Color.Secondary">Transactions</MudText>
-                    <MudText Typo="Typo.h4">@_report.TransactionCount</MudText>
-                </MudCardContent>
-            </MudCard>
-        </MudItem>
-    </MudGrid>
-
-    <MudText Typo="Typo.h5" Class="mt-6 mb-2">Top Performing Products</MudText>
-    <MudTable Items="@_report.TopProducts" Hover="true" Breakpoint="Breakpoint.Sm">
-        <HeaderContent>
-            <MudTh>Product Name</MudTh>
-            <MudTh>Quantity Sold</MudTh>
-            <MudTh>Total Revenue</MudTh>
-        </HeaderContent>
-        <RowTemplate>
-            <MudTd DataLabel="Product Name">@context.ProductName</MudTd>
-            <MudTd DataLabel="Quantity Sold">@context.Quantity</MudTd>
-            <MudTd DataLabel="Total Revenue">@context.TotalSales.ToString("C")</MudTd>
-        </RowTemplate>
-    </MudTable>
+    <!-- Pivot Table View Only -->
+    <MudPaper Class="pa-4 mb-4">
+        @if (_pivotData.Count == 0)
+        {
+            <MudAlert Severity="Severity.Info" Variant="Variant.Filled" Class="mt-4">
+                No pivot data available. Please generate a report with sales data first.
+            </MudAlert>
+        }
+        else
+        {
+            <div id="@_pivotContainerId" style="height: 600px; width: 100%; border: 1px solid red;"></div>
+            
+            <!-- Export buttons -->
+            <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Download" 
+                       OnClick="@(async () => await JSRuntime.InvokeAsync<bool>("webDataRocksInterop.exportToCSV", _pivotContainerId))" 
+                       Class="mt-3 me-2">
+                Export CSV
+            </MudButton>
+            <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.PictureAsPdf" 
+                       OnClick="@(async () => await JSRuntime.InvokeAsync<bool>("webDataRocksInterop.exportToPDF", _pivotContainerId))" 
+                       Class="mt-3">
+                Export PDF
+            </MudButton>
+        }
+    </MudPaper>
 }
 
 @code {
-    private DateTime? _startDate = DateTime.Today.AddDays(-30);
-    private DateTime? _endDate = DateTime.Today;
+    private SalesReportFilterDto _filter = new(
+        DateTime.Today.AddDays(-3),
+        DateTime.Today.AddDays(-1),
+        new List<Guid>(),
+        new List<Guid>(),
+        new List<Guid>(),
+        new List<Guid>(),
+        new List<Guid>());
+
     private SalesReportDto? _report;
     private bool _isLoading = false;
+    private string _pivotContainerId = "webdatarocks-pivot";
+    private bool _pivotInitialized = false;
+    private List<object> _pivotData = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await GenerateReport();
+    }
 
     private async Task GenerateReport()
     {
-        if (!_startDate.HasValue || !_endDate.HasValue)
-        {
-            Snackbar.Add("Please select both start and end dates.", Severity.Warning);
-            return;
-        }
-
         _isLoading = true;
         try
         {
-            _report = await ReportService.GetSalesReportAsync(_startDate.Value, _endDate.Value);
+            _report = await ReportService.GetSalesReportAsync(_filter);
+            
+            // Debug: Check what data we got
+            Snackbar.Add($"Report generated: {_report.StoreBreakdowns.Count()} stores, {_report.TopProducts.Count()} top products, {_report.TransactionCount} transactions", Severity.Info);
+            
+            // Transform data for pivot table
+            _pivotData = TransformToPivotData(_report);
+            Snackbar.Add($"Pivot data rows: {_pivotData.Count}", Severity.Info);
+            
+            // Note: Pivot table will be initialized in OnAfterRenderAsync after container is rendered
         }
         catch (Exception ex)
         {
@@ -126,6 +129,218 @@ else
         finally
         {
             _isLoading = false;
+        }
+    }
+
+    private List<object> TransformToPivotData(SalesReportDto report)
+    {
+        var pivotData = new List<object>();
+        
+        foreach (var storeBreakdown in report.StoreBreakdowns)
+        {
+            foreach (var cashDeskBreakdown in storeBreakdown.CashDeskBreakdowns)
+            {
+                foreach (var productBreakdown in cashDeskBreakdown.ProductBreakdowns)
+                {
+                    pivotData.Add(new
+                    {
+                        ProductName = productBreakdown.ProductName,
+                        Category = "",
+                        Store = storeBreakdown.StoreName,
+                        CashDesk = cashDeskBreakdown.CashDeskName,
+                        Date = report.StartDate.ToString("yyyy-MM-dd"),
+                        Quantity = (double)productBreakdown.QuantitySold,
+                        SalesAmount = (double)productBreakdown.TotalSales,
+                        TaxAmount = (double)productBreakdown.TotalTax,
+                        DiscountAmount = (double)productBreakdown.TotalDiscount
+                    });
+                }
+            }
+        }
+        
+        return pivotData;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            try
+            {
+                var interopExists = await JSRuntime.InvokeAsync<bool>("eval", "typeof window.webDataRocksInterop !== 'undefined'");
+                var webDataRocksExists = await JSRuntime.InvokeAsync<bool>("eval", "typeof WebDataRocks !== 'undefined'");
+                Snackbar.Add($"First render JS check - interop: {interopExists}, WebDataRocks: {webDataRocksExists}", Severity.Info);
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"First render JS check failed: {ex.Message}", Severity.Error);
+            }
+        }
+        
+        // Initialize pivot table when data is available and not yet initialized
+        if (_pivotData.Count > 0 && !_pivotInitialized)
+        {
+            Snackbar.Add($"OnAfterRenderAsync: Initializing pivot table (data={_pivotData.Count}, initialized={_pivotInitialized})", Severity.Info);
+            await InitializePivotTable();
+        }
+    }
+
+    private async Task InitializePivotTable()
+    {
+        if (_pivotData.Count == 0)
+        {
+            Snackbar.Add("No pivot data available", Severity.Warning);
+            return;
+        }
+
+        Snackbar.Add("InitializePivotTable called, waiting for container...", Severity.Info);
+        
+        // Wait for container to be rendered - give DOM time to update
+        await Task.Delay(500);
+        
+        // Wait for container to be rendered
+        var maxRetries = 20;
+        var retryDelay = 200; // ms
+        
+        for (int i = 0; i < maxRetries; i++)
+        {
+            var containerExists = await JSRuntime.InvokeAsync<bool>("eval", $"document.getElementById('{_pivotContainerId}') !== null");
+            Snackbar.Add($"Container check {i+1}/{maxRetries}: {containerExists}", Severity.Info);
+            if (containerExists)
+                break;
+            
+            await Task.Delay(retryDelay);
+        }
+
+        try
+        {
+            Snackbar.Add("Calling webDataRocksInterop.initialize...", Severity.Info);
+            var result = await JSRuntime.InvokeAsync<bool>("webDataRocksInterop.initialize", _pivotContainerId, _pivotData, new
+            {
+                height = 600,
+                report = new
+                {
+                    slice = new
+                    {
+                        rows = new[] { new { uniqueName = "Store" }, new { uniqueName = "ProductName" } },
+                        columns = new[] { new { uniqueName = "Measures" } },
+                        measures = new[]
+                        {
+                            new { uniqueName = "Quantity", aggregation = "sum" },
+                            new { uniqueName = "SalesAmount", aggregation = "sum" },
+                            new { uniqueName = "TaxAmount", aggregation = "sum" },
+                            new { uniqueName = "DiscountAmount", aggregation = "sum" }
+                        }
+                    }
+                }
+            });
+            
+            Snackbar.Add($"Initialize result: {result}", Severity.Info);
+             
+            if (result)
+            {
+                _pivotInitialized = true;
+                Snackbar.Add("Pivot table initialized successfully", Severity.Success);
+            }
+            else
+            {
+                Snackbar.Add("Failed to initialize pivot table - check browser console for details", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error initializing pivot table: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task UpdatePivotTableData()
+    {
+        try
+        {
+            var result = await JSRuntime.InvokeAsync<bool>("webDataRocksInterop.updateData", _pivotContainerId, _pivotData);
+            if (!result)
+            {
+                Snackbar.Add("Failed to update pivot table data", Severity.Warning);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error updating pivot table: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task OpenAdvancedFiltersDialog()
+    {
+        var parameters = new DialogParameters
+        {
+            { "Filter", _filter }
+        };
+        
+        var options = new DialogOptions 
+        { 
+            MaxWidth = MaxWidth.Large, 
+            FullWidth = true,
+            CloseButton = true
+        };
+        
+        var dialog = await DialogService.ShowAsync<AdvancedFiltersDialog>("Advanced Filters", parameters, options);
+        var result = await dialog.Result;
+        
+        if (!result.Canceled && result.Data is SalesReportFilterDto updatedFilter)
+        {
+            _filter = updatedFilter;
+            // Note: Report generates only on page load or when Generate button is clicked
+        }
+    }
+
+    private async Task OnStartDateChanged(DateTime? date)
+    {
+        if (date.HasValue)
+            _filter = _filter with { StartDate = date.Value };
+    }
+
+    private async Task OnEndDateChanged(DateTime? date)
+    {
+        if (date.HasValue)
+            _filter = _filter with { EndDate = date.Value };
+    }
+
+    private Task OnStoreIdsChanged(List<Guid> storeIds)
+    {
+        _filter = _filter with { StoreIds = storeIds };
+        return Task.CompletedTask;
+    }
+
+    private Task OnCashDeskIdsChanged(List<Guid> cashDeskIds)
+    {
+        _filter = _filter with { CashDeskIds = cashDeskIds };
+        return Task.CompletedTask;
+    }
+
+    private Task OnProductIdsChanged(List<Guid> productIds)
+    {
+        _filter = _filter with { ProductIds = productIds };
+        return Task.CompletedTask;
+    }
+
+    private Task OnCategoryIdsChanged(List<Guid> categoryIds)
+    {
+        _filter = _filter with { CategoryIds = categoryIds };
+        return Task.CompletedTask;
+    }
+
+    private Task OnGroupIdsChanged(List<Guid> groupIds)
+    {
+        _filter = _filter with { GroupIds = groupIds };
+        return Task.CompletedTask;
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_pivotInitialized)
+        {
+            await JSRuntime.InvokeAsync<bool>("webDataRocksInterop.destroy", _pivotContainerId);
+            _pivotInitialized = false;
         }
     }
 }

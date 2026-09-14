@@ -1,0 +1,56 @@
+@using ZEN.Application.DTOs.Reports
+
+<MudExpansionPanels Dense="true">
+    @foreach (var store in StoreBreakdowns)
+    {
+        <MudExpansionPanel Text="@($"{store.StoreName} - {store.TotalSales:C} ({store.TransactionCount} transactions)")" Expanded="true">
+            @if (store.CashDeskBreakdowns.Any())
+            {
+                @foreach (var cashDesk in store.CashDeskBreakdowns)
+                {
+                    <MudExpansionPanels Dense="true" Class="ml-4">
+                        <MudExpansionPanel Text="@($"{cashDesk.CashDeskName} - {cashDesk.TotalSales:C} ({cashDesk.TransactionCount} transactions)")" Expanded="true">
+                            @if (cashDesk.ProductBreakdowns.Any())
+                            {
+                                <MudTable Items="@cashDesk.ProductBreakdowns" Hover="true" Dense="true" Breakpoint="Breakpoint.Sm" Class="mt-2">
+                                    <HeaderContent>
+                                        <MudTh>Product</MudTh>
+                                        <MudTh>Barcode</MudTh>
+                                        <MudTh Class="d-none d-md-table-cell">Qty Sold</MudTh>
+                                        <MudTh>Total Sales</MudTh>
+                                        <MudTh Class="d-none d-md-table-cell">Tax</MudTh>
+                                        <MudTh Class="d-none d-lg-table-cell">Discount</MudTh>
+                                    </HeaderContent>
+                                    <RowTemplate>
+                                        <MudTd DataLabel="Product">@context.ProductName</MudTd>
+                                        <MudTd DataLabel="Barcode">@context.Barcode</MudTd>
+                                        <MudTd DataLabel="Qty Sold" Class="d-none d-md-table-cell">@context.QuantitySold</MudTd>
+                                        <MudTd DataLabel="Total Sales">@context.TotalSales.ToString("C")</MudTd>
+                                        <MudTd DataLabel="Tax" Class="d-none d-md-table-cell">@context.TotalTax.ToString("C")</MudTd>
+                                        <MudTd DataLabel="Discount" Class="d-none d-lg-table-cell">@context.TotalDiscount.ToString("C")</MudTd>
+                                    </RowTemplate>
+                                </MudTable>
+                            }
+                            else
+                            {
+                                <MudAlert Severity="Severity.Info" Variant="Variant.Filled" Class="mt-2 mx-4">
+                                    No products sold at this cash desk
+                                </MudAlert>
+                            }
+                        </MudExpansionPanel>
+                    </MudExpansionPanels>
+                }
+            }
+            else
+            {
+                <MudAlert Severity="Severity.Info" Variant="Variant.Filled" Class="mt-2 mx-4">
+                    No cash desks with sales in this store
+                </MudAlert>
+            }
+        </MudExpansionPanel>
+    }
+</MudExpansionPanels>
+
+@code {
+    [Parameter] public IEnumerable<StoreSalesBreakdownDto> StoreBreakdowns { get; set; } = new List<StoreSalesBreakdownDto>();
+}

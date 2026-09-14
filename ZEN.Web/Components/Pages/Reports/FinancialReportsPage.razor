@@ -2,6 +2,7 @@
 @using Microsoft.AspNetCore.Authorization
 @using ZEN.Application.Services.Interfaces
 @using ZEN.Application.DTOs.Reports
+@using ZEN.Web.Components.Pages.Reports.Filters
 @inject IReportService ReportService
 @inject IStoreContext StoreContext
 @inject ISnackbar Snackbar
@@ -13,19 +14,24 @@
 
 <MudPaper Class="pa-4 mb-4">
     <MudGrid>
-        <MudItem xs="12" sm="4">
-            <MudDatePicker Label="Start Date" @bind-Date="_startDate" />
+        <MudItem xs="12" sm="6" md="3">
+            <MudDatePicker Label="Start Date" Date="_filter.StartDate" DateChanged="@OnStartDateChanged" />
         </MudItem>
-        <MudItem xs="12" sm="4">
-            <MudDatePicker Label="End Date" @bind-Date="_endDate" />
+        <MudItem xs="12" sm="6" md="3">
+            <MudDatePicker Label="End Date" Date="_filter.EndDate" DateChanged="@OnEndDateChanged" />
         </MudItem>
-        <MudItem xs="12" sm="4" Class="d-flex align-center">
+        <MudItem xs="12" sm="12" md="6">
+            <StoreFilter SelectedStoreIds="_filter.StoreIds" 
+                         SelectedStoreIdsChanged="@((List<Guid> ids) => OnStoreIdsChanged(ids))" />
+        </MudItem>
+        <MudItem xs="12" Class="d-flex align-center">
             <MudButton Variant="Variant.Filled" 
                        Color="Color.Primary" 
                        OnClick="GenerateReport" 
                        StartIcon="@Icons.Material.Filled.Analytics"
-                       FullWidth="true">
-                Generate Report
+                       FullWidth="true"
+                       Disabled="_isLoading">
+                @(_isLoading ? "Generating..." : "Generate Report")
             </MudButton>
         </MudItem>
     </MudGrid>
@@ -91,27 +97,40 @@ else
             <MudTd DataLabel="Total Revenue">@context.TotalSales.ToString("C")</MudTd>
         </RowTemplate>
     </MudTable>
+
+    <MudText Typo="Typo.h5" Class="mt-6 mb-2">Hierarchical Breakdown</MudText>
+    <SalesBreakdownDisplay StoreBreakdowns="@_report.StoreBreakdowns" />
 }
 
 @code {
-    private DateTime? _startDate = DateTime.Today.AddDays(-30);
-    private DateTime? _endDate = DateTime.Today;
+    private SalesReportFilterDto _filter = new(
+        DateTime.Today.AddDays(-30),
+        DateTime.Today,
+        new List<Guid>(),
+        new List<Guid>(),
+        new List<Guid>(),
+        new List<Guid>(),
+        new List<Guid>());
+
     private SalesReportDto? _report;
     private bool _isLoading = false;
 
+    protected override async Task OnInitializedAsync()
+    {
+        // Pre-populate with current store
+        var currentStoreId = StoreContext.GetCurrentStoreId();
+        if (currentStoreId.HasValue)
+        {
+            _filter = _filter with { StoreIds = new List<Guid> { currentStoreId.Value } };
+        }
+    }
+
     private async Task GenerateReport()
     {
-        if (!_startDate.HasValue || !_endDate.HasValue)
-        {
-            Snackbar.Add("Please select both start and end dates.", Severity.Warning);
-            return;
-        }
-
         _isLoading = true;
         try
         {
-            var storeId = StoreContext.GetCurrentStoreId();
-            _report = await ReportService.GetSalesReportAsync(_startDate.Value, _endDate.Value, storeId);
+            _report = await ReportService.GetSalesReportAsync(_filter);
         }
         catch (Exception ex)
         {
@@ -121,5 +140,23 @@ else
         {
             _isLoading = false;
         }
+    }
+
+    private async Task OnStartDateChanged(DateTime? date)
+    {
+        if (date.HasValue)
+            _filter = _filter with { StartDate = date.Value };
+    }
+
+    private async Task OnEndDateChanged(DateTime? date)
+    {
+        if (date.HasValue)
+            _filter = _filter with { EndDate = date.Value };
+    }
+
+    private Task OnStoreIdsChanged(List<Guid> storeIds)
+    {
+        _filter = _filter with { StoreIds = storeIds };
+        return Task.CompletedTask;
     }
 }

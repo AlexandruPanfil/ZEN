@@ -1,5 +1,14 @@
 namespace ZEN.Application.DTOs.Reports;
 
+public record SalesReportFilterDto(
+    DateTime StartDate,
+    DateTime EndDate,
+    List<Guid>? StoreIds = null,
+    List<Guid>? CashDeskIds = null,
+    List<Guid>? ProductIds = null,
+    List<Guid>? CategoryIds = null,
+    List<Guid>? GroupIds = null);
+
 public record SalesReportDto(
     DateTime StartDate,
     DateTime EndDate,
@@ -8,12 +17,36 @@ public record SalesReportDto(
     decimal TotalDiscount,
     decimal NetSales,
     int TransactionCount,
-    IEnumerable<SalesReportItemDto> TopProducts);
+    IEnumerable<SalesReportItemDto> TopProducts,
+    IEnumerable<StoreSalesBreakdownDto> StoreBreakdowns);
 
 public record SalesReportItemDto(
     string ProductName,
     decimal Quantity,
     decimal TotalSales);
+
+public record StoreSalesBreakdownDto(
+    Guid StoreId,
+    string StoreName,
+    decimal TotalSales,
+    int TransactionCount,
+    IEnumerable<CashDeskSalesBreakdownDto> CashDeskBreakdowns);
+
+public record CashDeskSalesBreakdownDto(
+    Guid CashDeskId,
+    string CashDeskName,
+    decimal TotalSales,
+    int TransactionCount,
+    IEnumerable<ProductSalesBreakdownDto> ProductBreakdowns);
+
+public record ProductSalesBreakdownDto(
+    Guid ProductId,
+    string ProductName,
+    string? Barcode,
+    decimal QuantitySold,
+    decimal TotalSales,
+    decimal TotalTax,
+    decimal TotalDiscount);
 
 public record InventoryReportDto(
     Guid ProductId,

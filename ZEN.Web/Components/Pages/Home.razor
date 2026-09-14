@@ -89,13 +89,15 @@ else
 
             // 2. Today's Sales
             var today = DateTime.Today;
-            var todayReport = await ReportService.GetSalesReportAsync(today, today.AddDays(1));
+            var todayFilter = new SalesReportFilterDto(today, today.AddDays(1));
+            var todayReport = await ReportService.GetSalesReportAsync(todayFilter);
             _todaySales = todayReport?.TotalSales ?? 0;
 
             // 3. Monthly Sales
             var firstOfMonth = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1);
             var endOfMonth = firstOfMonth.AddMonths(1);
-            var monthlyReport = await ReportService.GetSalesReportAsync(firstOfMonth, endOfMonth);
+            var monthlyFilter = new SalesReportFilterDto(firstOfMonth, endOfMonth);
+            var monthlyReport = await ReportService.GetSalesReportAsync(monthlyFilter);
             _monthlySales = monthlyReport?.TotalSales ?? 0;
         }
         catch (Exception ex)

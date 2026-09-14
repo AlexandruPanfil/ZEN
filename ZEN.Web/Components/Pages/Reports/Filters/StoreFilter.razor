@@ -1,0 +1,70 @@
+@using ZEN.Application.Services.Interfaces
+@using ZEN.Application.DTOs.Admin
+
+@if (_isLoading)
+{
+    <MudProgressLinear Indeterminate="true" Class="mb-2" />
+}
+else
+{
+    <MudMultiSelect T="Guid" 
+              Label="Stores" 
+              Dense="true"
+              Value="@_selectedStoreIds"
+              ValueChanged="@OnStoreSelectionChanged"
+              Items="@_stores"
+              ToStringFunc="@StoreToString"
+              Placeholder="Select stores...">
+    </MudMultiSelect>
+}
+
+@code {
+    [Inject] private IStoreService StoreService { get; set; } = default!;
+    
+    [Parameter] public List<Guid> SelectedStoreIds { get; set; } = new();
+    [Parameter] public EventCallback<List<Guid>> SelectedStoreIdsChanged { get; set; }
+    [Parameter] public bool Disabled { get; set; }
+
+    private List<Guid> _selectedStoreIds = new();
+    private List<StoreDto> _stores = new();
+    private bool _isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadStoresAsync();
+        _selectedStoreIds = SelectedStoreIds;
+        _isLoading = false;
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!SelectedStoreIds.SequenceEqual(_selectedStoreIds))
+        {
+            _selectedStoreIds = SelectedStoreIds;
+        }
+    }
+
+    private async Task LoadStoresAsync()
+    {
+        try
+        {
+            _stores = (await StoreService.GetAllAsync()).Where(s => !s.IsDeleted).ToList();
+        }
+        catch (Exception)
+        {
+            // Handle error silently or log
+        }
+    }
+
+    private async Task OnStoreSelectionChanged(List<Guid> storeIds)
+    {
+        _selectedStoreIds = storeIds;
+        await SelectedStoreIdsChanged.InvokeAsync(storeIds);
+    }
+
+    private string StoreToString(Guid storeId)
+    {
+        var store = _stores.FirstOrDefault(s => s.Id == storeId);
+        return store?.Name ?? storeId.ToString();
+    }
+}

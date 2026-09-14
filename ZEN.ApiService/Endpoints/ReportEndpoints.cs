@@ -13,9 +13,27 @@ public static class ReportEndpoints
 {
     public static RouteGroupBuilder MapReportEndpoints(this RouteGroupBuilder group)
     {
-        group.MapGet("/sales", async (DateTime startDate, DateTime endDate, Guid? storeId, IReportService reportService, CancellationToken ct) =>
+        group.MapGet("/sales", async (
+            DateTime startDate,
+            DateTime endDate,
+            [FromQuery] string? storeIds,
+            [FromQuery] string? cashDeskIds,
+            [FromQuery] string? productIds,
+            [FromQuery] string? categoryIds,
+            [FromQuery] string? groupIds,
+            IReportService reportService,
+            CancellationToken ct) =>
         {
-            var report = await reportService.GetSalesReportAsync(startDate, endDate, storeId, ct);
+            var filter = new SalesReportFilterDto(
+                startDate,
+                endDate,
+                ParseGuids(storeIds),
+                ParseGuids(cashDeskIds),
+                ParseGuids(productIds),
+                ParseGuids(categoryIds),
+                ParseGuids(groupIds));
+            
+            var report = await reportService.GetSalesReportAsync(filter, ct);
             return Results.Ok(report);
         })
         .WithName("GetSalesReport")
@@ -91,5 +109,16 @@ public static class ReportEndpoints
         .RequireAuthorization();
 
         return group;
+    }
+
+    private static List<Guid>? ParseGuids(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return null;
+
+        return value.Split(',', StringSplitOptions.RemoveEmptyEntries)
+            .Select(s => Guid.TryParse(s.Trim(), out var guid) ? guid : Guid.Empty)
+            .Where(g => g != Guid.Empty)
+            .ToList();
     }
 }
