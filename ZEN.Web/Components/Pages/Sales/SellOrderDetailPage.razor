@@ -505,12 +505,14 @@ else
             if (_currentStoreId.HasValue)
             {
                 var store = await StoreRepository.GetByIdAsync(_currentStoreId.Value);
-                if (store != null)
+                if (store != null && store.IsActive)
                 {
                     stores.Add(new StoreDto(store.Id, store.Name, store.Code, store.Address, store.City, store.Phone, store.Email, store.IsActive));
                 }
             }
-            else
+
+            // If no store found from current store ID, load all active stores as fallback
+            if (stores.Count == 0)
             {
                 var allStores = await StoreRepository.FindAsync(s => s.IsActive);
                 stores.AddRange(allStores.Select(s => new StoreDto(s.Id, s.Name, s.Code, s.Address, s.City, s.Phone, s.Email, s.IsActive)));

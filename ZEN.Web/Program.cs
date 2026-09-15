@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Localization;
 using MudBlazor.Services;
+using MudBlazor;
 using ZEN.Application;
 using ZEN.Infrastructure;
 using ZEN.Infrastructure.Identity;
@@ -52,6 +53,61 @@ builder.Services.AddSharedComponents();
 
 // MudBlazor
 builder.Services.AddMudServices();
+
+// Configure custom violet theme (matching Windows project)
+var violetTheme = new MudTheme()
+{
+    PaletteLight = new PaletteLight()
+    {
+        Primary = "#8b5cf6",
+        Secondary = "#a78bfa",
+        Tertiary = "#7c3aed",
+        AppbarBackground = "#7c3aed",
+        AppbarText = "#ffffff",
+        DrawerBackground = "#f9f7fe",
+        DrawerText = "#1f2937",
+        DrawerIcon = "#7c3aed",
+        Success = "#10b981",
+        Info = "#3b82f6",
+        Warning = "#f59e0b",
+        Error = "#ef4444",
+        Dark = "#1f2937",
+        TextPrimary = "#1f2937",
+        TextSecondary = "#6b7280",
+        Background = "#ffffff",
+        BackgroundGray = "#f9fafb",
+        Surface = "#ffffff",
+        ActionDefault = "#7c3aed",
+        ActionDisabled = "#9ca3af",
+        ActionDisabledBackground = "#e5e7eb"
+    },
+    PaletteDark = new PaletteDark()
+    {
+        Primary = "#8b5cf6",
+        Secondary = "#a78bfa",
+        Tertiary = "#7c3aed",
+        AppbarBackground = "#1f2937",
+        AppbarText = "#ffffff",
+        DrawerBackground = "#111827",
+        DrawerText = "#f3f4f6",
+        DrawerIcon = "#a78bfa",
+        Success = "#10b981",
+        Info = "#3b82f6",
+        Warning = "#f59e0b",
+        Error = "#ef4444",
+        Dark = "#0f172a",
+        TextPrimary = "#f3f46f",
+        TextSecondary = "#d1d5db",
+        Background = "#0f172a",
+        BackgroundGray = "#1f2937",
+        Surface = "#1f2937",
+        ActionDefault = "#a78bfa",
+        ActionDisabled = "#4b5563",
+        ActionDisabledBackground = "#374151"
+    }
+};
+
+builder.Services.AddSingleton(violetTheme);
 
 // Localization
 builder.Services.AddLocalization();
