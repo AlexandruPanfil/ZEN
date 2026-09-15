@@ -124,7 +124,7 @@ else
         try
         {
             _isLoading = true;
-            _report = await ReportService.GetSalesReportAsync(_startDate.Value, _endDate.Value);
+            _report = await ReportService.GetSalesReportAsync(new SalesReportFilterDto(_startDate.Value, _endDate.Value));
         }
         catch (Exception ex)
         {
