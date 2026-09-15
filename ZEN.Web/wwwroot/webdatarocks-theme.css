@@ -1,0 +1,181 @@
+/* WebDataRocks Custom Theme - Matches ZEN POS Violet Theme */
+
+/* CSS Custom Properties for the pivot theme */
+.wdr-pivot.sales-pivot,
+#webdatarocks-pivot.sales-pivot,
+.sales-pivot {
+    --sales-pivot-primary: #8b5cf6;
+    --sales-pivot-primary-dark: #7c3aed;
+    --sales-pivot-surface: #ffffff;
+    --sales-pivot-background: #f9f7fe;
+    --sales-pivot-border: #ddd6fe;
+    --sales-pivot-text: #1f2937;
+    position: relative;
+    border: 1px solid var(--sales-pivot-border);
+    border-radius: 8px;
+    background: var(--sales-pivot-surface);
+    box-shadow: 0 2px 8px rgb(139 92 246 / 12%);
+}
+
+/* Ensure WebDataRocks internal container fills the pivot container */
+.sales-pivot .wdr-pivot,
+.sales-pivot > div {
+    height: 100%;
+    width: 100%;
+}
+
+/* Toolbar styling */
+.sales-pivot .wdr-toolbar,
+.sales-pivot .wdr-toolbar-wrapper {
+    background: var(--sales-pivot-primary-dark) !important;
+    border-color: var(--sales-pivot-primary-dark) !important;
+}
+
+.sales-pivot .wdr-toolbar button,
+.sales-pivot .wdr-toolbar .wdr-button,
+.sales-pivot .wdr-toolbar .wdr-toolbar-button {
+    color: #ffffff !important;
+}
+
+.sales-pivot .wdr-toolbar button:hover,
+.sales-pivot .wdr-toolbar .wdr-button:hover,
+.sales-pivot .wdr-toolbar .wdr-toolbar-button:hover {
+    background: var(--sales-pivot-primary) !important;
+}
+
+/* Grid layout */
+.sales-pivot .wdr-grid-layout,
+.sales-pivot .wdr-grid-view {
+    background: var(--sales-pivot-surface) !important;
+    color: var(--sales-pivot-text) !important;
+}
+
+/* Headers */
+.sales-pivot .wdr-header,
+.sales-pivot .wdr-header-layout,
+.sales-pivot .wdr-header-wrapper,
+.sales-pivot .wdr-grid-header,
+.sales-pivot .wdr-header-cell,
+.sales-pivot .wdr-column-header,
+.sales-pivot .wdr-measures-header,
+.sales-pivot .wdr-measure-header {
+    background: var(--sales-pivot-background) !important;
+    color: var(--sales-pivot-primary-dark) !important;
+    border-color: var(--sales-pivot-border) !important;
+    font-weight: 600;
+}
+
+.sales-pivot .wdr-header-text,
+.sales-pivot .wdr-column-header *,
+.sales-pivot .wdr-measures-header *,
+.sales-pivot .wdr-measure-header * {
+    color: var(--sales-pivot-primary-dark) !important;
+}
+
+/* Cells */
+.sales-pivot .wdr-cell,
+.sales-pivot .wdr-data-cell,
+.sales-pivot .wdr-label {
+    color: var(--sales-pivot-text) !important;
+    border-color: #ede9fe !important;
+}
+
+.sales-pivot .wdr-cell:hover,
+.sales-pivot .wdr-data-cell:hover,
+.sales-pivot .wdr-label:hover {
+    background: #f5f3ff !important;
+}
+
+/* Filters and UI buttons */
+.sales-pivot .wdr-filter,
+.sales-pivot .wdr-filter-button,
+.sales-pivot .wdr-ui-button {
+    border-color: var(--sales-pivot-border) !important;
+}
+
+.sales-pivot .wdr-filter:hover,
+.sales-pivot .wdr-filter-button:hover,
+.sales-pivot .wdr-ui-button:hover {
+    border-color: var(--sales-pivot-primary) !important;
+    color: var(--sales-pivot-primary-dark) !important;
+}
+
+/* Scrollbar styling for webkit browsers */
+.sales-pivot ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+.sales-pivot ::-webkit-scrollbar-track {
+    background: var(--sales-pivot-background);
+}
+
+.sales-pivot ::-webkit-scrollbar-thumb {
+    background: var(--sales-pivot-primary);
+    border-radius: 4px;
+}
+
+.sales-pivot ::-webkit-scrollbar-thumb:hover {
+    background: var(--sales-pivot-primary-dark);
+}
+
+/* Context menu */
+.sales-pivot .wdr-context-menu {
+    background: var(--sales-pivot-surface) !important;
+    border: 1px solid var(--sales-pivot-border) !important;
+    box-shadow: 0 4px 12px rgba(139, 92, 246, 0.15) !important;
+}
+
+.sales-pivot .wdr-context-menu-item {
+    color: var(--sales-pivot-text) !important;
+}
+
+.sales-pivot .wdr-context-menu-item:hover {
+    background: var(--sales-pivot-background) !important;
+    color: var(--sales-pivot-primary-dark) !important;
+}
+
+/* Drill-through view */
+.sales-pivot .wdr-drill-view {
+    background: var(--sales-pivot-surface) !important;
+    color: var(--sales-pivot-text) !important;
+}
+
+.sales-pivot .wdr-drill-view .wdr-header {
+    background: var(--sales-pivot-background) !important;
+    color: var(--sales-pivot-primary-dark) !important;
+}
+
+/* Chart */
+.sales-pivot .wdr-chart-container {
+    background: var(--sales-pivot-surface) !important;
+}
+
+/* Field list / configurator */
+.sales-pivot .wdr-field-list {
+    background: var(--sales-pivot-surface) !important;
+    color: var(--sales-pivot-text) !important;
+}
+
+.sales-pivot .wdr-field-list .wdr-header {
+    background: var(--sales-pivot-primary-dark) !important;
+    color: #ffffff !important;
+}
+
+.sales-pivot .wdr-field-list-item {
+    color: var(--sales-pivot-text) !important;
+}
+
+.sales-pivot .wdr-field-list-item:hover {
+    background: var(--sales-pivot-background) !important;
+}
+
+/* Loading overlay */
+.sales-pivot .wdr-loading-overlay {
+    background: rgba(249, 247, 254, 0.9) !important;
+}
+
+.sales-pivot .wdr-loading-spinner {
+    border-color: var(--sales-pivot-primary) !important;
+    border-top-color: transparent !important;
+}
