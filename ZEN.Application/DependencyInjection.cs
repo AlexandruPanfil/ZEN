@@ -22,6 +22,7 @@ public static class DependencyInjection
 
         // Application Services
         services.AddScoped<IStoreContext, StoreContextService>();
+        services.AddScoped<IStoreService, StoreService>();
         services.AddScoped<IProductService, ProductService>();
         services.AddScoped<ICategoryService, CategoryService>();
         services.AddScoped<IBrandService, BrandService>();

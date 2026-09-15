@@ -1,0 +1,191 @@
+@using ZEN.Application.Services.Interfaces
+@using ZEN.Application.DTOs.Products
+@inject IProductService ProductService
+
+<MudDialog MaxWidth="MaxWidth.Large" FullWidth="true">
+    <TitleContent>Select Products</TitleContent>
+    <DialogContent>
+        <MudTextField @bind-Value="_searchTerm" 
+                      Placeholder="Search products..." 
+                      Adornment="Adornment.Start"
+                      AdornmentIcon="@Icons.Material.Filled.Search"
+                      Class="mb-3"
+                      Immediate="true" />
+        
+        <MudSelect T="Guid?" 
+                   Label="Category" 
+                   Dense="true"
+                   Value="@_selectedCategoryId"
+                   ValueChanged="@OnCategoryFilterChanged"
+                   Items="@_categories"
+                   ToStringFunc="@CategoryToString"
+                   Placeholder="All categories"
+                   Clearable="true"
+                   Class="mb-3" />
+        
+        <MudSelect T="Guid?" 
+                   Label="Group (Brand)" 
+                   Dense="true"
+                   Value="@_selectedGroupId"
+                   ValueChanged="@OnGroupFilterChanged"
+                   Items="@_groups"
+                   ToStringFunc="@GroupToString"
+                   Placeholder="All groups"
+                   Clearable="true"
+                   Class="mb-3" />
+        
+        <MudTable Items="@_filteredProducts" 
+                  MultiSelection="true"
+                  SelectedItems="@_selectedItems"
+                  SelectedItemsChanged="@((HashSet<ProductDto> items) => OnSelectedItemsChanged(items))"
+                  Hover="true"
+                  Dense="true"
+                  Striped="true"
+                  Class="mt-3">
+            <ToolBarContent>
+                <MudText Typo="Typo.body2">@_filteredProducts.Count products found</MudText>
+            </ToolBarContent>
+            <HeaderContent>
+                <MudTh Style="width: 48px;"><MudTableSelectAllCheckbox /></MudTh>
+                <MudTh>Product</MudTh>
+                <MudTh>Barcode</MudTh>
+                <MudTh>Category</MudTh>
+                <MudTh>Group</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd><MudTableRowCheckbox /></MudTd>
+                <MudTd>@context.Name</MudTd>
+                <MudTd>@context.Barcode</MudTd>
+                <MudTd>@context.CategoryName</MudTd>
+                <MudTd>@context.BrandName</MudTd>
+            </RowTemplate>
+        </MudTable>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" OnClick="ClearSelection">Clear All</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Confirm">Confirm Selection (@(_selectedItems?.Count ?? 0))</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter] public List<Guid> PreselectedProductIds { get; set; } = new();
+
+    private string _searchTerm = "";
+    private List<ProductDto> _allProducts = new();
+    private List<ProductDto> _filteredProducts = new();
+    private HashSet<ProductDto> _selectedItems = new();
+    private List<CategoryDto> _categories = new();
+    private List<BrandDto> _groups = new();
+    private Guid? _selectedCategoryId = null;
+    private Guid? _selectedGroupId = null;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDataAsync();
+    }
+
+    private async Task LoadDataAsync()
+    {
+        try
+        {
+            _allProducts = (await ProductService.GetAllAsync()).ToList();
+            _categories = (await ProductService.GetCategoriesAsync()).ToList();
+            _groups = (await ProductService.GetBrandsAsync()).ToList();
+            
+            ApplyFilters();
+            
+            // Pre-select items if provided
+            if (PreselectedProductIds.Any())
+            {
+                foreach (var productId in PreselectedProductIds)
+                {
+                    var product = _allProducts.FirstOrDefault(p => p.Id == productId);
+                    if (product != null)
+                        _selectedItems.Add(product);
+                }
+            }
+        }
+        catch
+        {
+            // Handle error
+        }
+    }
+
+    private void ApplyFilters()
+    {
+        var query = _allProducts.AsEnumerable();
+        
+        if (!string.IsNullOrWhiteSpace(_searchTerm))
+        {
+            query = query.Where(p => p.Name.Contains(_searchTerm, StringComparison.OrdinalIgnoreCase) 
+                                  || (!string.IsNullOrEmpty(p.Barcode) && p.Barcode.Contains(_searchTerm)));
+        }
+        
+        if (_selectedCategoryId.HasValue && _selectedCategoryId.Value != Guid.Empty)
+        {
+            query = query.Where(p => p.CategoryId == _selectedCategoryId.Value);
+        }
+        
+        if (_selectedGroupId.HasValue && _selectedGroupId.Value != Guid.Empty)
+        {
+            query = query.Where(p => p.BrandId == _selectedGroupId.Value);
+        }
+        
+        _filteredProducts = query.Take(200).ToList();
+    }
+
+    private void OnSearchChanged(string value)
+    {
+        _searchTerm = value;
+        ApplyFilters();
+    }
+
+    private Task OnCategoryFilterChanged(Guid? categoryId)
+    {
+        _selectedCategoryId = categoryId;
+        ApplyFilters();
+        return Task.CompletedTask;
+    }
+
+    private Task OnGroupFilterChanged(Guid? groupId)
+    {
+        _selectedGroupId = groupId;
+        ApplyFilters();
+        return Task.CompletedTask;
+    }
+
+    private Task OnSelectedItemsChanged(HashSet<ProductDto> items)
+    {
+        _selectedItems = items;
+        return Task.CompletedTask;
+    }
+
+    private void ClearSelection()
+    {
+        _selectedItems.Clear();
+    }
+
+    private void Confirm()
+    {
+        var selectedIds = _selectedItems.Select(p => p.Id).ToList();
+        MudDialog.Close(DialogResult.Ok(selectedIds));
+    }
+
+    private string CategoryToString(Guid? categoryId)
+    {
+        if (!categoryId.HasValue || categoryId.Value == Guid.Empty)
+            return "";
+        var category = _categories.FirstOrDefault(c => c.Id == categoryId.Value);
+        return category?.Name ?? categoryId.Value.ToString();
+    }
+
+    private string GroupToString(Guid? groupId)
+    {
+        if (!groupId.HasValue || groupId.Value == Guid.Empty)
+            return "";
+        var group = _groups.FirstOrDefault(g => g.Id == groupId.Value);
+        return group?.Name ?? groupId.Value.ToString();
+    }
+}

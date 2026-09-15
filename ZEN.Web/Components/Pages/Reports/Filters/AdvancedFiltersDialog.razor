@@ -1,0 +1,120 @@
+@using ZEN.Application.DTOs.Reports
+@using ZEN.Web.Components.Pages.Reports.Filters
+@inject IDialogService DialogService
+
+<MudDialog>
+    <TitleContent>Advanced Filters</TitleContent>
+    <DialogContent>
+        <MudExpansionPanels Dense="true" Class="w-100 pt-0">
+            <MudExpansionPanel Text="Stores" Expanded="true">
+                <StoreFilter SelectedStoreIds="@_filter.StoreIds" 
+                             SelectedStoreIdsChanged="@OnStoreIdsChanged" />
+            </MudExpansionPanel>
+            <MudExpansionPanel Text="Cash Desks" Expanded="true">
+                <CashDeskFilter StoreIds="@_filter.StoreIds" 
+                                SelectedCashDeskIds="@_filter.CashDeskIds" 
+                                SelectedCashDeskIdsChanged="@OnCashDeskIdsChanged" />
+            </MudExpansionPanel>
+            <MudExpansionPanel Text="Products" Expanded="true">
+                <ProductFilter SelectedProductIds="@_filter.ProductIds"
+                               SelectedProductIdsChanged="@OnProductIdsChanged"
+                               SelectedCategoryIds="@_filter.CategoryIds"
+                               SelectedCategoryIdsChanged="@OnCategoryIdsChanged"
+                               SelectedGroupIds="@_filter.GroupIds"
+                               SelectedGroupIdsChanged="@OnGroupIdsChanged" />
+            </MudExpansionPanel>
+        </MudExpansionPanels>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" OnClick="ResetFilters">Reset</MudButton>
+        <MudButton Variant="Variant.Text" OnClick="Cancel">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Apply">Apply</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [Parameter] public SalesReportFilterDto Filter { get; set; } = new(
+        DateTime.Today.AddDays(-30),
+        DateTime.Today,
+        new List<Guid>(),
+        new List<Guid>(),
+        new List<Guid>(),
+        new List<Guid>(),
+        new List<Guid>());
+
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = default!;
+
+    private SalesReportFilterDto _filter = new(
+        DateTime.Today.AddDays(-30),
+        DateTime.Today,
+        new List<Guid>(),
+        new List<Guid>(),
+        new List<Guid>(),
+        new List<Guid>(),
+        new List<Guid>());
+
+    protected override void OnInitialized()
+    {
+        _filter = Filter with
+        {
+            StoreIds = new List<Guid>(Filter.StoreIds ?? new()),
+            CashDeskIds = new List<Guid>(Filter.CashDeskIds ?? new()),
+            ProductIds = new List<Guid>(Filter.ProductIds ?? new()),
+            CategoryIds = new List<Guid>(Filter.CategoryIds ?? new()),
+            GroupIds = new List<Guid>(Filter.GroupIds ?? new())
+        };
+    }
+
+    private Task OnStoreIdsChanged(List<Guid> storeIds)
+    {
+        _filter = _filter with { StoreIds = storeIds };
+        return Task.CompletedTask;
+    }
+
+    private Task OnCashDeskIdsChanged(List<Guid> cashDeskIds)
+    {
+        _filter = _filter with { CashDeskIds = cashDeskIds };
+        return Task.CompletedTask;
+    }
+
+    private Task OnProductIdsChanged(List<Guid> productIds)
+    {
+        _filter = _filter with { ProductIds = productIds };
+        return Task.CompletedTask;
+    }
+
+    private Task OnCategoryIdsChanged(List<Guid> categoryIds)
+    {
+        _filter = _filter with { CategoryIds = categoryIds };
+        return Task.CompletedTask;
+    }
+
+    private Task OnGroupIdsChanged(List<Guid> groupIds)
+    {
+        _filter = _filter with { GroupIds = groupIds };
+        return Task.CompletedTask;
+    }
+
+    private void Apply()
+    {
+        MudDialog.Close(DialogResult.Ok(_filter));
+    }
+
+    private void Cancel()
+    {
+        MudDialog.Cancel();
+    }
+
+    private void ResetFilters()
+    {
+        _filter = _filter with
+        {
+            StoreIds = new List<Guid>(),
+            CashDeskIds = new List<Guid>(),
+            ProductIds = new List<Guid>(),
+            CategoryIds = new List<Guid>(),
+            GroupIds = new List<Guid>()
+        };
+        StateHasChanged(); // Trigger child component re-render
+    }
+}

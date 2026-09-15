@@ -1,0 +1,144 @@
+@using ZEN.Application.DTOs.Reports
+
+<MudTable Items="@_flattenedRows" 
+           Hover="true" 
+           Dense="true" 
+           Striped="true"
+           Breakpoint="Breakpoint.Sm"
+           SortMode="SortMode.Multiple"
+           FilterMode="FilterMode.Simple"
+           Class="mt-3">
+    <HeaderContent>
+        <MudTh>Store</MudTh>
+        <MudTh>Cash Desk</MudTh>
+        <MudTh>Product</MudTh>
+        <MudTh>Barcode</MudTh>
+        <MudTh>Qty Sold</MudTh>
+        <MudTh>Total Sales</MudTh>
+        <MudTh>Tax</MudTh>
+        <MudTh>Discount</MudTh>
+    </HeaderContent>
+    <RowTemplate>
+        <MudTd DataLabel="Store" Class="@GetRowClass(context.RowType)">@context.StoreName</MudTd>
+        <MudTd DataLabel="Cash Desk" Class="@GetRowClass(context.RowType)">@context.CashDeskName</MudTd>
+        <MudTd DataLabel="Product" Class="@GetRowClass(context.RowType)">@context.ProductName</MudTd>
+        <MudTd DataLabel="Barcode" Class="@GetRowClass(context.RowType)">@context.Barcode</MudTd>
+        <MudTd DataLabel="Qty Sold" Class="@GetRowClass(context.RowType)">@context.QuantitySold</MudTd>
+        <MudTd DataLabel="Total Sales" Class="@GetRowClass(context.RowType)">@context.TotalSales.ToString("C")</MudTd>
+        <MudTd DataLabel="Tax" Class="@GetRowClass(context.RowType)">@context.TotalTax.ToString("C")</MudTd>
+        <MudTd DataLabel="Discount" Class="@GetRowClass(context.RowType)">@context.TotalDiscount.ToString("C")</MudTd>
+    </RowTemplate>
+    <PagerContent>
+        <MudTablePager PageSizeOptions="new int[] { 25, 50, 100 }" />
+    </PagerContent>
+</MudTable>
+
+@code {
+    [Parameter] public IEnumerable<StoreSalesBreakdownDto> StoreBreakdowns { get; set; } = new List<StoreSalesBreakdownDto>();
+
+    private List<FlattenedBreakdownRow> _flattenedRows = new();
+
+    protected override void OnParametersSet()
+    {
+        _flattenedRows = FlattenBreakdowns(StoreBreakdowns);
+    }
+
+    private List<FlattenedBreakdownRow> FlattenBreakdowns(IEnumerable<StoreSalesBreakdownDto> storeBreakdowns)
+    {
+        var rows = new List<FlattenedBreakdownRow>();
+        
+        foreach (var store in storeBreakdowns)
+        {
+            if (store.CashDeskBreakdowns.Any())
+            {
+                foreach (var cashDesk in store.CashDeskBreakdowns)
+                {
+                    if (cashDesk.ProductBreakdowns.Any())
+                    {
+                        foreach (var product in cashDesk.ProductBreakdowns)
+                        {
+                            rows.Add(new FlattenedBreakdownRow
+                            {
+                                StoreId = store.StoreId,
+                                StoreName = store.StoreName,
+                                CashDeskId = cashDesk.CashDeskId,
+                                CashDeskName = cashDesk.CashDeskName,
+                                ProductId = product.ProductId,
+                                ProductName = product.ProductName,
+                                Barcode = product.Barcode ?? "",
+                                QuantitySold = product.QuantitySold,
+                                TotalSales = product.TotalSales,
+                                TotalTax = product.TotalTax,
+                                TotalDiscount = product.TotalDiscount,
+                                RowType = RowType.Product
+                            });
+                        }
+                        
+                        // Add cash desk subtotal row
+                        rows.Add(new FlattenedBreakdownRow
+                        {
+                            StoreId = store.StoreId,
+                            StoreName = store.StoreName,
+                            CashDeskId = cashDesk.CashDeskId,
+                            CashDeskName = cashDesk.CashDeskName,
+                            ProductName = "Subtotal",
+                            QuantitySold = cashDesk.ProductBreakdowns.Sum(p => p.QuantitySold),
+                            TotalSales = cashDesk.ProductBreakdowns.Sum(p => p.TotalSales),
+                            TotalTax = cashDesk.ProductBreakdowns.Sum(p => p.TotalTax),
+                            TotalDiscount = cashDesk.ProductBreakdowns.Sum(p => p.TotalDiscount),
+                            RowType = RowType.CashDeskSubtotal
+                        });
+                    }
+                }
+                
+                // Add store subtotal row
+                rows.Add(new FlattenedBreakdownRow
+                {
+                    StoreId = store.StoreId,
+                    StoreName = store.StoreName,
+                    ProductName = "Store Total",
+                    QuantitySold = store.CashDeskBreakdowns.SelectMany(c => c.ProductBreakdowns).Sum(p => p.QuantitySold),
+                    TotalSales = store.TotalSales,
+                    TotalTax = store.CashDeskBreakdowns.SelectMany(c => c.ProductBreakdowns).Sum(p => p.TotalTax),
+                    TotalDiscount = store.CashDeskBreakdowns.SelectMany(c => c.ProductBreakdowns).Sum(p => p.TotalDiscount),
+                    RowType = RowType.StoreSubtotal
+                });
+            }
+        }
+        
+        return rows;
+    }
+
+    private record FlattenedBreakdownRow
+    {
+        public Guid StoreId { get; init; }
+        public string StoreName { get; init; } = "";
+        public Guid CashDeskId { get; init; }
+        public string CashDeskName { get; init; } = "";
+        public Guid ProductId { get; init; }
+        public string ProductName { get; init; } = "";
+        public string Barcode { get; init; } = "";
+        public decimal QuantitySold { get; init; }
+        public decimal TotalSales { get; init; }
+        public decimal TotalTax { get; init; }
+        public decimal TotalDiscount { get; init; }
+        public RowType RowType { get; init; } = RowType.Product;
+    }
+
+    private enum RowType
+    {
+        Product,
+        CashDeskSubtotal,
+        StoreSubtotal
+    }
+
+    private string GetRowClass(RowType rowType)
+    {
+        return rowType switch
+        {
+            RowType.CashDeskSubtotal => "fw-bold bg-light",
+            RowType.StoreSubtotal => "fw-bold bg-info bg-opacity-10",
+            _ => ""
+        };
+    }
+}
