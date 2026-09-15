@@ -7,8 +7,8 @@
     --sales-pivot-primary: #8b5cf6;
     --sales-pivot-primary-dark: #7c3aed;
     --sales-pivot-surface: #ffffff;
-    --sales-pivot-background: #f9f7fe;
-    --sales-pivot-border: #ddd6fe;
+    --sales-pivot-background: #c4b5fd;
+    --sales-pivot-border: #a78bfa;
     --sales-pivot-text: #1f2937;
     position: relative;
     border: 1px solid var(--sales-pivot-border);
@@ -59,9 +59,9 @@
 .sales-pivot .wdr-column-header,
 .sales-pivot .wdr-measures-header,
 .sales-pivot .wdr-measure-header {
-    background: var(--sales-pivot-background) !important;
+    background: #c4b5fd !important;
     color: var(--sales-pivot-primary-dark) !important;
-    border-color: var(--sales-pivot-border) !important;
+    border-color: #a78bfa !important;
     font-weight: 600;
 }
 
@@ -77,13 +77,13 @@
 .sales-pivot .wdr-data-cell,
 .sales-pivot .wdr-label {
     color: var(--sales-pivot-text) !important;
-    border-color: #ede9fe !important;
+    border-color: #c4b5fd !important;
 }
 
 .sales-pivot .wdr-cell:hover,
 .sales-pivot .wdr-data-cell:hover,
 .sales-pivot .wdr-label:hover {
-    background: #f5f3ff !important;
+    background: #ddd6fe !important;
 }
 
 /* Filters and UI buttons */
@@ -142,7 +142,7 @@
 }
 
 .sales-pivot .wdr-drill-view .wdr-header {
-    background: var(--sales-pivot-background) !important;
+    background: #c4b5fd !important;
     color: var(--sales-pivot-primary-dark) !important;
 }
 
@@ -172,7 +172,7 @@
 
 /* Loading overlay */
 .sales-pivot .wdr-loading-overlay {
-    background: rgba(249, 247, 254, 0.9) !important;
+    background: rgba(196, 181, 253, 0.9) !important;
 }
 
 .sales-pivot .wdr-loading-spinner {
