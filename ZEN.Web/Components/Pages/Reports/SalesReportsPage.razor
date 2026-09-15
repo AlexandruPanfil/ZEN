@@ -1,4 +1,4 @@
-@page "/reports/sales"
+﻿@page "/reports/sales"
 @using Microsoft.AspNetCore.Authorization
 @using ZEN.Application.Services.Interfaces
 @using ZEN.Application.DTOs.Reports
@@ -68,7 +68,7 @@ else
         }
         else
         {
-            <div id="@_pivotContainerId" style="height: 600px; width: 100%; border: 1px solid red;"></div>
+            <div id="@_pivotContainerId" class="sales-pivot" style="height: 600px; width: 100%;"></div>
             
             <!-- Export buttons -->
             <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Download" 
@@ -99,6 +99,7 @@ else
     private bool _isLoading = false;
     private string _pivotContainerId = "webdatarocks-pivot";
     private bool _pivotInitialized = false;
+    private bool _isInitializingPivot = false;
     private List<object> _pivotData = new();
 
     protected override async Task OnInitializedAsync()
@@ -112,15 +113,14 @@ else
         try
         {
             _report = await ReportService.GetSalesReportAsync(_filter);
-            
-            // Debug: Check what data we got
-            Snackbar.Add($"Report generated: {_report.StoreBreakdowns.Count()} stores, {_report.TopProducts.Count()} top products, {_report.TransactionCount} transactions", Severity.Info);
-            
-            // Transform data for pivot table
+
             _pivotData = TransformToPivotData(_report);
-            Snackbar.Add($"Pivot data rows: {_pivotData.Count}", Severity.Info);
-            
-            // Note: Pivot table will be initialized in OnAfterRenderAsync after container is rendered
+
+            if (_pivotInitialized)
+            {
+                await JSRuntime.InvokeAsync<bool>("webDataRocksInterop.destroy", _pivotContainerId);
+                _pivotInitialized = false;
+            }
         }
         catch (Exception ex)
         {
@@ -135,7 +135,7 @@ else
     private List<object> TransformToPivotData(SalesReportDto report)
     {
         var pivotData = new List<object>();
-        
+
         foreach (var storeBreakdown in report.StoreBreakdowns)
         {
             foreach (var cashDeskBreakdown in storeBreakdown.CashDeskBreakdowns)
@@ -148,7 +148,7 @@ else
                         Category = "",
                         Store = storeBreakdown.StoreName,
                         CashDesk = cashDeskBreakdown.CashDeskName,
-                        Date = report.StartDate.ToString("yyyy-MM-dd"),
+                        Date = report.StartDate.ToString("dd.MM.yyyy"),
                         Quantity = (double)productBreakdown.QuantitySold,
                         SalesAmount = (double)productBreakdown.TotalSales,
                         TaxAmount = (double)productBreakdown.TotalTax,
@@ -157,31 +157,23 @@ else
                 }
             }
         }
-        
+
         return pivotData;
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (firstRender)
+        if (_pivotData.Count > 0 && !_pivotInitialized && !_isInitializingPivot)
         {
+            _isInitializingPivot = true;
             try
             {
-                var interopExists = await JSRuntime.InvokeAsync<bool>("eval", "typeof window.webDataRocksInterop !== 'undefined'");
-                var webDataRocksExists = await JSRuntime.InvokeAsync<bool>("eval", "typeof WebDataRocks !== 'undefined'");
-                Snackbar.Add($"First render JS check - interop: {interopExists}, WebDataRocks: {webDataRocksExists}", Severity.Info);
+                await InitializePivotTable();
             }
-            catch (Exception ex)
+            finally
             {
-                Snackbar.Add($"First render JS check failed: {ex.Message}", Severity.Error);
+                _isInitializingPivot = false;
             }
-        }
-        
-        // Initialize pivot table when data is available and not yet initialized
-        if (_pivotData.Count > 0 && !_pivotInitialized)
-        {
-            Snackbar.Add($"OnAfterRenderAsync: Initializing pivot table (data={_pivotData.Count}, initialized={_pivotInitialized})", Severity.Info);
-            await InitializePivotTable();
         }
     }
 
@@ -189,32 +181,24 @@ else
     {
         if (_pivotData.Count == 0)
         {
-            Snackbar.Add("No pivot data available", Severity.Warning);
             return;
         }
 
-        Snackbar.Add("InitializePivotTable called, waiting for container...", Severity.Info);
-        
-        // Wait for container to be rendered - give DOM time to update
         await Task.Delay(500);
-        
-        // Wait for container to be rendered
         var maxRetries = 20;
-        var retryDelay = 200; // ms
-        
+        var retryDelay = 200;
+
         for (int i = 0; i < maxRetries; i++)
         {
             var containerExists = await JSRuntime.InvokeAsync<bool>("eval", $"document.getElementById('{_pivotContainerId}') !== null");
-            Snackbar.Add($"Container check {i+1}/{maxRetries}: {containerExists}", Severity.Info);
             if (containerExists)
                 break;
-            
+
             await Task.Delay(retryDelay);
         }
 
         try
         {
-            Snackbar.Add("Calling webDataRocksInterop.initialize...", Severity.Info);
             var result = await JSRuntime.InvokeAsync<bool>("webDataRocksInterop.initialize", _pivotContainerId, _pivotData, new
             {
                 height = 600,
@@ -222,25 +206,29 @@ else
                 {
                     slice = new
                     {
-                        rows = new[] { new { uniqueName = "Store" }, new { uniqueName = "ProductName" } },
+                        rows = new[]
+                        {
+                            new { uniqueName = "date", caption = "Date" },
+                            new { uniqueName = "store", caption = "Store" },
+                            new { uniqueName = "cashDesk", caption = "Cash Desk" },
+                            new { uniqueName = "productName", caption = "Product" },
+                            new { uniqueName = "category", caption = "Category" }
+                        },
                         columns = new[] { new { uniqueName = "Measures" } },
                         measures = new[]
                         {
-                            new { uniqueName = "Quantity", aggregation = "sum" },
-                            new { uniqueName = "SalesAmount", aggregation = "sum" },
-                            new { uniqueName = "TaxAmount", aggregation = "sum" },
-                            new { uniqueName = "DiscountAmount", aggregation = "sum" }
+                            new { uniqueName = "quantity", aggregation = "sum" },
+                            new { uniqueName = "salesAmount", aggregation = "sum" },
+                            new { uniqueName = "taxAmount", aggregation = "sum" },
+                            new { uniqueName = "discountAmount", aggregation = "sum" }
                         }
                     }
                 }
             });
-            
-            Snackbar.Add($"Initialize result: {result}", Severity.Info);
-             
+
             if (result)
             {
                 _pivotInitialized = true;
-                Snackbar.Add("Pivot table initialized successfully", Severity.Success);
             }
             else
             {
@@ -253,43 +241,26 @@ else
         }
     }
 
-    private async Task UpdatePivotTableData()
-    {
-        try
-        {
-            var result = await JSRuntime.InvokeAsync<bool>("webDataRocksInterop.updateData", _pivotContainerId, _pivotData);
-            if (!result)
-            {
-                Snackbar.Add("Failed to update pivot table data", Severity.Warning);
-            }
-        }
-        catch (Exception ex)
-        {
-            Snackbar.Add($"Error updating pivot table: {ex.Message}", Severity.Error);
-        }
-    }
-
     private async Task OpenAdvancedFiltersDialog()
     {
         var parameters = new DialogParameters
         {
             { "Filter", _filter }
         };
-        
-        var options = new DialogOptions 
-        { 
-            MaxWidth = MaxWidth.Large, 
+
+        var options = new DialogOptions
+        {
+            MaxWidth = MaxWidth.Large,
             FullWidth = true,
             CloseButton = true
         };
-        
+
         var dialog = await DialogService.ShowAsync<AdvancedFiltersDialog>("Advanced Filters", parameters, options);
         var result = await dialog.Result;
-        
+
         if (!result.Canceled && result.Data is SalesReportFilterDto updatedFilter)
         {
             _filter = updatedFilter;
-            // Note: Report generates only on page load or when Generate button is clicked
         }
     }
 

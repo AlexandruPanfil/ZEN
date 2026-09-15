@@ -87,11 +87,89 @@ window.webDataRocksInterop = {
                     const pivot = new WebDataRocks(config);
                     console.log('WebDataRocks instance created successfully');
                     console.log('Pivot instance:', pivot);
+                    console.log('Pivot type:', typeof pivot);
+                    console.log('Pivot has then:', typeof pivot?.then === 'function');
+                    console.log('Pivot has onready:', typeof pivot?.onready === 'function');
+                    console.log('Pivot has ready:', typeof pivot?.ready === 'function');
                     
-                    // Store instance for later reference
-                    this.instances.set(containerId, pivot);
-                    
-                    resolve(true);
+                    // WebDataRocks constructor returns a promise that resolves to the actual pivot instance
+                    if (pivot && typeof pivot.then === 'function') {
+                        console.log('WebDataRocks returned a promise, waiting for resolution...');
+                        pivot.then((actualPivot) => {
+                            console.log('Actual pivot instance resolved:', actualPivot);
+                            console.log('Actual pivot type:', typeof actualPivot);
+                            console.log('Actual pivot methods:', Object.getOwnPropertyNames(Object.getPrototypeOf(actualPivot)).filter(m => typeof actualPivot[m] === 'function'));
+                            
+                            // Store the ACTUAL pivot instance
+                            this.instances.set(containerId, actualPivot);
+                            
+                            // Call onready if available
+                            if (actualPivot.onready) {
+                                actualPivot.onready(() => {
+                                    console.log('WebDataRocks pivot is ready (via onready)');
+                                });
+                            }
+                            
+                            resolve(true);
+                        }).catch((error) => {
+                            console.error('WebDataRocks promise rejected:', error);
+                            resolve(false);
+                        });
+                    } else if (pivot.onready) {
+                        // Direct instance with onready callback
+                        console.log('WebDataRocks returned direct instance with onready');
+                        this.instances.set(containerId, pivot);
+                        pivot.onready(() => {
+                            console.log('WebDataRocks pivot is ready (via onready)');
+                            resolve(true);
+                        });
+                    } else if (pivot.ready) {
+                        // Direct instance with ready promise
+                        console.log('WebDataRocks returned direct instance with ready promise');
+                        this.instances.set(containerId, pivot);
+                        pivot.ready.then(() => {
+                            console.log('WebDataRocks pivot is ready (via ready promise)');
+                            resolve(true);
+                        });
+                    } else {
+                        // Try to get the actual pivot from the container after a delay
+                        // WebDataRocks might attach the instance to the container element
+                        console.log('WebDataRocks returned direct object, will check container for actual instance...');
+                        this.instances.set(containerId, pivot); // Store initial object temporarily
+                        
+                        // Wait a bit and check if the container has the actual pivot
+                        setTimeout(() => {
+                            const container = document.getElementById(containerId);
+                            if (container && container.webDataRocks) {
+                                console.log('Found pivot on container.webDataRocks:', container.webDataRocks);
+                                console.log('Container pivot methods:', Object.getOwnPropertyNames(Object.getPrototypeOf(container.webDataRocks)).filter(m => typeof container.webDataRocks[m] === 'function'));
+                                this.instances.set(containerId, container.webDataRocks);
+                            } else if (container && container.wdr) {
+                                console.log('Found pivot on container.wdr:', container.wdr);
+                                this.instances.set(containerId, container.wdr);
+                            } else if (container && container.flexmonster) {
+                                console.log('Found pivot on container.flexmonster:', container.flexmonster);
+                                this.instances.set(containerId, container.flexmonster);
+                            } else {
+                                console.log('No pivot found on container, checking window...');
+                                // Check if there's a global reference
+                                if (window.webDataRocksInstance) {
+                                    console.log('Found pivot on window.webDataRocksInstance');
+                                    this.instances.set(containerId, window.webDataRocksInstance);
+                                }
+                            }
+                            
+                            const storedPivot = this.instances.get(containerId);
+                            console.log('Final stored pivot methods:', storedPivot ? Object.getOwnPropertyNames(Object.getPrototypeOf(storedPivot)).filter(m => typeof storedPivot[m] === 'function') : 'none');
+                            
+                            if (storedPivot && (storedPivot.setReport || storedPivot.setData)) {
+                                resolve(true);
+                            } else {
+                                console.warn('Pivot may not be fully ready, but resolving anyway');
+                                resolve(true);
+                            }
+                        }, 1000);
+                    }
                 } catch (error) {
                     console.error('Failed to initialize WebDataRocks:', error);
                     console.error('Error stack:', error.stack);
@@ -108,13 +186,72 @@ window.webDataRocksInterop = {
         return new Promise((resolve) => {
             const attemptUpdate = () => {
                 const pivot = this.instances.get(containerId);
-                if (pivot && pivot.setData) {
-                    pivot.setData({
-                        data: data,
-                        dataType: "json"
-                    });
-                    resolve(true);
+                console.log('updateData called for:', containerId, 'pivot exists:', !!pivot);
+                if (pivot) {
+                    const methods = Object.getOwnPropertyNames(Object.getPrototypeOf(pivot)).filter(m => typeof pivot[m] === 'function');
+                    console.log('Pivot methods:', methods);
+                    
+                    // Try multiple approaches
+                    let success = false;
+                    
+                    // Approach 1: setData
+                    if (pivot.setData) {
+                        console.log('Trying setData...');
+                        try {
+                            pivot.setData({
+                                data: data,
+                                dataType: "json"
+                            });
+                            success = true;
+                            console.log('setData succeeded');
+                        } catch (e) {
+                            console.error('setData failed:', e);
+                        }
+                    }
+                    
+                    // Approach 2: setReport with full report
+                    if (!success && pivot.setReport) {
+                        console.log('Trying setReport...');
+                        try {
+                            const currentReport = pivot.getReport();
+                            console.log('Current report:', currentReport);
+                            if (currentReport) {
+                                currentReport.dataSource = {
+                                    data: data,
+                                    dataType: "json"
+                                };
+                                pivot.setReport(currentReport);
+                                success = true;
+                                console.log('setReport succeeded');
+                            }
+                        } catch (e) {
+                            console.error('setReport failed:', e);
+                        }
+                    }
+                    
+                    // Approach 3: Try refresh/render/resize
+                    if (success) {
+                        if (pivot.refresh) {
+                            try { pivot.refresh(); console.log('refresh called'); } catch (e) { console.error('refresh failed:', e); }
+                        }
+                        if (pivot.render) {
+                            try { pivot.render(); console.log('render called'); } catch (e) { console.error('render failed:', e); }
+                        }
+                        if (pivot.resize) {
+                            try { pivot.resize(); console.log('resize called'); } catch (e) { console.error('resize failed:', e); }
+                        }
+                        // Force resize after a delay
+                        setTimeout(() => {
+                            if (pivot.resize) {
+                                try { pivot.resize(); console.log('delayed resize called'); } catch (e) { console.error('delayed resize failed:', e); }
+                            }
+                        }, 100);
+                    }
+                    
+                    resolve(success);
                 } else {
+                    console.error('No pivot instance found for container:', containerId);
+                    console.log('Available instances:', Array.from(this.instances.keys()));
                     resolve(false);
                 }
             };
