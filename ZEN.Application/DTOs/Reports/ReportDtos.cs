@@ -13,6 +13,11 @@ public record SalesReportFilterDto(
     List<Guid>? GroupIds = null,
     IEnumerable<SaleStatus>? Statuses = null);
 
+public record EmployeeReportFilterDto(
+    DateTime StartDate,
+    DateTime EndDate,
+    List<Guid>? StoreIds = null);
+
 public record SalesReportDto(
     DateTime StartDate,
     DateTime EndDate,

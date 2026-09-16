@@ -2,30 +2,45 @@
 @using Microsoft.AspNetCore.Authorization
 @using ZEN.Application.Services.Interfaces
 @using ZEN.Application.DTOs.Reports
+@using ZEN.Web.Components.Pages.Reports.Filters
+@using MudBlazor
 @inject IReportService ReportService
 @inject IStoreContext StoreContext
 @inject ISnackbar Snackbar
+@inject IDialogService DialogService
+@inject IJSRuntime JSRuntime
+@inject ILogger<EmployeeReportsPage> Logger
 @attribute [Authorize(Roles = "Administrator,Manager,Accountant")]
+@implements IAsyncDisposable
 
 <PageTitle>Employee Reports - ZEN POS</PageTitle>
 
-<MudText Typo="Typo.h3" GutterBottom="true">Employee Reports</MudText>
-
 <MudPaper Class="pa-4 mb-4">
     <MudGrid>
-        <MudItem xs="12" sm="4">
-            <MudDatePicker Label="Start Date" @bind-Date="_startDate" />
+        <MudItem xs="12" sm="6" md="2" Class="d-flex align-center">
+            <MudText Typo="Typo.h3" Class="mb-0 me-4">Employee Reports</MudText>
         </MudItem>
-        <MudItem xs="12" sm="4">
-            <MudDatePicker Label="End Date" @bind-Date="_endDate" />
+        <MudItem xs="12" sm="6" md="2" Class="d-flex align-center">
+            <MudDatePicker Label="Start Date" Date="_filter.StartDate" DateChanged="@OnStartDateChanged" Variant="Variant.Text" />
         </MudItem>
-        <MudItem xs="12" sm="4" Class="d-flex align-center">
+        <MudItem xs="12" sm="6" md="2" Class="d-flex align-center">
+            <MudDatePicker Label="End Date" Date="_filter.EndDate" DateChanged="@OnEndDateChanged" Variant="Variant.Text" />
+        </MudItem>
+        <MudItem xs="12" sm="6" md="2" Class="d-flex align-center">
             <MudButton Variant="Variant.Filled" 
                        Color="Color.Primary" 
                        OnClick="GenerateReport" 
                        StartIcon="@Icons.Material.Filled.Analytics"
-                       FullWidth="true">
-                Generate Report
+                       Disabled="_isLoading">
+                @(_isLoading ? "Generating..." : "Generate")
+            </MudButton>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="2" Class="d-flex align-center justify-end">
+            <MudButton Variant="Variant.Outlined" 
+                       Color="Color.Primary" 
+                       OnClick="OpenAdvancedFiltersDialog"
+                       StartIcon="@Icons.Material.Filled.Tune">
+                Advanced Filters
             </MudButton>
         </MudItem>
     </MudGrid>
@@ -70,76 +85,223 @@ else
         </MudItem>
     </MudGrid>
 
-    <MudText Typo="Typo.h5" Class="mt-6 mb-2">Shift Details</MudText>
-    <MudTable Items="@_reportItems" Hover="true" Breakpoint="Breakpoint.Sm" Loading="_isLoading">
-        <HeaderContent>
-            <MudTh>Shift Number</MudTh>
-            <MudTh>Opened At</MudTh>
-            <MudTh>Closed At</MudTh>
-            <MudTh>User Name</MudTh>
-            <MudTh>Opening Cash</MudTh>
-            <MudTh>Closing Cash</MudTh>
-            <MudTh>Total Sales</MudTh>
-            <MudTh>Variance</MudTh>
-        </HeaderContent>
-        <RowTemplate>
-            <MudTd DataLabel="Shift Number">@context.ShiftNumber</MudTd>
-            <MudTd DataLabel="Opened At">@context.OpenedAt.ToString("g")</MudTd>
-            <MudTd DataLabel="Closed At">@(context.ClosedAt?.ToString("g") ?? "Open")</MudTd>
-            <MudTd DataLabel="User Name">@context.UserName</MudTd>
-            <MudTd DataLabel="Opening Cash">@context.OpeningCash.ToString("C")</MudTd>
-            <MudTd DataLabel="Closing Cash">@(context.ClosingCash?.ToString("C") ?? "—")</MudTd>
-            <MudTd DataLabel="Total Sales">@context.TotalSales.ToString("C")</MudTd>
-            <MudTd DataLabel="Variance">
-                @if (context.Variance.HasValue)
-                {
-                    <MudText Color="@(context.Variance.Value >= 0 ? Color.Success : Color.Error)">
-                        @context.Variance.Value.ToString("C")
-                    </MudText>
-                }
-                else
-                {
-                    <span>—</span>
-                }
-            </MudTd>
-        </RowTemplate>
-        <PagerContent>
-            <MudTablePager />
-        </PagerContent>
-    </MudTable>
+    <MudPaper Class="pa-4 mb-4">
+        @if (_pivotData.Count == 0)
+        {
+            <MudAlert Severity="Severity.Info" Variant="Variant.Filled" Class="mt-4">
+                No pivot data available. Please generate a report with shift data first.
+            </MudAlert>
+        }
+        else
+        {
+            <div id="@_pivotContainerId" class="sales-pivot" style="height: 600px; width: 100%;"></div>
+
+            <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Download" 
+                       OnClick="@(async () => await JSRuntime.InvokeAsync<bool>("webDataRocksInterop.exportToCSV", _pivotContainerId))" 
+                       Class="mt-3 me-2">
+                Export CSV
+            </MudButton>
+            <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.PictureAsPdf" 
+                       OnClick="@(async () => await JSRuntime.InvokeAsync<bool>("webDataRocksInterop.exportToPDF", _pivotContainerId))" 
+                       Class="mt-3">
+                Export PDF
+            </MudButton>
+        }
+    </MudPaper>
 }
 
 @code {
-    private DateTime? _startDate = DateTime.Today.AddDays(-30);
-    private DateTime? _endDate = DateTime.Today;
+    private EmployeeReportFilterDto _filter = new(
+        DateTime.Today.AddDays(-3),
+        DateTime.Today.AddDays(-1),
+        new List<Guid>());
+
     private IEnumerable<ShiftReportDto> _reportItems = new List<ShiftReportDto>();
     private bool _isLoading = false;
     private decimal _totalSales = 0;
     private int _closedShiftsCount = 0;
 
+    private string _pivotContainerId = "webdatarocks-employee-pivot";
+    private bool _pivotInitialized = false;
+    private bool _isInitializingPivot = false;
+    private List<object> _pivotData = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await GenerateReport();
+    }
+
     private async Task GenerateReport()
     {
-        if (!_startDate.HasValue || !_endDate.HasValue)
-        {
-            Snackbar.Add("Please select both start and end dates.", Severity.Warning);
-            return;
-        }
-
         _isLoading = true;
         try
         {
             var storeId = StoreContext.GetCurrentStoreId();
-            _reportItems = await ReportService.GetShiftsReportAsync(_startDate.Value, _endDate.Value, storeId);
+            _reportItems = await ReportService.GetShiftsReportAsync(_filter.StartDate, _filter.EndDate, storeId);
             _totalSales = _reportItems.Sum(r => r.TotalSales);
             _closedShiftsCount = _reportItems.Count(r => r.ClosedAt.HasValue);
+
+            _pivotData = TransformToPivotData(_reportItems);
+
+            if (_pivotInitialized)
+            {
+                await JSRuntime.InvokeAsync<bool>("webDataRocksInterop.destroy", _pivotContainerId);
+                _pivotInitialized = false;
+            }
         }
         catch (Exception ex)
         {
+            Logger.LogError(ex, "Error generating report");
             Snackbar.Add($"Error generating report: {ex.Message}", Severity.Error);
         }
         finally
         {
             _isLoading = false;
+        }
+    }
+
+    private List<object> TransformToPivotData(IEnumerable<ShiftReportDto> items)
+    {
+        var pivotData = new List<object>();
+
+        foreach (var item in items)
+        {
+            pivotData.Add(new
+            {
+                ShiftNumber = item.ShiftNumber,
+                UserName = item.UserName,
+                Date = item.OpenedAt.ToString("dd.MM.yyyy"),
+                TotalSales = (double)item.TotalSales,
+                SalesCount = (double)item.SalesCount,
+                OpeningCash = (double)(item.OpeningCash),
+                ClosingCash = item.ClosingCash.HasValue ? (double)item.ClosingCash.Value : 0,
+                Variance = item.Variance.HasValue ? (double)item.Variance.Value : 0
+            });
+        }
+
+        return pivotData;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_pivotData.Count > 0 && !_pivotInitialized && !_isInitializingPivot)
+        {
+            _isInitializingPivot = true;
+            try
+            {
+                await InitializePivotTable();
+            }
+            finally
+            {
+                _isInitializingPivot = false;
+            }
+        }
+    }
+
+    private async Task InitializePivotTable()
+    {
+        if (_pivotData.Count == 0)
+        {
+            return;
+        }
+
+        await Task.Delay(500);
+        var maxRetries = 20;
+        var retryDelay = 200;
+
+        for (int i = 0; i < maxRetries; i++)
+        {
+            var containerExists = await JSRuntime.InvokeAsync<bool>("eval", $"document.getElementById('{_pivotContainerId}') !== null");
+            if (containerExists)
+                break;
+
+            await Task.Delay(retryDelay);
+        }
+
+        try
+        {
+            var result = await JSRuntime.InvokeAsync<bool>("webDataRocksInterop.initialize", _pivotContainerId, _pivotData, new
+            {
+                height = 600,
+                report = new
+                {
+                    slice = new
+                    {
+                        rows = new[]
+                        {
+                            new { uniqueName = "date", caption = "Date" },
+                            new { uniqueName = "userName", caption = "Employee" },
+                            new { uniqueName = "shiftNumber", caption = "Shift" }
+                        },
+                        columns = new[] { new { uniqueName = "Measures" } },
+                        measures = new[]
+                        {
+                            new { uniqueName = "totalSales", aggregation = "sum", caption = "Total Sales" },
+                            new { uniqueName = "salesCount", aggregation = "sum", caption = "Sales Count" },
+                            new { uniqueName = "openingCash", aggregation = "sum", caption = "Opening Cash" },
+                            new { uniqueName = "closingCash", aggregation = "sum", caption = "Closing Cash" },
+                            new { uniqueName = "variance", aggregation = "sum", caption = "Variance" }
+                        }
+                    }
+                }
+            });
+
+            if (result)
+            {
+                _pivotInitialized = true;
+            }
+            else
+            {
+                Snackbar.Add("Failed to initialize pivot table - check browser console for details", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error initializing pivot table: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task OpenAdvancedFiltersDialog()
+    {
+        var parameters = new DialogParameters
+        {
+            { "Filter", _filter }
+        };
+
+        var options = new DialogOptions
+        {
+            MaxWidth = MaxWidth.Large,
+            FullWidth = true,
+            CloseButton = true
+        };
+
+        var dialog = await DialogService.ShowAsync<EmployeeAdvancedFiltersDialog>("Advanced Filters", parameters, options);
+        var result = await dialog.Result;
+
+        if (!result.Canceled && result.Data is EmployeeReportFilterDto updatedFilter)
+        {
+            _filter = updatedFilter;
+        }
+    }
+
+    private async Task OnStartDateChanged(DateTime? date)
+    {
+        if (date.HasValue)
+            _filter = _filter with { StartDate = date.Value };
+    }
+
+    private async Task OnEndDateChanged(DateTime? date)
+    {
+        if (date.HasValue)
+            _filter = _filter with { EndDate = date.Value };
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_pivotInitialized)
+        {
+            await JSRuntime.InvokeAsync<bool>("webDataRocksInterop.destroy", _pivotContainerId);
+            _pivotInitialized = false;
         }
     }
 }

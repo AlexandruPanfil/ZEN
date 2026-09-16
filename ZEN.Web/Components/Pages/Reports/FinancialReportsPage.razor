@@ -3,35 +3,44 @@
 @using ZEN.Application.Services.Interfaces
 @using ZEN.Application.DTOs.Reports
 @using ZEN.Web.Components.Pages.Reports.Filters
+@using MudBlazor
 @inject IReportService ReportService
 @inject IStoreContext StoreContext
 @inject ISnackbar Snackbar
+@inject IDialogService DialogService
+@inject IJSRuntime JSRuntime
+@inject ILogger<FinancialReportsPage> Logger
 @attribute [Authorize(Roles = "Administrator,Manager,Accountant")]
+@implements IAsyncDisposable
 
 <PageTitle>Financial Reports - ZEN POS</PageTitle>
 
-<MudText Typo="Typo.h3" GutterBottom="true">Financial Reports</MudText>
-
 <MudPaper Class="pa-4 mb-4">
     <MudGrid>
-        <MudItem xs="12" sm="6" md="3">
-            <MudDatePicker Label="Start Date" Date="_filter.StartDate" DateChanged="@OnStartDateChanged" />
+        <MudItem xs="12" sm="6" md="2" Class="d-flex align-center">
+            <MudText Typo="Typo.h3" Class="mb-0 me-4">Financial Reports</MudText>
         </MudItem>
-        <MudItem xs="12" sm="6" md="3">
-            <MudDatePicker Label="End Date" Date="_filter.EndDate" DateChanged="@OnEndDateChanged" />
+        <MudItem xs="12" sm="6" md="2" Class="d-flex align-center">
+            <MudDatePicker Label="Start Date" Date="_filter.StartDate" DateChanged="@OnStartDateChanged" Variant="Variant.Text" />
         </MudItem>
-        <MudItem xs="12" sm="12" md="6">
-            <StoreFilter SelectedStoreIds="@_filter.StoreIds" 
-                         SelectedStoreIdsChanged="@OnStoreIdsChanged" />
+        <MudItem xs="12" sm="6" md="2" Class="d-flex align-center">
+            <MudDatePicker Label="End Date" Date="_filter.EndDate" DateChanged="@OnEndDateChanged" Variant="Variant.Text" />
         </MudItem>
-        <MudItem xs="12" Class="d-flex align-center">
+        <MudItem xs="12" sm="6" md="2" Class="d-flex align-center">
             <MudButton Variant="Variant.Filled" 
                        Color="Color.Primary" 
                        OnClick="GenerateReport" 
                        StartIcon="@Icons.Material.Filled.Analytics"
-                       FullWidth="true"
                        Disabled="_isLoading">
-                @(_isLoading ? "Generating..." : "Generate Report")
+                @(_isLoading ? "Generating..." : "Generate")
+            </MudButton>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="2" Class="d-flex align-center justify-end">
+            <MudButton Variant="Variant.Outlined" 
+                       Color="Color.Primary" 
+                       OnClick="OpenAdvancedFiltersDialog"
+                       StartIcon="@Icons.Material.Filled.Tune">
+                Advanced Filters
             </MudButton>
         </MudItem>
     </MudGrid>
@@ -84,46 +93,58 @@ else
         </MudItem>
     </MudGrid>
 
-    <MudText Typo="Typo.h5" Class="mt-6 mb-2">Top Performing Products</MudText>
-    <MudTable Items="@_report.TopProducts" Hover="true" Breakpoint="Breakpoint.Sm">
-        <HeaderContent>
-            <MudTh>Product Name</MudTh>
-            <MudTh>Quantity Sold</MudTh>
-            <MudTh>Total Revenue</MudTh>
-        </HeaderContent>
-        <RowTemplate>
-            <MudTd DataLabel="Product Name">@context.ProductName</MudTd>
-            <MudTd DataLabel="Quantity Sold">@context.Quantity</MudTd>
-            <MudTd DataLabel="Total Revenue">@context.TotalSales.ToString("C")</MudTd>
-        </RowTemplate>
-    </MudTable>
+    <MudPaper Class="pa-4 mb-4">
+        @if (_pivotData.Count == 0)
+        {
+            <MudAlert Severity="Severity.Info" Variant="Variant.Filled" Class="mt-4">
+                No pivot data available. Please generate a report with sales data first.
+            </MudAlert>
+        }
+        else
+        {
+            <div id="@_pivotContainerId" class="sales-pivot" style="height: 600px; width: 100%;"></div>
 
-    <MudText Typo="Typo.h5" Class="mt-6 mb-2">Hierarchical Breakdown</MudText>
-    <SalesBreakdownDisplay StoreBreakdowns="@_report.StoreBreakdowns" />
+            <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Download" 
+                       OnClick="@(async () => await JSRuntime.InvokeAsync<bool>("webDataRocksInterop.exportToCSV", _pivotContainerId))" 
+                       Class="mt-3 me-2">
+                Export CSV
+            </MudButton>
+            <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.PictureAsPdf" 
+                       OnClick="@(async () => await JSRuntime.InvokeAsync<bool>("webDataRocksInterop.exportToPDF", _pivotContainerId))" 
+                       Class="mt-3">
+                Export PDF
+            </MudButton>
+        }
+    </MudPaper>
 }
 
 @code {
     private SalesReportFilterDto _filter = new(
-        DateTime.Today.AddDays(-30),
-        DateTime.Today,
+        DateTime.Today.AddDays(-3),
+        DateTime.Today.AddDays(-1),
         new List<Guid>(),
         new List<Guid>(),
         new List<Guid>(),
         new List<Guid>(),
-        new List<Guid>(),
-        null);
+        new List<Guid>());
 
     private SalesReportDto? _report;
     private bool _isLoading = false;
 
+    private string _pivotContainerId = "webdatarocks-financial-pivot";
+    private bool _pivotInitialized = false;
+    private bool _isInitializingPivot = false;
+    private List<object> _pivotData = new();
+
     protected override async Task OnInitializedAsync()
     {
-        // Pre-populate with current store
         var currentStoreId = StoreContext.GetCurrentStoreId();
         if (currentStoreId.HasValue)
         {
             _filter = _filter with { StoreIds = new List<Guid> { currentStoreId.Value } };
         }
+
+        await GenerateReport();
     }
 
     private async Task GenerateReport()
@@ -131,15 +152,158 @@ else
         _isLoading = true;
         try
         {
+            Logger.LogInformation("Generating financial report with filter: {@Filter}", _filter);
             _report = await ReportService.GetSalesReportAsync(_filter);
+
+            _pivotData = TransformToPivotData(_report);
+            Logger.LogInformation("Pivot data count: {Count}", _pivotData.Count);
+
+            if (_pivotInitialized)
+            {
+                await JSRuntime.InvokeAsync<bool>("webDataRocksInterop.destroy", _pivotContainerId);
+                _pivotInitialized = false;
+            }
         }
         catch (Exception ex)
         {
+            Logger.LogError(ex, "Error generating report");
             Snackbar.Add($"Error generating report: {ex.Message}", Severity.Error);
         }
         finally
         {
             _isLoading = false;
+        }
+    }
+
+    private List<object> TransformToPivotData(SalesReportDto report)
+    {
+        var pivotData = new List<object>();
+
+        foreach (var storeBreakdown in report.StoreBreakdowns)
+        {
+            foreach (var cashDeskBreakdown in storeBreakdown.CashDeskBreakdowns)
+            {
+                foreach (var productBreakdown in cashDeskBreakdown.ProductBreakdowns)
+                {
+                    pivotData.Add(new
+                    {
+                        ProductName = productBreakdown.ProductName,
+                        Category = productBreakdown.CategoryName ?? "",
+                        Store = storeBreakdown.StoreName,
+                        CashDesk = cashDeskBreakdown.CashDeskName,
+                        Date = productBreakdown.SaleDate?.ToString("dd.MM.yyyy") ?? "",
+                        Quantity = (double)productBreakdown.QuantitySold,
+                        SalesAmount = (double)productBreakdown.TotalSales,
+                        TaxAmount = (double)productBreakdown.TotalTax,
+                        DiscountAmount = (double)productBreakdown.TotalDiscount
+                    });
+                }
+            }
+        }
+
+        return pivotData;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_pivotData.Count > 0 && !_pivotInitialized && !_isInitializingPivot)
+        {
+            _isInitializingPivot = true;
+            try
+            {
+                await InitializePivotTable();
+            }
+            finally
+            {
+                _isInitializingPivot = false;
+            }
+        }
+    }
+
+    private async Task InitializePivotTable()
+    {
+        if (_pivotData.Count == 0)
+        {
+            return;
+        }
+
+        await Task.Delay(500);
+        var maxRetries = 20;
+        var retryDelay = 200;
+
+        for (int i = 0; i < maxRetries; i++)
+        {
+            var containerExists = await JSRuntime.InvokeAsync<bool>("eval", $"document.getElementById('{_pivotContainerId}') !== null");
+            if (containerExists)
+                break;
+
+            await Task.Delay(retryDelay);
+        }
+
+        try
+        {
+            var result = await JSRuntime.InvokeAsync<bool>("webDataRocksInterop.initialize", _pivotContainerId, _pivotData, new
+            {
+                height = 600,
+                report = new
+                {
+                    slice = new
+                    {
+                        rows = new[]
+                        {
+                            new { uniqueName = "date", caption = "Date" },
+                            new { uniqueName = "store", caption = "Store" },
+                            new { uniqueName = "cashDesk", caption = "Cash Desk" },
+                            new { uniqueName = "productName", caption = "Product" },
+                            new { uniqueName = "category", caption = "Category" }
+                        },
+                        columns = new[] { new { uniqueName = "Measures" } },
+                        measures = new[]
+                        {
+                            new { uniqueName = "salesAmount", aggregation = "sum", caption = "Sales Amount" },
+                            new { uniqueName = "taxAmount", aggregation = "sum", caption = "Tax" },
+                            new { uniqueName = "discountAmount", aggregation = "sum", caption = "Discount" },
+                            new { uniqueName = "quantity", aggregation = "sum", caption = "Quantity" }
+                        }
+                    }
+                }
+            });
+
+            if (result)
+            {
+                _pivotInitialized = true;
+            }
+            else
+            {
+                Snackbar.Add("Failed to initialize pivot table - check browser console for details", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error initializing pivot table: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task OpenAdvancedFiltersDialog()
+    {
+        var parameters = new DialogParameters
+        {
+            { "Filter", _filter }
+        };
+
+        var options = new DialogOptions
+        {
+            MaxWidth = MaxWidth.Large,
+            FullWidth = true,
+            CloseButton = true
+        };
+
+        var dialog = await DialogService.ShowAsync<AdvancedFiltersDialog>("Advanced Filters", parameters, options);
+        var result = await dialog.Result;
+
+        if (!result.Canceled && result.Data is SalesReportFilterDto updatedFilter)
+        {
+            _filter = updatedFilter;
         }
     }
 
@@ -159,5 +323,38 @@ else
     {
         _filter = _filter with { StoreIds = storeIds };
         return Task.CompletedTask;
+    }
+
+    private Task OnCashDeskIdsChanged(List<Guid> cashDeskIds)
+    {
+        _filter = _filter with { CashDeskIds = cashDeskIds };
+        return Task.CompletedTask;
+    }
+
+    private Task OnProductIdsChanged(List<Guid> productIds)
+    {
+        _filter = _filter with { ProductIds = productIds };
+        return Task.CompletedTask;
+    }
+
+    private Task OnCategoryIdsChanged(List<Guid> categoryIds)
+    {
+        _filter = _filter with { CategoryIds = categoryIds };
+        return Task.CompletedTask;
+    }
+
+    private Task OnGroupIdsChanged(List<Guid> groupIds)
+    {
+        _filter = _filter with { GroupIds = groupIds };
+        return Task.CompletedTask;
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_pivotInitialized)
+        {
+            await JSRuntime.InvokeAsync<bool>("webDataRocksInterop.destroy", _pivotContainerId);
+            _pivotInitialized = false;
+        }
     }
 }

@@ -1,0 +1,67 @@
+@using ZEN.Application.DTOs.Reports
+@using ZEN.Web.Components.Pages.Reports.Filters
+@inject IDialogService DialogService
+
+<MudDialog>
+    <TitleContent>Advanced Filters</TitleContent>
+    <DialogContent>
+        <MudExpansionPanels Dense="true" Class="w-100 pt-0">
+            <MudExpansionPanel Text="Stores" Expanded="true">
+                <StoreFilter SelectedStoreIds="@_filter.StoreIds" 
+                             SelectedStoreIdsChanged="@OnStoreIdsChanged" />
+            </MudExpansionPanel>
+        </MudExpansionPanels>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" OnClick="ResetFilters">Reset</MudButton>
+        <MudButton Variant="Variant.Text" OnClick="Cancel">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Apply">Apply</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [Parameter] public EmployeeReportFilterDto Filter { get; set; } = new(
+        DateTime.Today.AddDays(-30),
+        DateTime.Today,
+        new List<Guid>());
+
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = default!;
+
+    private EmployeeReportFilterDto _filter = new(
+        DateTime.Today.AddDays(-30),
+        DateTime.Today,
+        new List<Guid>());
+
+    protected override void OnInitialized()
+    {
+        _filter = Filter with
+        {
+            StoreIds = new List<Guid>(Filter.StoreIds ?? new())
+        };
+    }
+
+    private Task OnStoreIdsChanged(List<Guid> storeIds)
+    {
+        _filter = _filter with { StoreIds = storeIds };
+        return Task.CompletedTask;
+    }
+
+    private void Apply()
+    {
+        MudDialog.Close(DialogResult.Ok(_filter));
+    }
+
+    private void Cancel()
+    {
+        MudDialog.Cancel();
+    }
+
+    private void ResetFilters()
+    {
+        _filter = _filter with
+        {
+            StoreIds = new List<Guid>()
+        };
+        StateHasChanged();
+    }
+}

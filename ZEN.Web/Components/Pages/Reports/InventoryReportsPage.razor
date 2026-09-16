@@ -4,19 +4,30 @@
 @using ZEN.Application.DTOs.Reports
 @using ZEN.Domain.Entities
 @using ZEN.Domain.Interfaces
+@using MudBlazor
 @inject IReportService ReportService
 @inject IWarehouseService WarehouseService
 @inject IRepository<Store> StoreRepository
 @inject ISnackbar Snackbar
+@inject IJSRuntime JSRuntime
+@inject ILogger<InventoryReportsPage> Logger
 @attribute [Authorize(Roles = "Administrator,Manager,InventoryManager")]
+@implements IAsyncDisposable
 
 <PageTitle>Inventory Reports - ZEN POS</PageTitle>
 
-<MudText Typo="Typo.h3" GutterBottom="true">Inventory Reports</MudText>
-
 <MudPaper Class="pa-4 mb-4">
     <MudGrid>
-        <MudItem xs="12" sm="4">
+        <MudItem xs="12" sm="6" md="2" Class="d-flex align-center">
+            <MudText Typo="Typo.h3" Class="mb-0 me-4">Inventory Reports</MudText>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="2" Class="d-flex align-center">
+            <MudDatePicker Label="Start Date" Date="@_startDate" DateChanged="@OnStartDateChanged" Variant="Variant.Text" />
+        </MudItem>
+        <MudItem xs="12" sm="6" md="2" Class="d-flex align-center">
+            <MudDatePicker Label="End Date" Date="@_endDate" DateChanged="@OnEndDateChanged" Variant="Variant.Text" />
+        </MudItem>
+        <MudItem xs="12" sm="6" md="2" Class="d-flex align-center">
             <MudSelect T="Guid?" Label="Select Warehouse" @bind-Value="_selectedWarehouseId" Clearable="true">
                 @foreach (var warehouse in _warehouses)
                 {
@@ -24,16 +35,16 @@
                 }
             </MudSelect>
         </MudItem>
-        <MudItem xs="12" sm="4" Class="d-flex align-center">
+        <MudItem xs="12" sm="6" md="2" Class="d-flex align-center">
             <MudCheckBox T="bool" Label="Show Low Stock Only" @bind-Value="_lowStockOnly" />
         </MudItem>
-        <MudItem xs="12" sm="4" Class="d-flex align-center">
+        <MudItem xs="12" sm="6" md="2" Class="d-flex align-center">
             <MudButton Variant="Variant.Filled" 
                        Color="Color.Primary" 
                        OnClick="GenerateReport" 
                        StartIcon="@Icons.Material.Filled.Analytics"
-                       FullWidth="true">
-                Generate Report
+                       Disabled="_isLoading">
+                @(_isLoading ? "Generating..." : "Generate")
             </MudButton>
         </MudItem>
     </MudGrid>
@@ -78,40 +89,37 @@ else
         </MudItem>
     </MudGrid>
 
-    <MudText Typo="Typo.h5" Class="mt-6 mb-2">Inventory Details</MudText>
-    <MudTable Items="@_reportItems" Hover="true" Breakpoint="Breakpoint.Sm" Loading="_isLoading">
-        <HeaderContent>
-            <MudTh>Product Name</MudTh>
-            <MudTh>Barcode</MudTh>
-            <MudTh>Total Stock</MudTh>
-            <MudTh>Reorder Level</MudTh>
-            <MudTh>Below Reorder</MudTh>
-            <MudTh>Stock Value</MudTh>
-        </HeaderContent>
-        <RowTemplate>
-            <MudTd DataLabel="Product Name">@context.ProductName</MudTd>
-            <MudTd DataLabel="Barcode">@(context.Barcode ?? "—")</MudTd>
-            <MudTd DataLabel="Total Stock">@context.TotalStock</MudTd>
-            <MudTd DataLabel="Reorder Level">@context.ReorderLevel</MudTd>
-            <MudTd DataLabel="Below Reorder">
-                @if (context.BelowReorderLevel)
-                {
-                    <MudIcon Icon="@Icons.Material.Filled.Warning" Color="Color.Warning" />
-                }
-                else
-                {
-                    <MudIcon Icon="@Icons.Material.Filled.Check" Color="Color.Success" />
-                }
-            </MudTd>
-            <MudTd DataLabel="Stock Value">@context.StockValue.ToString("C")</MudTd>
-        </RowTemplate>
-        <PagerContent>
-            <MudTablePager />
-        </PagerContent>
-    </MudTable>
+    <MudPaper Class="pa-4 mb-4">
+        @if (_pivotData.Count == 0)
+        {
+            <MudAlert Severity="Severity.Info" Variant="Variant.Filled" Class="mt-4">
+                No pivot data available. Please generate a report with inventory data first.
+            </MudAlert>
+        }
+        else
+        {
+            <MudAlert Severity="Severity.Info" Variant="Variant.Filled" Class="mt-2 mb-2">
+                Inventory is a current snapshot — date filters are UI-only and do not affect the data.
+            </MudAlert>
+            <div id="@_pivotContainerId" class="sales-pivot" style="height: 600px; width: 100%;"></div>
+
+            <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Download" 
+                       OnClick="@(async () => await JSRuntime.InvokeAsync<bool>("webDataRocksInterop.exportToCSV", _pivotContainerId))" 
+                       Class="mt-3 me-2">
+                Export CSV
+            </MudButton>
+            <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.PictureAsPdf" 
+                       OnClick="@(async () => await JSRuntime.InvokeAsync<bool>("webDataRocksInterop.exportToPDF", _pivotContainerId))" 
+                       Class="mt-3">
+                Export PDF
+            </MudButton>
+        }
+    </MudPaper>
 }
 
 @code {
+    private DateTime? _startDate = DateTime.Today.AddDays(-3);
+    private DateTime? _endDate = DateTime.Today.AddDays(-1);
     private Guid? _selectedWarehouseId;
     private bool _lowStockOnly;
     private IEnumerable<InventoryReportDto> _reportItems = new List<InventoryReportDto>();
@@ -121,9 +129,15 @@ else
     private int _lowStockCount = 0;
     private decimal _totalValue = 0;
 
+    private string _pivotContainerId = "webdatarocks-inventory-pivot";
+    private bool _pivotInitialized = false;
+    private bool _isInitializingPivot = false;
+    private List<object> _pivotData = new();
+
     protected override async Task OnInitializedAsync()
     {
         await LoadWarehouses();
+        await GenerateReport();
     }
 
     private async Task LoadWarehouses()
@@ -142,6 +156,7 @@ else
         }
         catch (Exception ex)
         {
+            Logger.LogError(ex, "Error loading warehouses");
             Snackbar.Add($"Error loading warehouses: {ex.Message}", Severity.Error);
         }
     }
@@ -155,7 +170,15 @@ else
             _reportItems = await ReportService.GetInventoryReportAsync(_selectedWarehouseId, _lowStockOnly ? true : null);
             _lowStockCount = _reportItems.Count(i => i.BelowReorderLevel);
             _totalValue = _reportItems.Sum(i => i.StockValue);
-            
+
+            _pivotData = TransformToPivotData(_reportItems);
+
+            if (_pivotInitialized)
+            {
+                await JSRuntime.InvokeAsync<bool>("webDataRocksInterop.destroy", _pivotContainerId);
+                _pivotInitialized = false;
+            }
+
             if (!_reportItems.Any())
             {
                 _message = "No inventory items found for the selected criteria.";
@@ -163,12 +186,127 @@ else
         }
         catch (Exception ex)
         {
+            Logger.LogError(ex, "Error generating report");
             Snackbar.Add($"Error generating report: {ex.Message}", Severity.Error);
             _message = "Error loading inventory report.";
         }
         finally
         {
             _isLoading = false;
+        }
+    }
+
+    private List<object> TransformToPivotData(IEnumerable<InventoryReportDto> items)
+    {
+        var pivotData = new List<object>();
+
+        foreach (var item in items)
+        {
+            pivotData.Add(new
+            {
+                ProductName = item.ProductName,
+                Barcode = item.Barcode ?? "",
+                BelowReorder = item.BelowReorderLevel ? "Yes" : "No",
+                TotalStock = (double)item.TotalStock,
+                StockValue = (double)item.StockValue
+            });
+        }
+
+        return pivotData;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_pivotData.Count > 0 && !_pivotInitialized && !_isInitializingPivot)
+        {
+            _isInitializingPivot = true;
+            try
+            {
+                await InitializePivotTable();
+            }
+            finally
+            {
+                _isInitializingPivot = false;
+            }
+        }
+    }
+
+    private async Task InitializePivotTable()
+    {
+        if (_pivotData.Count == 0)
+        {
+            return;
+        }
+
+        await Task.Delay(500);
+        var maxRetries = 20;
+        var retryDelay = 200;
+
+        for (int i = 0; i < maxRetries; i++)
+        {
+            var containerExists = await JSRuntime.InvokeAsync<bool>("eval", $"document.getElementById('{_pivotContainerId}') !== null");
+            if (containerExists)
+                break;
+
+            await Task.Delay(retryDelay);
+        }
+
+        try
+        {
+            var result = await JSRuntime.InvokeAsync<bool>("webDataRocksInterop.initialize", _pivotContainerId, _pivotData, new
+            {
+                height = 600,
+                report = new
+                {
+                    slice = new
+                    {
+                        rows = new[]
+                        {
+                            new { uniqueName = "productName", caption = "Product" },
+                            new { uniqueName = "barcode", caption = "Barcode" },
+                            new { uniqueName = "belowReorder", caption = "Below Reorder" }
+                        },
+                        columns = new[] { new { uniqueName = "Measures" } },
+                        measures = new[]
+                        {
+                            new { uniqueName = "totalStock", aggregation = "sum", caption = "Total Stock" },
+                            new { uniqueName = "stockValue", aggregation = "sum", caption = "Stock Value" }
+                        }
+                    }
+                }
+            });
+
+            if (result)
+            {
+                _pivotInitialized = true;
+            }
+            else
+            {
+                Snackbar.Add("Failed to initialize pivot table - check browser console for details", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error initializing pivot table: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task OnStartDateChanged(DateTime? date)
+    {
+        _startDate = date;
+    }
+
+    private async Task OnEndDateChanged(DateTime? date)
+    {
+        _endDate = date;
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_pivotInitialized)
+        {
+            await JSRuntime.InvokeAsync<bool>("webDataRocksInterop.destroy", _pivotContainerId);
+            _pivotInitialized = false;
         }
     }
 }
