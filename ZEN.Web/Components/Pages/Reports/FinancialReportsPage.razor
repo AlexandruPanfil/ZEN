@@ -21,8 +21,8 @@
             <MudDatePicker Label="End Date" Date="_filter.EndDate" DateChanged="@OnEndDateChanged" />
         </MudItem>
         <MudItem xs="12" sm="12" md="6">
-            <StoreFilter SelectedStoreIds="_filter.StoreIds" 
-                         SelectedStoreIdsChanged="@((List<Guid> ids) => OnStoreIdsChanged(ids))" />
+            <StoreFilter SelectedStoreIds="@_filter.StoreIds" 
+                         SelectedStoreIdsChanged="@OnStoreIdsChanged" />
         </MudItem>
         <MudItem xs="12" Class="d-flex align-center">
             <MudButton Variant="Variant.Filled" 
@@ -110,7 +110,8 @@ else
         new List<Guid>(),
         new List<Guid>(),
         new List<Guid>(),
-        new List<Guid>());
+        new List<Guid>(),
+        null);
 
     private SalesReportDto? _report;
     private bool _isLoading = false;

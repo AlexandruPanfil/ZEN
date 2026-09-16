@@ -40,7 +40,8 @@
         new List<Guid>(),
         new List<Guid>(),
         new List<Guid>(),
-        new List<Guid>());
+        new List<Guid>(),
+        null);
 
     [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = default!;
 
@@ -51,7 +52,8 @@
         new List<Guid>(),
         new List<Guid>(),
         new List<Guid>(),
-        new List<Guid>());
+        new List<Guid>(),
+        null);
 
     protected override void OnInitialized()
     {
@@ -63,6 +65,15 @@
             CategoryIds = new List<Guid>(Filter.CategoryIds ?? new()),
             GroupIds = new List<Guid>(Filter.GroupIds ?? new())
         };
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            // Trigger child components to refresh after dialog is fully rendered
+            await InvokeAsync(StateHasChanged);
+        }
     }
 
     private Task OnStoreIdsChanged(List<Guid> storeIds)

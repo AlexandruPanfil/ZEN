@@ -2,21 +2,38 @@
 @using ZEN.Application.DTOs.Admin
 @using Microsoft.Extensions.Logging
 
-@if (_isLoading)
+<div class="store-filter-debug">Render count: @_renderCount, DataLoaded: @_dataLoaded, Items: @_storeItemIds.Count</div>
+
+@if (!_isLoading && _dataLoaded)
 {
-    <MudProgressLinear Indeterminate="true" Class="mb-2" />
+    <MudSelect T="Guid"
+               Label="Stores"
+               Dense="true"
+               MultiSelection="true"
+               SelectedValues="@_selectedStoreIds"
+               SelectedValuesChanged="@OnStoreSelectionChanged"
+               MultiSelectionTextFunc="@StoreMultiSelectionTextFunc"
+               Placeholder="Select stores..."
+               Disabled="@Disabled">
+        @foreach (var storeId in _storeItemIds)
+        {
+            <MudSelectItem T="Guid" Value="@storeId">@StoreToString(storeId)</MudSelectItem>
+        }
+    </MudSelect>
 }
 else
 {
-    <MudMultiSelect T="Guid" 
-              Label="Stores" 
-              Dense="true"
-              Value="@_selectedStoreIds"
-              ValueChanged="@OnStoreSelectionChanged"
-              Items="@_stores"
-              ToStringFunc="@StoreToString"
-              Placeholder="Select stores...">
-    </MudMultiSelect>
+    <MudSelect T="Guid"
+               Label="Stores"
+               Dense="true"
+               MultiSelection="true"
+               SelectedValues="@_selectedStoreIds"
+               SelectedValuesChanged="@OnStoreSelectionChanged"
+               MultiSelectionTextFunc="@StoreMultiSelectionTextFunc"
+               Placeholder="Loading stores..."
+               Disabled="true">
+    </MudSelect>
+    <MudProgressLinear Indeterminate="true" Class="mb-2" />
 }
 
 @code {
@@ -26,53 +43,112 @@ else
     [Parameter] public List<Guid> SelectedStoreIds { get; set; } = new();
     [Parameter] public EventCallback<List<Guid>> SelectedStoreIdsChanged { get; set; }
     [Parameter] public bool Disabled { get; set; }
-
+   
     private List<Guid> _selectedStoreIds = new();
     private List<StoreDto> _stores = new();
+    private List<Guid> _storeItemIds = new();
     private bool _isLoading = true;
+    private int _renderCount = 0;
+    private bool _dataLoaded = false;
 
     protected override async Task OnInitializedAsync()
     {
-        await LoadStoresAsync();
         _selectedStoreIds = SelectedStoreIds;
-        _isLoading = false;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        _renderCount++;
+        Logger.LogInformation("StoreFilter OnAfterRenderAsync #{RenderCount}: firstRender={FirstRender}, _isLoading={IsLoading}, _storeItemIds.Count={Count}, _dataLoaded={DataLoaded}", _renderCount, firstRender, _isLoading, _storeItemIds.Count, _dataLoaded);
+        if (firstRender)
+        {
+            await LoadStoresAsync();
+            _isLoading = false;
+            _dataLoaded = true;
+            StateHasChanged();
+        }
     }
 
     protected override async Task OnParametersSetAsync()
     {
+        Logger.LogInformation("StoreFilter OnParametersSetAsync: SelectedStoreIds.Count={Count}", SelectedStoreIds.Count);
         if (!SelectedStoreIds.SequenceEqual(_selectedStoreIds))
         {
             _selectedStoreIds = SelectedStoreIds;
         }
+        // Reload if data not loaded or items empty (e.g., dialog reopened)
+        if (!_dataLoaded || !_storeItemIds.Any())
+        {
+            await LoadStoresAsync();
+            _isLoading = false;
+            _dataLoaded = true;
+            StateHasChanged();
+        }
+        // Ensure UI updates when parameters change (e.g., dialog opens)
+        await InvokeAsync(StateHasChanged);
     }
 
     private async Task LoadStoresAsync()
     {
+        Logger.LogInformation("=== StoreFilter.LoadStoresAsync START ===");
         try
         {
-            Logger.LogInformation("Loading stores...");
-            _stores = (await StoreService.GetAllAsync()).Where(s => !s.IsDeleted).ToList();
-            Logger.LogInformation("Loaded {Count} stores", _stores.Count);
+            var allStores = await StoreService.GetAllAsync();
+            Logger.LogInformation("StoreService.GetAllAsync returned {Count} stores", allStores.Count());
+            _stores = allStores.Where(s => !s.IsDeleted).ToList();
+            _storeItemIds = _stores.Select(s => s.Id).ToList();
+            Logger.LogInformation("After IsDeleted filter: {Count} stores, _storeItemIds={ItemIds}", _stores.Count, string.Join(",", _storeItemIds));
             foreach (var store in _stores)
             {
-                Logger.LogInformation("Store: {Id} - {Name}", store.Id, store.Name);
+                Logger.LogInformation("Store: {Id} - {Name} (IsActive: {IsActive}, IsDeleted: {IsDeleted})", store.Id, store.Name, store.IsActive, store.IsDeleted);
             }
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Error loading stores");
+            Logger.LogError(ex, "Error loading stores in StoreFilter");
         }
+        Logger.LogInformation("=== StoreFilter.LoadStoresAsync END ===");
     }
 
-    private async Task OnStoreSelectionChanged(List<Guid> storeIds)
+    private async Task OnStoreSelectionChanged(IReadOnlyCollection<Guid> storeIds)
     {
-        _selectedStoreIds = storeIds;
-        await SelectedStoreIdsChanged.InvokeAsync(storeIds);
+        _selectedStoreIds = storeIds.ToList();
+        await SelectedStoreIdsChanged.InvokeAsync(_selectedStoreIds);
     }
 
     private string StoreToString(Guid storeId)
     {
+        Logger.LogInformation("StoreToString called for {StoreId}", storeId);
         var store = _stores.FirstOrDefault(s => s.Id == storeId);
-        return store?.Name ?? storeId.ToString();
+        var result = store?.Name ?? storeId.ToString();
+        Logger.LogInformation("StoreToString returning: {Result}", result);
+        return result;
+    }
+
+    private string StoreMultiSelectionTextFunc(IReadOnlyList<string> selectedValues)
+    {
+        if (selectedValues == null || !selectedValues.Any())
+            return string.Empty;
+        
+        var names = new List<string>();
+        foreach (var value in selectedValues)
+        {
+            if (Guid.TryParse(value, out var id))
+            {
+                // Ensure stores are loaded
+                var store = _stores.FirstOrDefault(s => s.Id == id);
+                if (store == null)
+                {
+                    // Data not loaded yet, try to load synchronously (best effort)
+                    _ = Task.Run(async () => await LoadStoresAsync());
+                }
+                names.Add(store?.Name ?? id.ToString());
+            }
+            else
+            {
+                names.Add(value);
+            }
+        }
+        return string.Join(", ", names);
     }
 }

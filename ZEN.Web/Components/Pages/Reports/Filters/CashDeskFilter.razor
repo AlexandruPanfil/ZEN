@@ -2,22 +2,38 @@
 @using ZEN.Application.DTOs.Admin
 @using Microsoft.Extensions.Logging
 
-@if (_isLoading)
+<div class="cashdesk-filter-debug">Render count: @_renderCount, Items: @_cashDeskItemIds.Count</div>
+
+@if (!_isLoading && _dataLoaded && _storeIds != null && _storeIds.Any())
 {
-    <MudProgressLinear Indeterminate="true" Class="mb-2" />
+    <MudSelect T="Guid"
+               Label="Cash Desks"
+               Dense="true"
+               MultiSelection="true"
+               SelectedValues="@_selectedCashDeskIds"
+               SelectedValuesChanged="@OnCashDeskSelectionChanged"
+               MultiSelectionTextFunc="@CashDeskMultiSelectionTextFunc"
+               Placeholder="Select cash desks..."
+               Disabled="@Disabled">
+        @foreach (var cashDeskId in _cashDeskItemIds)
+        {
+            <MudSelectItem T="Guid" Value="@cashDeskId">@CashDeskToString(cashDeskId)</MudSelectItem>
+        }
+    </MudSelect>
 }
 else
 {
-    <MudMultiSelect T="Guid" 
-              Label="Cash Desks" 
-              Dense="true"
-              Value="@_selectedCashDeskIds"
-              ValueChanged="@OnCashDeskSelectionChanged"
-              Items="@_cashDesks"
-              ToStringFunc="@CashDeskToString"
-              Placeholder="Select cash desks..."
-              Disabled="@(_storeIds == null || !_storeIds.Any())">
-    </MudMultiSelect>
+    <MudSelect T="Guid"
+               Label="Cash Desks"
+               Dense="true"
+               MultiSelection="true"
+               SelectedValues="@_selectedCashDeskIds"
+               SelectedValuesChanged="@OnCashDeskSelectionChanged"
+               MultiSelectionTextFunc="@CashDeskMultiSelectionTextFunc"
+               Placeholder="@(_storeIds == null || !_storeIds.Any() ? "Select store first..." : "Loading cash desks...")"
+               Disabled="true">
+    </MudSelect>
+    <MudProgressLinear Indeterminate="true" Class="mb-2" />
 }
 
 @code {
@@ -31,15 +47,29 @@ else
 
     private List<Guid> _selectedCashDeskIds = new();
     private List<CashDeskDto> _cashDesks = new();
+    private List<Guid> _cashDeskItemIds = new();
     private List<Guid> _storeIds = new();
     private bool _isLoading = true;
+    private int _renderCount = 0;
+    private bool _dataLoaded = false;
 
     protected override async Task OnInitializedAsync()
     {
         _storeIds = StoreIds;
         _selectedCashDeskIds = SelectedCashDeskIds;
-        await LoadCashDesksAsync();
-        _isLoading = false;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        _renderCount++;
+        Logger.LogInformation("CashDeskFilter OnAfterRenderAsync #{RenderCount}: firstRender={FirstRender}, _isLoading={IsLoading}, _cashDeskItemIds.Count={Count}, _storeIds.Count={StoreCount}, _dataLoaded={DataLoaded}", _renderCount, firstRender, _isLoading, _cashDeskItemIds.Count, _storeIds.Count, _dataLoaded);
+        if (firstRender)
+        {
+            await LoadCashDesksAsync();
+            _isLoading = false;
+            _dataLoaded = true;
+            StateHasChanged();
+        }
     }
 
     protected override async Task OnParametersSetAsync()
@@ -49,12 +79,27 @@ else
             _storeIds = StoreIds;
             _selectedCashDeskIds = new List<Guid>(); // Reset selection when stores change
             await SelectedCashDeskIdsChanged.InvokeAsync(_selectedCashDeskIds);
+            _dataLoaded = false;
             await LoadCashDesksAsync();
+            _isLoading = false;
+            _dataLoaded = true;
+            StateHasChanged();
         }
         else if (!SelectedCashDeskIds.SequenceEqual(_selectedCashDeskIds))
         {
             _selectedCashDeskIds = SelectedCashDeskIds;
         }
+        // Reload if we have store IDs but no cash desks loaded (e.g., dialog reopened)
+        else if (_storeIds != null && _storeIds.Any() && (!_dataLoaded || !_cashDeskItemIds.Any()))
+        {
+            _dataLoaded = false;
+            await LoadCashDesksAsync();
+            _isLoading = false;
+            _dataLoaded = true;
+            StateHasChanged();
+        }
+        // Ensure UI updates when parameters change
+        await InvokeAsync(StateHasChanged);
     }
 
     private async Task LoadCashDesksAsync()
@@ -67,19 +112,22 @@ else
 
         try
         {
-            Logger.LogInformation("Loading cash desks for stores: {StoreIds}", string.Join(", ", _storeIds));
+            Logger.LogInformation("=== CashDeskFilter.LoadCashDesksAsync START for stores: {StoreIds} ===", string.Join(", ", _storeIds));
             var allCashDesks = new List<CashDeskDto>();
             foreach (var storeId in _storeIds)
             {
                 var cashDesks = await CashDeskService.GetAllAsync(storeId);
+                Logger.LogInformation("Store {StoreId} has {Count} cash desks", storeId, cashDesks.Count());
                 allCashDesks.AddRange(cashDesks);
             }
             _cashDesks = allCashDesks.Where(c => c.IsActive).ToList();
-            Logger.LogInformation("Loaded {Count} cash desks", _cashDesks.Count);
+            _cashDeskItemIds = _cashDesks.Select(c => c.Id).ToList();
+            Logger.LogInformation("After IsActive filter: {Count} cash desks", _cashDesks.Count);
             foreach (var cashDesk in _cashDesks)
             {
-                Logger.LogInformation("CashDesk: {Id} - {Name} (Store: {StoreId})", cashDesk.Id, cashDesk.Name, cashDesk.StoreId);
+                Logger.LogInformation("CashDesk: {Id} - {Name} (StoreId: {StoreId}, IsActive: {IsActive})", cashDesk.Id, cashDesk.Name, cashDesk.StoreId, cashDesk.IsActive);
             }
+            Logger.LogInformation("=== CashDeskFilter.LoadCashDesksAsync END ===");
         }
         catch (Exception ex)
         {
@@ -87,15 +135,46 @@ else
         }
     }
 
-    private async Task OnCashDeskSelectionChanged(List<Guid> cashDeskIds)
+    private async Task OnCashDeskSelectionChanged(IReadOnlyCollection<Guid> cashDeskIds)
     {
-        _selectedCashDeskIds = cashDeskIds;
-        await SelectedCashDeskIdsChanged.InvokeAsync(cashDeskIds);
+        _selectedCashDeskIds = cashDeskIds.ToList();
+        await SelectedCashDeskIdsChanged.InvokeAsync(_selectedCashDeskIds);
     }
 
     private string CashDeskToString(Guid cashDeskId)
     {
+        Logger.LogInformation("CashDeskToString called for {CashDeskId}", cashDeskId);
         var cashDesk = _cashDesks.FirstOrDefault(c => c.Id == cashDeskId);
-        return cashDesk?.Name ?? cashDeskId.ToString();
+        var result = cashDesk?.Name ?? cashDeskId.ToString();
+        Logger.LogInformation("CashDeskToString returning: {Result}", result);
+        return result;
+    }
+
+    private string CashDeskMultiSelectionTextFunc(IReadOnlyList<string> selectedValues)
+    {
+        if (selectedValues == null || !selectedValues.Any())
+            return string.Empty;
+        
+        var names = new List<string>();
+        foreach (var value in selectedValues)
+        {
+            if (Guid.TryParse(value, out var id))
+            {
+                // Ensure cash desks are loaded
+                var cashDesk = _cashDesks.FirstOrDefault(c => c.Id == id);
+                if (cashDesk == null && _storeIds != null && _storeIds.Any())
+                {
+                    // Data not loaded yet, try to load synchronously (best effort)
+                    // This is a fallback - normally data should be loaded by OnParametersSetAsync
+                    _ = Task.Run(async () => await LoadCashDesksAsync());
+                }
+                names.Add(cashDesk?.Name ?? id.ToString());
+            }
+            else
+            {
+                names.Add(value);
+            }
+        }
+        return string.Join(", ", names);
     }
 }

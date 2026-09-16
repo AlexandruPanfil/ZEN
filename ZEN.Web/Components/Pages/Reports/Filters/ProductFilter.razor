@@ -68,7 +68,7 @@
                           Dense="true"
                           Value="@_selectedCategoryId"
                           ValueChanged="@OnCategoryChanged"
-                          Items="@_categories"
+                          Items="@_categoryItemIds"
                           ToStringFunc="@CategoryToString"
                           Placeholder="Filter by category..."
                           Clearable="true" />
@@ -79,7 +79,7 @@
                           Dense="true"
                           Value="@_selectedGroupId"
                           ValueChanged="@OnGroupChanged"
-                          Items="@_groups"
+                          Items="@_groupItemIds"
                           ToStringFunc="@GroupToString"
                           Placeholder="Filter by group..."
                           Clearable="true" />
@@ -129,6 +129,8 @@
     private List<ProductDto> _selectedProducts = new();
     private List<CategoryDto> _categories = new();
     private List<BrandDto> _groups = new(); // Using Brand as Group for now
+    private List<Guid?> _categoryItemIds = new();
+    private List<Guid?> _groupItemIds = new();
     private Guid? _selectedCategoryId = null;
     private Guid? _selectedGroupId = null;
     private bool _isSearching = false;
@@ -136,8 +138,15 @@
     protected override async Task OnInitializedAsync()
     {
         _selectedProducts = new List<ProductDto>();
-        await LoadCategoriesAsync();
-        await LoadGroupsAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await LoadCategoriesAsync();
+            await LoadGroupsAsync();
+        }
     }
 
     protected override async Task OnParametersSetAsync()
@@ -153,6 +162,8 @@
             _selectedGroupIds = new List<Guid>(SelectedGroupIds);
             _selectedGroupId = _selectedGroupIds.FirstOrDefault();
         }
+        // Ensure UI updates when parameters change
+        await InvokeAsync(StateHasChanged);
     }
 
     private List<Guid> _selectedCategoryIds = new();
@@ -163,6 +174,7 @@
         try
         {
             _categories = (await ProductService.GetCategoriesAsync()).ToList();
+            _categoryItemIds = _categories.Select(c => (Guid?)c.Id).Prepend(null).ToList();
         }
         catch
         {
@@ -175,6 +187,7 @@
         try
         {
             _groups = (await ProductService.GetBrandsAsync()).ToList();
+            _groupItemIds = _groups.Select(g => (Guid?)g.Id).Prepend(null).ToList();
         }
         catch
         {

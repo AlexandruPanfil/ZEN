@@ -1,3 +1,6 @@
+using ZEN.Application.DTOs.FiscalCloud;
+using ZEN.Domain.Enums;
+
 namespace ZEN.Application.DTOs.Reports;
 
 public record SalesReportFilterDto(
@@ -7,7 +10,8 @@ public record SalesReportFilterDto(
     List<Guid>? CashDeskIds = null,
     List<Guid>? ProductIds = null,
     List<Guid>? CategoryIds = null,
-    List<Guid>? GroupIds = null);
+    List<Guid>? GroupIds = null,
+    IEnumerable<SaleStatus>? Statuses = null);
 
 public record SalesReportDto(
     DateTime StartDate,

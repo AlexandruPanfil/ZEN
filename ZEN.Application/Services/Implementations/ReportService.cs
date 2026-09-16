@@ -5,6 +5,7 @@ using ZEN.Domain.Entities;
 using ZEN.Domain.Enums;
 using ZEN.Domain.Interfaces;
 using System.Linq;
+using System.Linq.Expressions;
 using Microsoft.Extensions.Logging;
 
 namespace ZEN.Application.Services.Implementations;
@@ -71,9 +72,13 @@ public class ReportService : IReportService
 
         _logger.LogInformation("Store IDs for query: {StoreIds}", string.Join(", ", storeIds));
 
+        var statuses = filter.Statuses?.ToList() ?? new List<SaleStatus> { SaleStatus.Completed };
+        _logger.LogInformation("Status filter: {Statuses}", string.Join(", ", statuses));
+
         // Apply date filter
         var sales = await _saleRepository.FindAsync(
             s => s.Date >= filter.StartDate && s.Date <= filter.EndDate 
+                && statuses.Contains(s.Status)
                 && (!storeIds.Any() || storeIds.Contains(s.StoreId)),
             cancellationToken);
 
@@ -106,10 +111,9 @@ public class ReportService : IReportService
         var saleProductIds = saleItems.Select(i => i.ProductId).Distinct().ToList();
         var products = await _productRepository.FindAsync(
             p => saleProductIds.Contains(p.Id),
+            new Expression<Func<Product, object>>[] { p => p.Category! },
             cancellationToken);
-        // Include Category for product breakdowns
-        var productsWithCategory = products.Select(p => new { p.Id, p.Name, p.Barcode, p.CategoryId, p.Category }).ToList();
-        var productsDict = productsWithCategory.ToDictionary(p => p.Id, p => new Product { Id = p.Id, Name = p.Name, Barcode = p.Barcode, CategoryId = p.CategoryId, Category = p.Category });
+        var productsDict = products.ToDictionary(p => p.Id);
 
         // Apply category filter
         var categoryIds = filter.CategoryIds ?? new List<Guid>();

@@ -21,6 +21,7 @@ public static class ReportEndpoints
             [FromQuery] string? productIds,
             [FromQuery] string? categoryIds,
             [FromQuery] string? groupIds,
+            [FromQuery] string? saleStatuses,
             IReportService reportService,
             CancellationToken ct) =>
         {
@@ -31,7 +32,8 @@ public static class ReportEndpoints
                 ParseGuids(cashDeskIds),
                 ParseGuids(productIds),
                 ParseGuids(categoryIds),
-                ParseGuids(groupIds));
+                ParseGuids(groupIds),
+                ParseSaleStatuses(saleStatuses));
             
             var report = await reportService.GetSalesReportAsync(filter, ct);
             return Results.Ok(report);
@@ -120,5 +122,21 @@ public static class ReportEndpoints
             .Select(s => Guid.TryParse(s.Trim(), out var guid) ? guid : Guid.Empty)
             .Where(g => g != Guid.Empty)
             .ToList();
+    }
+
+    private static List<SaleStatus>? ParseSaleStatuses(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return null;
+
+        var statuses = new List<SaleStatus>();
+        foreach (var segment in value.Split(',', StringSplitOptions.RemoveEmptyEntries))
+        {
+            if (Enum.TryParse<SaleStatus>(segment.Trim(), true, out var status))
+            {
+                statuses.Add(status);
+            }
+        }
+        return statuses.Count > 0 ? statuses : null;
     }
 }
