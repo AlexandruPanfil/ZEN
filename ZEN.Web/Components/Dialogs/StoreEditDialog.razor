@@ -1,4 +1,4 @@
-@using ZEN.Domain.Entities
+@using ZEN.Application.DTOs.Admin
 @using MudBlazor
 @inject ISnackbar Snackbar
 
@@ -19,18 +19,21 @@
                 <MudTextField T="string" Label="Address" @bind-Value="editModel.Address"
                              Variant="Variant.Outlined" Lines="2" />
 
+                <MudTextField T="string" Label="City" @bind-Value="editModel.City"
+                             Variant="Variant.Outlined" />
+
                 <MudTextField T="string" Label="Phone" @bind-Value="editModel.Phone"
                              Variant="Variant.Outlined" />
 
                 <MudTextField T="string" Label="Email" @bind-Value="editModel.Email"
-                             InputType="InputType.Email"
-                             Variant="Variant.Outlined" />
+                            InputType="InputType.Email"
+                            Variant="Variant.Outlined" />
 
                 <MudDivider />
 
                 <MudText Typo="Typo.subtitle2">Regional & Tax Settings</MudText>
 
-                <MudSelect T="string" Label="Currency" @bind-Value="editModel.Currency"
+                <MudSelect T="string" Label="Currency" @bind-Value="editModel.CurrencyCode"
                           Variant="Variant.Outlined">
                     <MudSelectItem Value="@("USD")">USD - US Dollar</MudSelectItem>
                     <MudSelectItem Value="@("EUR")">EUR - Euro</MudSelectItem>
@@ -66,7 +69,7 @@
 
 @code {
     [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
-    [Parameter] public Store? Store { get; set; }
+    [Parameter] public StoreDto? Store { get; set; }
 
     private MudForm form = null!;
     private bool isFormValid = false;
@@ -82,18 +85,19 @@
                 Code = Store!.Code,
                 Name = Store.Name,
                 Address = Store.Address,
+                City = Store.City,
                 Phone = Store.Phone,
                 Email = Store.Email,
-                Currency = Store.Currency?.Code ?? "USD",
-                TaxNumber = Store.TaxNumber,
-                ReceiptHeader = Store.ReceiptHeader,
-                ReceiptFooter = Store.ReceiptFooter,
+                CurrencyCode = Store.CurrencyCode ?? "USD",
+                TaxNumber = null,
+                ReceiptHeader = null,
+                ReceiptFooter = null,
                 IsActive = Store.IsActive
             };
         }
         else
         {
-            editModel.Currency = "USD";
+            editModel.CurrencyCode = "USD";
             editModel.IsActive = true;
         }
 
@@ -105,61 +109,30 @@
         if (!isFormValid)
             return;
 
-        try
-        {
-            Store result;
-            if (isEditMode)
-            {
-                Store!.Code = editModel.Code;
-                Store.Name = editModel.Name;
-                Store.Address = editModel.Address;
-                Store.Phone = editModel.Phone;
-                Store.Email = editModel.Email;
-                Store.Currency ??= new Currency();
-                Store.Currency.Code = editModel.Currency;
-                Store.TaxNumber = editModel.TaxNumber;
-                Store.ReceiptHeader = editModel.ReceiptHeader;
-                Store.ReceiptFooter = editModel.ReceiptFooter;
-                Store.IsActive = editModel.IsActive;
-                result = Store;
-            }
-            else
-            {
-                result = new Store
-                {
-                    Id = Guid.NewGuid(),
-                    Code = editModel.Code,
-                    Name = editModel.Name,
-                    Address = editModel.Address,
-                    Phone = editModel.Phone,
-                    Email = editModel.Email,
-                    Currency = new Currency { Code = editModel.Currency },
-                    TaxNumber = editModel.TaxNumber,
-                    ReceiptHeader = editModel.ReceiptHeader,
-                    ReceiptFooter = editModel.ReceiptFooter,
-                    IsActive = editModel.IsActive,
-                    CreatedAt = DateTime.UtcNow
-                };
-            }
+        var result = new StoreEditResult(
+            editModel.Code,
+            editModel.Name,
+            editModel.Address,
+            editModel.City,
+            editModel.Phone,
+            editModel.Email,
+            editModel.CurrencyCode,
+            editModel.IsActive);
 
-            MudDialog.Close(DialogResult.Ok(result));
-        }
-        catch (Exception ex)
-        {
-            Snackbar.Add($"Error saving store: {ex.Message}", Severity.Error);
-        }
+        MudDialog.Close(DialogResult.Ok(result));
     }
 
     private void Cancel() => MudDialog.Cancel();
 
-    private class StoreEditModel
+     private class StoreEditModel
     {
         public string Code { get; set; } = "";
         public string Name { get; set; } = "";
         public string? Address { get; set; }
+        public string? City { get; set; }
         public string? Phone { get; set; }
         public string? Email { get; set; }
-        public string Currency { get; set; } = "USD";
+        public string CurrencyCode { get; set; } = "USD";
         public string? TaxNumber { get; set; }
         public string? ReceiptHeader { get; set; }
         public string? ReceiptFooter { get; set; }

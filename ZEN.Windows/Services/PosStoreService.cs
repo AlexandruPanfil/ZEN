@@ -278,6 +278,7 @@ public sealed class PosStoreService
         store.Email,
         store.IsActive,
         store.Version,
-        store.IsDeleted);
+        store.IsDeleted,
+        store.Currency?.Code);
 }
 

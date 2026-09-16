@@ -1,8 +1,8 @@
 @page "/admin/stores"
-@using ZEN.Domain.Entities
-@using ZEN.Domain.Interfaces
+@using ZEN.Application.DTOs.Admin
+@using ZEN.Application.Services.Interfaces
 @using MudBlazor
-@inject global::ZEN.Domain.Interfaces.IRepository<Store> StoreRepository
+@inject IStoreService StoreService
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
 
@@ -44,7 +44,7 @@
                             </CardHeaderAvatar>
                             <CardHeaderContent>
                                 <MudText Typo="Typo.body2"><strong>@(store.Code ?? string.Empty)</strong></MudText>
-                                <MudText Typo="Typo.caption">@store.Currency?.Code</MudText>
+                                <MudText Typo="Typo.caption">@(store.CurrencyCode ?? string.Empty)</MudText>
                             </CardHeaderContent>
                         </MudCardHeader>
                         <MudCardContent>
@@ -90,7 +90,7 @@
 </MudContainer>
 
 @code {
-    private List<Store> stores = [];
+    private IEnumerable<StoreDto> stores = Enumerable.Empty<StoreDto>();
     private string searchText = "";
     private bool showInactive = false;
 
@@ -103,7 +103,7 @@
     {
         try
         {
-            stores = (await StoreRepository.GetAllAsync()).ToList();
+            stores = await StoreService.GetAllAsync();
         }
         catch (Exception ex)
         {
@@ -111,14 +111,13 @@
         }
     }
 
-    private List<Store> FilteredStores =>
+    private IEnumerable<StoreDto> FilteredStores =>
         stores
             .Where(s => (showInactive || s.IsActive) &&
-                       (string.IsNullOrEmpty(searchText) || 
+                       (string.IsNullOrEmpty(searchText) ||
                         (s.Name?.Contains(searchText, StringComparison.OrdinalIgnoreCase) ?? false) ||
                         (s.Code?.Contains(searchText, StringComparison.OrdinalIgnoreCase) ?? false)))
-            .OrderBy(s => s.Name)
-            .ToList();
+            .OrderBy(s => s.Name);
 
     private async Task OpenCreateDialog()
     {
@@ -126,44 +125,79 @@
         var dialog = await DialogService.ShowAsync<global::ZEN.Web.Components.Dialogs.StoreEditDialog>("New Store", parameters);
         var result = await dialog.Result;
 
-        if (!result.Canceled && result.Data is Store newStore)
+        if (!result.Canceled && result.Data is StoreEditResult editResult)
         {
-            stores.Add(newStore);
-            Snackbar.Add("Store created successfully", Severity.Success);
+            try
+            {
+                var request = new CreateStoreRequest(
+                    editResult.Name,
+                    editResult.Code,
+                    editResult.Address,
+                    editResult.City,
+                    editResult.Phone,
+                    editResult.Email);
+
+                var created = await StoreService.CreateAsync(request);
+                stores = stores.Append(created);
+                Snackbar.Add("Store created successfully", Severity.Success);
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Error creating store: {ex.Message}", Severity.Error);
+            }
         }
     }
 
-    private async Task OpenEditDialog(Store store)
+    private async Task OpenEditDialog(StoreDto store)
     {
         var parameters = new DialogParameters { { "Store", store } };
         var dialog = await DialogService.ShowAsync<global::ZEN.Web.Components.Dialogs.StoreEditDialog>("Edit Store", parameters);
         var result = await dialog.Result;
 
-        if (!result.Canceled && result.Data is Store updated)
+        if (!result.Canceled && result.Data is StoreEditResult editResult)
         {
-            var index = stores.FindIndex(s => s.Id == updated.Id);
-            if (index >= 0)
+            try
             {
-                stores[index] = updated;
+                var request = new UpdateStoreRequest(
+                    store.Id,
+                    editResult.Name,
+                    editResult.Code,
+                    editResult.Address,
+                    editResult.City,
+                    editResult.Phone,
+                    editResult.Email,
+                    editResult.IsActive,
+                    store.Version);
+
+                var updated = await StoreService.UpdateAsync(request);
+                stores = stores.Select(s => s.Id == updated.Id ? updated : s);
                 Snackbar.Add("Store updated successfully", Severity.Success);
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Error updating store: {ex.Message}", Severity.Error);
             }
         }
     }
 
-    private Task DeleteStore(Store store)
+    private async Task DeleteStore(StoreDto store)
     {
         try
         {
-            StoreRepository.Remove(store);
-            // Note: In a real scenario, would call unitOfWork.SaveChangesAsync()
-            stores.Remove(store);
-            Snackbar.Add("Store deleted", Severity.Success);
+            var deleted = await StoreService.DeleteAsync(store.Id, baseVersion: store.Version);
+            if (deleted)
+            {
+                stores = stores.Where(s => s.Id != store.Id);
+                Snackbar.Add("Store deleted", Severity.Success);
+            }
+            else
+            {
+                Snackbar.Add("Store not found", Severity.Warning);
+            }
         }
         catch (Exception ex)
         {
             Snackbar.Add($"Error deleting store: {ex.Message}", Severity.Error);
         }
-
-        return Task.CompletedTask;
     }
 }

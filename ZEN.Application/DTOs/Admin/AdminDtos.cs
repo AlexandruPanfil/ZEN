@@ -22,7 +22,7 @@ public record AuditLogFilter(
     int PageNumber = 1,
     int PageSize = 50);
 
-public record StoreDto(
+    public record StoreDto(
     Guid Id,
     string Name,
     string Code,
@@ -32,18 +32,20 @@ public record StoreDto(
     string? Email,
     bool IsActive,
     long Version = 0,
-    bool IsDeleted = false);
+    bool IsDeleted = false,
+    string? CurrencyCode = null);
 
-public record CreateStoreRequest(
+    public record CreateStoreRequest(
     string Name,
     string Code,
     string? Address,
     string? City,
     string? Phone,
     string? Email,
+    string? CurrencyCode = null,
     Guid? Id = null);
 
-public record UpdateStoreRequest(
+    public record UpdateStoreRequest(
     Guid Id,
     string Name,
     string Code,
@@ -52,7 +54,18 @@ public record UpdateStoreRequest(
     string? Phone,
     string? Email,
     bool IsActive,
-    long BaseVersion = 0);
+    long BaseVersion = 0,
+    string? CurrencyCode = null);
+
+    public record StoreEditResult(
+        string Code,
+        string Name,
+        string? Address,
+        string? City,
+        string? Phone,
+        string? Email,
+        string CurrencyCode,
+        bool IsActive);
 
 public record TaxDto(Guid Id, string Name, decimal Rate, bool IsDefault, bool IsActive);
 
