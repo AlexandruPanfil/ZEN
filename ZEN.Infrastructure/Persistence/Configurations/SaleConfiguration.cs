@@ -22,6 +22,7 @@ public class SaleConfiguration : IEntityTypeConfiguration<Sale>
 
         builder.HasIndex(s => s.Number).IsUnique();
         builder.HasIndex(s => s.Date);
+        builder.HasIndex(s => s.CashDeskId);
 
         builder.HasOne(s => s.Customer).WithMany(c => c.Sales).HasForeignKey(s => s.CustomerId).OnDelete(DeleteBehavior.SetNull);
         builder.HasOne(s => s.Shift).WithMany(sh => sh.Sales).HasForeignKey(s => s.ShiftId).OnDelete(DeleteBehavior.SetNull);

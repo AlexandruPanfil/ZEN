@@ -1,5 +1,6 @@
 @using ZEN.Application.Services.Interfaces
 @using ZEN.Application.DTOs.Admin
+@using Microsoft.Extensions.Logging
 
 @if (_isLoading)
 {
@@ -20,6 +21,7 @@ else
 
 @code {
     [Inject] private IStoreService StoreService { get; set; } = default!;
+    [Inject] private ILogger<StoreFilter> Logger { get; set; } = default!;
     
     [Parameter] public List<Guid> SelectedStoreIds { get; set; } = new();
     [Parameter] public EventCallback<List<Guid>> SelectedStoreIdsChanged { get; set; }
@@ -48,11 +50,17 @@ else
     {
         try
         {
+            Logger.LogInformation("Loading stores...");
             _stores = (await StoreService.GetAllAsync()).Where(s => !s.IsDeleted).ToList();
+            Logger.LogInformation("Loaded {Count} stores", _stores.Count);
+            foreach (var store in _stores)
+            {
+                Logger.LogInformation("Store: {Id} - {Name}", store.Id, store.Name);
+            }
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-            // Handle error silently or log
+            Logger.LogError(ex, "Error loading stores");
         }
     }
 

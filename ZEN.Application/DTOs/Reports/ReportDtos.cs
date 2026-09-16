@@ -46,7 +46,9 @@ public record ProductSalesBreakdownDto(
     decimal QuantitySold,
     decimal TotalSales,
     decimal TotalTax,
-    decimal TotalDiscount);
+    decimal TotalDiscount,
+    string? CategoryName = null,
+    DateTime? SaleDate = null);
 
 public record InventoryReportDto(
     Guid ProductId,

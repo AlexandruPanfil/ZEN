@@ -12,8 +12,10 @@ public class Shift : BaseEntity
     public decimal ClosingCash { get; set; }
     public ShiftStatus Status { get; set; } = ShiftStatus.Open;
     public string? Notes { get; set; }
+    public Guid? CashDeskId { get; set; }
 
     public Store Store { get; set; } = null!;
+    public CashDesk? CashDesk { get; set; }
     public ICollection<Sale> Sales { get; set; } = [];
     public ICollection<CashMovement> CashMovements { get; set; } = [];
     public ICollection<CashCount> CashCounts { get; set; } = [];

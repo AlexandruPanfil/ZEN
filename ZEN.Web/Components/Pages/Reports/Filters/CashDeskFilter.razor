@@ -1,5 +1,6 @@
 @using ZEN.Application.Services.Interfaces
 @using ZEN.Application.DTOs.Admin
+@using Microsoft.Extensions.Logging
 
 @if (_isLoading)
 {
@@ -21,6 +22,7 @@ else
 
 @code {
     [Inject] private ICashDeskService CashDeskService { get; set; } = default!;
+    [Inject] private ILogger<CashDeskFilter> Logger { get; set; } = default!;
     
     [Parameter] public List<Guid> StoreIds { get; set; } = new();
     [Parameter] public List<Guid> SelectedCashDeskIds { get; set; } = new();
@@ -65,6 +67,7 @@ else
 
         try
         {
+            Logger.LogInformation("Loading cash desks for stores: {StoreIds}", string.Join(", ", _storeIds));
             var allCashDesks = new List<CashDeskDto>();
             foreach (var storeId in _storeIds)
             {
@@ -72,10 +75,15 @@ else
                 allCashDesks.AddRange(cashDesks);
             }
             _cashDesks = allCashDesks.Where(c => c.IsActive).ToList();
+            Logger.LogInformation("Loaded {Count} cash desks", _cashDesks.Count);
+            foreach (var cashDesk in _cashDesks)
+            {
+                Logger.LogInformation("CashDesk: {Id} - {Name} (Store: {StoreId})", cashDesk.Id, cashDesk.Name, cashDesk.StoreId);
+            }
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-            // Handle error silently or log
+            Logger.LogError(ex, "Error loading cash desks");
         }
     }
 

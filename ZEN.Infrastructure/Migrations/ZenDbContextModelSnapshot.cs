@@ -1810,6 +1810,9 @@ namespace ZEN.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<Guid?>("CashDeskId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<decimal>("ChangeAmount")
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
@@ -1882,6 +1885,8 @@ namespace ZEN.Infrastructure.Migrations
                         .HasColumnType("bigint");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("CashDeskId");
 
                     b.HasIndex("CustomerId");
 
@@ -2189,12 +2194,15 @@ namespace ZEN.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<Guid?>("CashDeskId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<DateTime?>("CloseTime")
                         .HasColumnType("datetime2");
 
                     b.Property<decimal>("ClosingCash")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
@@ -2203,14 +2211,15 @@ namespace ZEN.Infrastructure.Migrations
                         .HasColumnType("bit");
 
                     b.Property<string>("Notes")
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
 
                     b.Property<DateTime>("OpenTime")
                         .HasColumnType("datetime2");
 
                     b.Property<decimal>("OpeningCash")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
 
                     b.Property<int>("Status")
                         .HasColumnType("int");
@@ -2223,12 +2232,17 @@ namespace ZEN.Infrastructure.Migrations
 
                     b.Property<string>("UserId")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
 
                     b.Property<long>("Version")
                         .HasColumnType("bigint");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("CashDeskId");
+
+                    b.HasIndex("Status");
 
                     b.HasIndex("StoreId");
 
@@ -3696,11 +3710,18 @@ namespace ZEN.Infrastructure.Migrations
 
             modelBuilder.Entity("ZEN.Domain.Entities.Shift", b =>
                 {
-                    b.HasOne("ZEN.Domain.Entities.Store", "Store")
+                    b.HasOne("ZEN.Domain.Entities.CashDesk", "CashDesk")
                         .WithMany()
+                        .HasForeignKey("CashDeskId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("ZEN.Domain.Entities.Store", "Store")
+                        .WithMany("Shifts")
                         .HasForeignKey("StoreId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.Navigation("CashDesk");
 
                     b.Navigation("Store");
                 });
@@ -4020,6 +4041,8 @@ namespace ZEN.Infrastructure.Migrations
             modelBuilder.Entity("ZEN.Domain.Entities.Store", b =>
                 {
                     b.Navigation("CashDesks");
+
+                    b.Navigation("Shifts");
 
                     b.Navigation("Warehouses");
                 });

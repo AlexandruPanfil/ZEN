@@ -10,6 +10,7 @@ public class Sale : BaseEntity
     public string UserId { get; set; } = string.Empty;
     public Guid? ShiftId { get; set; }
     public Guid StoreId { get; set; }
+    public Guid? CashDeskId { get; set; }
     public decimal SubTotal { get; set; }
     public decimal TaxAmount { get; set; }
     public decimal DiscountAmount { get; set; }

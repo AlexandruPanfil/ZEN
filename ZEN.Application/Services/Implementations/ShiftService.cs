@@ -60,7 +60,8 @@ public class ShiftService : IShiftService
             OpeningCash = request.OpeningCash,
             ClosingCash = 0,
             Status = ShiftStatus.Open,
-            Notes = null
+            Notes = null,
+            CashDeskId = null
         };
 
         await _shiftRepository.AddAsync(shift, cancellationToken);
@@ -91,7 +92,8 @@ public class ShiftService : IShiftService
             OpeningCash = openingCash,
             ClosingCash = 0,
             Status = ShiftStatus.Open,
-            Notes = null
+            Notes = null,
+            CashDeskId = cashDeskId
         };
 
         await _shiftRepository.AddAsync(shift, cancellationToken);

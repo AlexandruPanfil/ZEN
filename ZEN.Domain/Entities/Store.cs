@@ -18,4 +18,5 @@ public class Store : BaseEntity
     public Currency? Currency { get; set; }
     public ICollection<Warehouse> Warehouses { get; set; } = [];
     public ICollection<CashDesk> CashDesks { get; set; } = [];
+    public ICollection<Shift> Shifts { get; set; } = [];
 }

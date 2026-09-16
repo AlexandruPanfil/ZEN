@@ -70,6 +70,7 @@ public class SaleService : ISaleService
             UserId = _currentUserService.UserId ?? "system",
             ShiftId = request.ShiftId,
             StoreId = request.StoreId,
+            CashDeskId = request.CashDeskId,
             SubTotal = 0, // Will calculate after resolving tax rates
             TaxAmount = 0,
             DiscountAmount = 0,

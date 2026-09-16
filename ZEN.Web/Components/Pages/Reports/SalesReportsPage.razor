@@ -10,6 +10,7 @@
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
 @inject IJSRuntime JSRuntime
+@inject ILogger<SalesReportsPage> Logger
 @attribute [Authorize(Roles = "Administrator,Manager,Accountant")]
 @implements IAsyncDisposable
 
@@ -112,9 +113,29 @@ else
         _isLoading = true;
         try
         {
+            Logger.LogInformation("Generating report with filter: {@Filter}", _filter);
             _report = await ReportService.GetSalesReportAsync(_filter);
 
+            Logger.LogInformation("Report generated. Store breakdowns: {Count}", _report?.StoreBreakdowns?.Count() ?? 0);
+            if (_report?.StoreBreakdowns != null)
+            {
+                foreach (var store in _report.StoreBreakdowns)
+                {
+                    Logger.LogInformation("Store: {StoreName} (ID: {StoreId}), Cash desks: {CashDeskCount}", 
+                        store.StoreName, store.StoreId, store.CashDeskBreakdowns?.Count() ?? 0);
+                    if (store.CashDeskBreakdowns != null)
+                    {
+                        foreach (var cd in store.CashDeskBreakdowns)
+                        {
+                            Logger.LogInformation("  CashDesk: {CashDeskName} (ID: {CashDeskId}), Products: {ProductCount}", 
+                                cd.CashDeskName, cd.CashDeskId, cd.ProductBreakdowns?.Count() ?? 0);
+                        }
+                    }
+                }
+            }
+
             _pivotData = TransformToPivotData(_report);
+            Logger.LogInformation("Pivot data count: {Count}", _pivotData.Count);
 
             if (_pivotInitialized)
             {
@@ -124,6 +145,7 @@ else
         }
         catch (Exception ex)
         {
+            Logger.LogError(ex, "Error generating report");
             Snackbar.Add($"Error generating report: {ex.Message}", Severity.Error);
         }
         finally
@@ -145,10 +167,10 @@ else
                     pivotData.Add(new
                     {
                         ProductName = productBreakdown.ProductName,
-                        Category = "",
+                        Category = productBreakdown.CategoryName ?? "",
                         Store = storeBreakdown.StoreName,
                         CashDesk = cashDeskBreakdown.CashDeskName,
-                        Date = report.StartDate.ToString("dd.MM.yyyy"),
+                        Date = productBreakdown.SaleDate?.ToString("dd.MM.yyyy") ?? "",
                         Quantity = (double)productBreakdown.QuantitySold,
                         SalesAmount = (double)productBreakdown.TotalSales,
                         TaxAmount = (double)productBreakdown.TotalTax,

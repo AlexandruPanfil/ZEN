@@ -5,6 +5,7 @@ using ZEN.Domain.Entities;
 using ZEN.Domain.Enums;
 using ZEN.Domain.Interfaces;
 using System.Linq;
+using Microsoft.Extensions.Logging;
 
 namespace ZEN.Application.Services.Implementations;
 
@@ -22,6 +23,7 @@ public class ReportService : IReportService
     private readonly IStoreContext _storeContext;
     private readonly IFiscalCloudService _fiscalCloudService;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly ILogger<ReportService> _logger;
 
     public ReportService(
         IRepository<InventoryItem> inventoryRepository,
@@ -35,7 +37,8 @@ public class ReportService : IReportService
         IRepository<Store> storeRepository,
         IStoreContext storeContext,
         IFiscalCloudService fiscalCloudService,
-        IUnitOfWork unitOfWork)
+        IUnitOfWork unitOfWork,
+        ILogger<ReportService> logger)
     {
         _inventoryRepository = inventoryRepository;
         _productRepository = productRepository;
@@ -49,10 +52,13 @@ public class ReportService : IReportService
         _storeContext = storeContext;
         _fiscalCloudService = fiscalCloudService;
         _unitOfWork = unitOfWork;
+        _logger = logger;
     }
 
     public async Task<SalesReportDto> GetSalesReportAsync(SalesReportFilterDto filter, CancellationToken cancellationToken = default)
     {
+        _logger.LogInformation("GetSalesReportAsync called with filter: {Filter}", System.Text.Json.JsonSerializer.Serialize(filter));
+        
         var storeIds = filter.StoreIds ?? new List<Guid>();
         if (!storeIds.Any())
         {
@@ -63,17 +69,22 @@ public class ReportService : IReportService
             }
         }
 
+        _logger.LogInformation("Store IDs for query: {StoreIds}", string.Join(", ", storeIds));
+
         // Apply date filter
         var sales = await _saleRepository.FindAsync(
             s => s.Date >= filter.StartDate && s.Date <= filter.EndDate 
                 && (!storeIds.Any() || storeIds.Contains(s.StoreId)),
             cancellationToken);
 
+        _logger.LogInformation("Found {Count} sales in date range", sales.Count());
+
         // Apply cash desk filter
         var cashDeskIds = filter.CashDeskIds ?? new List<Guid>();
         if (cashDeskIds.Any())
         {
-            sales = sales.Where(s => s.ShiftId.HasValue && cashDeskIds.Contains(s.ShiftId.Value)).ToList();
+            sales = sales.Where(s => s.CashDeskId.HasValue && cashDeskIds.Contains(s.CashDeskId.Value)).ToList();
+            _logger.LogInformation("After cash desk filter: {Count} sales", sales.Count);
         }
 
         var saleIds = sales.Select(s => s.Id).ToList();
@@ -82,6 +93,8 @@ public class ReportService : IReportService
         var saleItems = await _saleItemRepository.FindAsync(
             i => saleIds.Contains(i.SaleId),
             cancellationToken);
+
+        _logger.LogInformation("Found {Count} sale items", saleItems.Count());
 
         // Apply product filter
         var productIds = filter.ProductIds ?? new List<Guid>();
@@ -94,7 +107,9 @@ public class ReportService : IReportService
         var products = await _productRepository.FindAsync(
             p => saleProductIds.Contains(p.Id),
             cancellationToken);
-        var productsDict = products.ToDictionary(p => p.Id);
+        // Include Category for product breakdowns
+        var productsWithCategory = products.Select(p => new { p.Id, p.Name, p.Barcode, p.CategoryId, p.Category }).ToList();
+        var productsDict = productsWithCategory.ToDictionary(p => p.Id, p => new Product { Id = p.Id, Name = p.Name, Barcode = p.Barcode, CategoryId = p.CategoryId, Category = p.Category });
 
         // Apply category filter
         var categoryIds = filter.CategoryIds ?? new List<Guid>();
@@ -115,6 +130,9 @@ public class ReportService : IReportService
         var netSales = totalSales - totalDiscount;
         var transactionCount = sales.Count();
 
+        _logger.LogInformation("Totals - Sales: {TotalSales}, Tax: {TotalTax}, Discount: {TotalDiscount}, Transactions: {TransactionCount}", 
+            totalSales, totalTax, totalDiscount, transactionCount);
+
         // Top products
         var topProducts = saleItems
             .GroupBy(i => productsDict.GetValueOrDefault(i.ProductId)?.Name ?? "Unknown Product")
@@ -127,6 +145,8 @@ public class ReportService : IReportService
 
         // Build hierarchical breakdown
         var storeBreakdowns = await BuildStoreBreakdownsAsync(sales, saleItems, productsDict, storeIds, cancellationToken);
+
+        _logger.LogInformation("Store breakdowns count: {Count}", storeBreakdowns.Count());
 
         return new SalesReportDto(
             filter.StartDate,
@@ -151,9 +171,10 @@ public class ReportService : IReportService
         var stores = await _storeRepository.FindAsync(s => storeIdsToProcess.Contains(s.Id), cancellationToken);
         var storesDict = stores.ToDictionary(s => s.Id);
 
-        var cashDeskIds = sales.Where(s => s.ShiftId.HasValue).Select(s => s.ShiftId!.Value).Distinct().ToList();
-        var cashDesks = await _cashDeskRepository.FindAsync(c => cashDeskIds.Contains(c.Id), cancellationToken);
-        var cashDesksDict = cashDesks.ToDictionary(c => c.Id);
+        // Get all cash desks for the stores involved
+        var allCashDesks = await _cashDeskRepository.FindAsync(c => storeIdsToProcess.Contains(c.StoreId.Value), cancellationToken);
+        var cashDesksByStore = allCashDesks.GroupBy(c => c.StoreId!.Value).ToDictionary(g => g.Key, g => g.ToList());
+        var cashDesksDict = allCashDesks.ToDictionary(c => c.Id);
 
         var result = new List<StoreSalesBreakdownDto>();
 
@@ -168,11 +189,59 @@ public class ReportService : IReportService
 
             var cashDeskBreakdowns = new List<CashDeskSalesBreakdownDto>();
 
-            var storeCashDeskIds = storeSales.Where(s => s.ShiftId.HasValue).Select(s => s.ShiftId!.Value).Distinct().ToList();
-
-            foreach (var cashDeskId in storeCashDeskIds)
+            // Get cash desks for this store
+            var storeCashDesks = cashDesksByStore.GetValueOrDefault(storeId, new List<CashDesk>());
+            
+            // Group sales by actual CashDeskId
+            var storeCashDeskGroups = storeSales
+                .Where(s => s.CashDeskId.HasValue)
+                .GroupBy(s => s.CashDeskId!.Value)
+                .ToList();
+            
+            // Handle legacy sales without CashDeskId - group by Shift.CashDeskId
+            var salesWithoutCashDeskId = storeSales.Where(s => !s.CashDeskId.HasValue && s.ShiftId.HasValue).ToList();
+            Dictionary<Guid, Shift> shiftsDict = new();
+            if (salesWithoutCashDeskId.Any())
             {
-                var cashDeskSales = storeSales.Where(s => s.ShiftId.HasValue && s.ShiftId.Value == cashDeskId).ToList();
+                var shiftIds = salesWithoutCashDeskId.Select(s => s.ShiftId!.Value).Distinct().ToList();
+                var shifts = await _shiftRepository.FindAsync(s => shiftIds.Contains(s.Id), cancellationToken);
+                shiftsDict = shifts.ToDictionary(s => s.Id);
+                
+                var legacyGroups = salesWithoutCashDeskId
+                    .Where(s => s.ShiftId.HasValue && shiftsDict.TryGetValue(s.ShiftId.Value, out var shift) && shift.CashDeskId.HasValue)
+                    .GroupBy(s => shiftsDict[s.ShiftId.Value].CashDeskId!.Value)
+                    .ToList();
+                
+                foreach (var group in legacyGroups)
+                {
+                    storeCashDeskGroups.Add(group);
+                }
+            }
+
+            // Handle legacy sales without CashDeskId AND without Shift.CashDeskId
+            // These are sales from shifts that were created before CashDeskId was added to Shift
+            // We'll assign them to the store's cash desks (assuming one cash desk per store for legacy data)
+            var salesWithoutAnyCashDesk = storeSales
+                .Where(s => !s.CashDeskId.HasValue && (!s.ShiftId.HasValue || 
+                    (shiftsDict.TryGetValue(s.ShiftId.Value, out var shift) && !shift.CashDeskId.HasValue)))
+                .ToList();
+            
+            if (salesWithoutAnyCashDesk.Any() && storeCashDesks.Any())
+            {
+                // For legacy data with no cash desk info, distribute sales across the store's cash desks
+                // or just use the first cash desk as a fallback
+                var fallbackCashDesk = storeCashDesks.First();
+                var fallbackGroup = salesWithoutAnyCashDesk.GroupBy(s => fallbackCashDesk.Id).ToList();
+                foreach (var group in fallbackGroup)
+                {
+                    storeCashDeskGroups.Add(group);
+                }
+            }
+
+            foreach (var cashDeskGroup in storeCashDeskGroups)
+            {
+                var cashDeskId = cashDeskGroup.Key;
+                var cashDeskSales = cashDeskGroup.ToList();
                 var cashDeskSaleIds = cashDeskSales.Select(s => s.Id).ToList();
                 var cashDeskSaleItems = storeSaleItems.Where(i => cashDeskSaleIds.Contains(i.SaleId)).ToList();
 
@@ -180,18 +249,21 @@ public class ReportService : IReportService
                 var cashDeskTransactionCount = cashDeskSales.Count();
 
                 var productBreakdowns = cashDeskSaleItems
-                    .GroupBy(i => i.ProductId)
+                    .GroupBy(i => new { i.Sale.Date, i.ProductId })
                     .Select(g =>
                     {
-                        var product = productsDict.GetValueOrDefault(g.Key);
+                        var product = productsDict.GetValueOrDefault(g.Key.ProductId);
+                        var categoryName = product?.Category?.Name ?? "";
                         return new ProductSalesBreakdownDto(
-                            g.Key,
+                            g.Key.ProductId,
                             product?.Name ?? "Unknown Product",
                             product?.Barcode,
                             g.Sum(i => i.Quantity),
                             g.Sum(i => i.TotalPrice),
                             g.Sum(i => i.TaxAmount),
-                            g.Sum(i => i.DiscountAmount));
+                            g.Sum(i => i.DiscountAmount),
+                            categoryName,
+                            g.Key.Date);
                     })
                     .OrderByDescending(p => p.TotalSales)
                     .ToList();
