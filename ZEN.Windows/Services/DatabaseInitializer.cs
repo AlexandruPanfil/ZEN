@@ -33,6 +33,8 @@ public static class DatabaseInitializer
         await EnsurePaymentTerminalTableAsync(dbContext, logger);
         await EnsureStoreTableAsync(dbContext, logger);
         await EnsureMenuTableAsync(dbContext, logger);
+        await EnsureProductsTableAsync(dbContext, logger);
+        await EnsureMenuProductsTableAsync(dbContext, logger);
         await EnsureCashDeskTableAsync(dbContext, logger);
         await EnsureSyncTablesAsync(dbContext, logger);
         logger.LogInformation("Database created successfully");
@@ -387,5 +389,83 @@ public static class DatabaseInitializer
         await command.ExecuteNonQueryAsync();
         await EnsureVersionColumnAsync(dbContext, "Menus", logger);
         logger.LogInformation("Verified local Menus table.");
+    }
+
+    private static async Task EnsureProductsTableAsync(ZenDbContext dbContext, ILogger logger)
+    {
+        await using var command = dbContext.Database.GetDbConnection().CreateCommand();
+        command.CommandText = """
+            CREATE TABLE IF NOT EXISTS "Products" (
+                "Id" TEXT NOT NULL CONSTRAINT "PK_Products" PRIMARY KEY,
+                "BrandId" TEXT NULL,
+                "CategoryId" TEXT NULL,
+                "Barcode" TEXT NULL,
+                "CostPrice" NUMERIC(18,4) NULL,
+                "SalePrice" NUMERIC(18,4) NOT NULL,
+                "Description" TEXT NULL,
+                "HasVariants" INTEGER NOT NULL,
+                "IsActive" INTEGER NOT NULL,
+                "IsDeleted" INTEGER NOT NULL,
+                "SKU" TEXT NULL,
+                "Name" TEXT NOT NULL,
+                "SupplierId" TEXT NULL,
+                "TaxId" TEXT NULL,
+                "TrackExpiry" INTEGER NOT NULL,
+                "TrackSerial" INTEGER NOT NULL,
+                "CreatedAt" TEXT NOT NULL,
+                "UpdatedAt" TEXT NOT NULL,
+                "Version" INTEGER NOT NULL DEFAULT 1
+            );
+            CREATE INDEX IF NOT EXISTS "IX_Products_BrandId"
+                ON "Products" ("BrandId");
+            CREATE INDEX IF NOT EXISTS "IX_Products_CategoryId"
+                ON "Products" ("CategoryId");
+            CREATE INDEX IF NOT EXISTS "IX_Products_SKU"
+                ON "Products" ("SKU");
+            CREATE INDEX IF NOT EXISTS "IX_Products_Name"
+                ON "Products" ("Name");
+            CREATE INDEX IF NOT EXISTS "IX_Products_SupplierId"
+                ON "Products" ("SupplierId");
+            CREATE INDEX IF NOT EXISTS "IX_Products_TaxId"
+                ON "Products" ("TaxId");
+            """;
+
+        if (command.Connection?.State != System.Data.ConnectionState.Open)
+        {
+            await command.Connection!.OpenAsync();
+        }
+
+        await command.ExecuteNonQueryAsync();
+        await EnsureVersionColumnAsync(dbContext, "Products", logger);
+        logger.LogInformation("Verified local Products table.");
+    }
+
+    private static async Task EnsureMenuProductsTableAsync(ZenDbContext dbContext, ILogger logger)
+    {
+        await using var command = dbContext.Database.GetDbConnection().CreateCommand();
+        command.CommandText = """
+            CREATE TABLE IF NOT EXISTS "MenuProducts" (
+                "Id" TEXT NOT NULL CONSTRAINT "PK_MenuProducts" PRIMARY KEY,
+                "MenuId" TEXT NOT NULL,
+                "ProductId" TEXT NOT NULL,
+                "Position" INTEGER NOT NULL,
+                "CreatedAt" TEXT NOT NULL,
+                "UpdatedAt" TEXT NOT NULL,
+                "IsDeleted" INTEGER NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS "IX_MenuProducts_MenuId"
+                ON "MenuProducts" ("MenuId");
+            CREATE INDEX IF NOT EXISTS "IX_MenuProducts_ProductId"
+                ON "MenuProducts" ("ProductId");
+            """;
+
+        if (command.Connection?.State != System.Data.ConnectionState.Open)
+        {
+            await command.Connection!.OpenAsync();
+        }
+
+        await command.ExecuteNonQueryAsync();
+        await EnsureVersionColumnAsync(dbContext, "MenuProducts", logger);
+        logger.LogInformation("Verified local MenuProducts table.");
     }
 }

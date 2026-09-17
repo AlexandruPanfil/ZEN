@@ -63,7 +63,7 @@
         </MudStack>
         <MudStack Row="true" Justify="Justify.SpaceBetween" Class="summary-row">
             <MudText Typo="Typo.body2">Net Amount:</MudText>
-            <MudText Typo="Typo.body2">@(Subtotal - TaxAmount).ToString("C")</MudText>
+            <MudText Typo="Typo.body2">@((Subtotal - TaxAmount).ToString("C"))</MudText>
         </MudStack>
         <div class="total-row mt-2 pt-2">
             <MudStack Row="true" Justify="Justify.SpaceBetween">

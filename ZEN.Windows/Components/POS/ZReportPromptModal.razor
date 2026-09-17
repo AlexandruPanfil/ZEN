@@ -17,16 +17,16 @@
                 <MudText Typo="Typo.h6">@ShiftNumber</MudText>
             </MudItem>
             <MudItem xs="12" sm="6">
-                <MudText Typo="Typo.caption" Class="mud-text-secondary">Opened At</MudText>
-                <MudText Typo="Typo.h6">@OpenedAt.ToLocalTime():g</MudText>
+<MudText Typo="Typo.caption" Class="mud-text-secondary">Opened At</MudText>
+                 <MudText Typo="Typo.h6">@OpenedAt.ToLocalTime() :g</MudText>
             </MudItem>
             <MudItem xs="12" sm="6">
-                <MudText Typo="Typo.caption" Class="mud-text-secondary">Opening Cash</MudText>
-                <MudText Typo="Typo.h6">@OpeningCash:C</MudText>
+<MudText Typo="Typo.caption" Class="mud-text-secondary">Opening Cash</MudText>
+                 <MudText Typo="Typo.h6">@OpeningCash :C</MudText>
             </MudItem>
             <MudItem xs="12" sm="6">
-                <MudText Typo="Typo.caption" Class="mud-text-secondary">Expected Cash (Calculated)</MudText>
-                <MudText Typo="Typo.h6" Class="mud-warning-text">@ExpectedCash:C</MudText>
+<MudText Typo="Typo.caption" Class="mud-text-secondary">Expected Cash (Calculated)</MudText>
+                 <MudText Typo="Typo.h6" Class="mud-warning-text">@ExpectedCash :C</MudText>
             </MudItem>
         </MudGrid>
 
@@ -53,8 +53,8 @@
         @if (Variance != 0)
         {
             <MudAlert Severity="@(Variance >= 0 ? Severity.Success : Severity.Warning)" Class="mt-4">
-                <MudText Typo="Typo.body1">Variance: @(Variance >= 0 ? "+" : "")@Variance:C</MudText>
-                <MudText Typo="Typo.caption">@(Variance >= 0 ? "Cash over" : "Cash short") by @Math.Abs(Variance):C</MudText>
+                <MudText Typo="Typo.body1">Variance: @(Variance >= 0 ? "+" : "")@Variance :C</MudText>
+                <MudText Typo="Typo.caption">@(Variance >= 0 ? "Cash over" : "Cash short") by @Math.Abs(Variance) :C</MudText>
             </MudAlert>
         }
     </DialogContent>
