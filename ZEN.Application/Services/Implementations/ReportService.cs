@@ -332,8 +332,9 @@ public class ReportService : IReportService
             return null;
 
         var sales = await _saleRepository.FindAsync(s => s.ShiftId.HasValue && s.ShiftId.Value == shiftId, cancellationToken);
-        var totalSales = sales.Sum(s => s.TotalAmount);
-        var salesCount = sales.Count();
+        var successfulSales = sales.Where(s => s.Status != SaleStatus.Failed);
+        var totalSales = successfulSales.Sum(s => s.TotalAmount);
+        var salesCount = successfulSales.Count();
         var expectedCash = shift.OpeningCash + totalSales;
         var variance = shift.Status == ShiftStatus.Closed ? shift.ClosingCash - expectedCash : (decimal?)null;
 
@@ -368,7 +369,8 @@ public class ReportService : IReportService
         var result = shifts.Select(shift =>
         {
             var shiftSales = salesByShift.GetValueOrDefault(shift.Id, new List<Sale>());
-            var totalSales = shiftSales.Sum(s => s.TotalAmount);
+            var successfulShiftSales = shiftSales.Where(s => s.Status != SaleStatus.Failed);
+            var totalSales = successfulShiftSales.Sum(s => s.TotalAmount);
             var variance = shift.Status == ShiftStatus.Closed ? shift.ClosingCash - (shift.OpeningCash + totalSales) : (decimal?)null;
 
             return new ShiftReportDto(
@@ -386,24 +388,24 @@ public class ReportService : IReportService
         return result;
     }
 
-    public async Task<XReportDto?> GetXReportAsync(Guid storeId, CancellationToken cancellationToken = default)
-    {
-        var shift = await _shiftRepository.FindFirstAsync(
-            s => s.StoreId == storeId && s.Status == ShiftStatus.Open,
-            cancellationToken);
-        
-        if (shift == null)
-            return null;
+public async Task<XReportDto?> GetXReportAsync(Guid storeId, CancellationToken cancellationToken = default)
+        {
+            var shift = await _shiftRepository.FindFirstAsync(
+                s => s.StoreId == storeId && s.Status == ShiftStatus.Open,
+                cancellationToken);
+            
+            if (shift == null)
+                return null;
 
-        var sales = await _saleRepository.FindAsync(
-            s => s.ShiftId.HasValue && s.ShiftId.Value == shift.Id,
-            cancellationToken);
-
-        var totalSales = sales.Sum(s => s.TotalAmount);
-        var totalTax = sales.Sum(s => s.TaxAmount);
-        var totalDiscount = sales.Sum(s => s.DiscountAmount);
-        var netSales = totalSales - totalDiscount;
-        var transactionCount = sales.Count();
+            var sales = await _saleRepository.FindAsync(
+                s => s.ShiftId.HasValue && s.ShiftId.Value == shift.Id,
+                cancellationToken);
+            var successfulSales = sales.Where(s => s.Status != SaleStatus.Failed);
+            var totalSales = successfulSales.Sum(s => s.TotalAmount);
+            var totalTax = successfulSales.Sum(s => s.TaxAmount);
+            var totalDiscount = successfulSales.Sum(s => s.DiscountAmount);
+            var netSales = totalSales - totalDiscount;
+            var transactionCount = successfulSales.Count();
 
         var payments = await _salePaymentRepository.FindAsync(
             sp => sp.Sale.ShiftId.HasValue && sp.Sale.ShiftId.Value == shift.Id,
@@ -565,18 +567,18 @@ public class ReportService : IReportService
             s => s.StoreId == storeId && s.Status == ShiftStatus.Open,
             cancellationToken);
         
-        if (shift == null)
+if (shift == null)
             return null;
 
         var sales = await _saleRepository.FindAsync(
             s => s.ShiftId.HasValue && s.ShiftId.Value == shift.Id,
             cancellationToken);
-
-        var totalSales = sales.Sum(s => s.TotalAmount);
-        var totalTax = sales.Sum(s => s.TaxAmount);
-        var totalDiscount = sales.Sum(s => s.DiscountAmount);
+        var successfulSales = sales.Where(s => s.Status != SaleStatus.Failed);
+        var totalSales = successfulSales.Sum(s => s.TotalAmount);
+        var totalTax = successfulSales.Sum(s => s.TaxAmount);
+        var totalDiscount = successfulSales.Sum(s => s.DiscountAmount);
         var netSales = totalSales - totalDiscount;
-        var transactionCount = sales.Count();
+        var transactionCount = successfulSales.Count();
 
         var payments = await _salePaymentRepository.FindAsync(
             sp => sp.Sale.ShiftId.HasValue && sp.Sale.ShiftId.Value == shift.Id,

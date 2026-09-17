@@ -473,8 +473,16 @@ public class SyncApiClient
         return result.Sale;
     }
 
-    public async Task<(SaleDto? Sale, string? Error)> CreateSaleWithResultAsync(CreateSaleRequest request, CancellationToken cancellationToken = default)
+    public async Task<(SaleDto? Sale, string? Error)> CreateSaleWithResultAsync(
+        CreateSaleRequest request,
+        CancellationToken cancellationToken = default,
+        int? timeoutSeconds = null)
     {
+        // Configurable timeout for fiscal operations (can take 30+ seconds).
+        // If a printer timeout is provided, add a 10-second buffer for network/DB overhead.
+        // Otherwise default to 120 seconds.
+        var effectiveTimeout = timeoutSeconds.HasValue ? timeoutSeconds.Value + 10 : 120;
+
         try
         {
             Console.WriteLine($"[SyncApiClient] Creating sale - BaseAddress: {_httpClient.BaseAddress}");
@@ -482,9 +490,10 @@ public class SyncApiClient
             Console.WriteLine($"[SyncApiClient] Items count: {request.Items.Count()}, Total: {request.Payments.Sum(p => p.Amount)}");
             Console.WriteLine($"[SyncApiClient] CashDeskId: {request.CashDeskId}");
 
-            // Increase timeout for fiscal operations (can take 30+ seconds)
+            Console.WriteLine($"[SyncApiClient] Using effective timeout: {effectiveTimeout}s");
+
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            cts.CancelAfter(TimeSpan.FromSeconds(60));
+            cts.CancelAfter(TimeSpan.FromSeconds(effectiveTimeout));
 
             var response = await _httpClient.PostAsJsonAsync("api/sales", request, cts.Token);
 
@@ -506,7 +515,7 @@ public class SyncApiClient
         }
         catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException || ex.Message.Contains("timeout") || ex.CancellationToken.IsCancellationRequested)
         {
-            var errorMsg = "Sale request timed out (60s). This may indicate FiscalCloud agent is slow or unreachable.";
+            var errorMsg = $"Sale request timed out ({effectiveTimeout}s). This may indicate FiscalCloud agent is slow or unreachable.";
             Console.WriteLine($"[SyncApiClient] CreateSale TIMEOUT: {errorMsg}");
             return (null, errorMsg);
         }

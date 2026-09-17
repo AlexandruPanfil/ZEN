@@ -169,28 +169,29 @@ public class ShiftService : IShiftService
         return movements.OrderBy(m => m.Timestamp).Select(m => new CashMovementDto(m.Id, m.Timestamp, m.Type, m.Amount, m.Notes ?? string.Empty, m.UserId, _currentUserService.UserName ?? m.UserId));
     }
 
-    private static ShiftDto MapToDto(Shift shift)
-    {
-        var totalSales = shift.Sales?.Sum(s => s.TotalAmount) ?? 0;
-        var salesCount = shift.Sales?.Count ?? 0;
-        var expectedCash = shift.OpeningCash + totalSales;
-        var variance = shift.Status == ShiftStatus.Closed ? shift.ClosingCash - expectedCash : (decimal?)null;
+private static ShiftDto MapToDto(Shift shift)
+        {
+            var successfulSales = shift.Sales?.Where(s => s.Status != SaleStatus.Failed) ?? Enumerable.Empty<Sale>();
+            var totalSales = successfulSales.Sum(s => s.TotalAmount);
+            var salesCount = successfulSales.Count();
+            var expectedCash = shift.OpeningCash + totalSales;
+            var variance = shift.Status == ShiftStatus.Closed ? shift.ClosingCash - expectedCash : (decimal?)null;
 
-        return new ShiftDto(
-            shift.Id,
-            $"SHIFT-{shift.Id.ToString("N")[..6].ToUpperInvariant()}",
-            shift.OpenTime,
-            shift.CloseTime,
-            shift.UserId,
-            "Unknown", // UserName - will be populated from CurrentUserService in context
-            shift.StoreId,
-            "Unknown", // StoreName
-            shift.OpeningCash,
-            shift.Status == ShiftStatus.Closed ? shift.ClosingCash : null,
-            expectedCash,
-            variance,
-            shift.Status,
-            totalSales,
-            salesCount);
-    }
+            return new ShiftDto(
+                shift.Id,
+                $"SHIFT-{shift.Id.ToString("N")[..6].ToUpperInvariant()}",
+                shift.OpenTime,
+                shift.CloseTime,
+                shift.UserId,
+                "Unknown", // UserName - will be populated from CurrentUserService in context
+                shift.StoreId,
+                "Unknown", // StoreName
+                shift.OpeningCash,
+                shift.Status == ShiftStatus.Closed ? shift.ClosingCash : null,
+                expectedCash,
+                variance,
+                shift.Status,
+                totalSales,
+                salesCount);
+        }
 }

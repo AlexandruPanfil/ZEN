@@ -83,10 +83,11 @@ public record PrinterDto(
     string? ApiKey,
     string? ApiSecret,
     string? DeviceId,
-    string? PointOfSaleId,
-    string? FiscalCloudBaseUrl,
-    long Version = 0,
-    bool IsDeleted = false);
+     string? PointOfSaleId,
+     string? FiscalCloudBaseUrl,
+     int? FiscalCloudTimeoutSeconds = null,
+     long Version = 0,
+     bool IsDeleted = false);
 
 public record PaymentTerminalDto(
     Guid Id,

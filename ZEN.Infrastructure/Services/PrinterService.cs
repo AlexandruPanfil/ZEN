@@ -30,9 +30,10 @@ namespace ZEN.Infrastructure.Services
                 printer.ApiSecret,
                 printer.DeviceId,
                 printer.PointOfSaleId,
-                printer.FiscalCloudBaseUrl,
-                printer.Version,
-                printer.IsDeleted);
+                 printer.FiscalCloudBaseUrl,
+                 printer.FiscalCloudTimeoutSeconds ?? 30,
+                 printer.Version,
+                 printer.IsDeleted);
         }
 
         public async Task<IEnumerable<PrinterDto>> GetAllAsync(
@@ -52,9 +53,10 @@ namespace ZEN.Infrastructure.Services
                 p.ApiSecret,
                 p.DeviceId,
                 p.PointOfSaleId,
-                p.FiscalCloudBaseUrl,
-                p.Version,
-                p.IsDeleted));
+                 p.FiscalCloudBaseUrl,
+                 p.FiscalCloudTimeoutSeconds ?? 30,
+                 p.Version,
+                 p.IsDeleted));
         }
 
         public IEnumerable<PrinterDto> GetAll()
@@ -71,9 +73,10 @@ namespace ZEN.Infrastructure.Services
                 p.ApiSecret,
                 p.DeviceId,
                 p.PointOfSaleId,
-                p.FiscalCloudBaseUrl,
-                p.Version,
-                p.IsDeleted));
+                 p.FiscalCloudBaseUrl,
+                 p.FiscalCloudTimeoutSeconds ?? 30,
+                 p.Version,
+                 p.IsDeleted));
         }
 
         public async Task<IEnumerable<PrinterDto>> GetFiscalPrintersAsync(CancellationToken cancellationToken = default)
@@ -90,9 +93,10 @@ namespace ZEN.Infrastructure.Services
                 p.ApiSecret,
                 p.DeviceId,
                 p.PointOfSaleId,
-                p.FiscalCloudBaseUrl,
-                p.Version,
-                p.IsDeleted));
+                 p.FiscalCloudBaseUrl,
+                 p.FiscalCloudTimeoutSeconds ?? 30,
+                 p.Version,
+                 p.IsDeleted));
         }
 
         public async Task<PrinterDto> CreateAsync(CreatePrinterRequest request, CancellationToken cancellationToken = default)
@@ -108,9 +112,10 @@ namespace ZEN.Infrastructure.Services
                 ApiKey = request.ApiKey,
                 ApiSecret = request.ApiSecret,
                 DeviceId = request.DeviceId,
-                PointOfSaleId = request.PointOfSaleId,
-                FiscalCloudBaseUrl = request.FiscalCloudBaseUrl
-            };
+                 PointOfSaleId = request.PointOfSaleId,
+                 FiscalCloudBaseUrl = request.FiscalCloudBaseUrl,
+                 FiscalCloudTimeoutSeconds = request.FiscalCloudTimeoutSeconds
+             };
 
             _dbContext.Printers.Add(printer);
             await _dbContext.SaveChangesAsync(cancellationToken);
@@ -127,6 +132,7 @@ namespace ZEN.Infrastructure.Services
                 printer.DeviceId,
                 printer.PointOfSaleId,
                 printer.FiscalCloudBaseUrl,
+                printer.FiscalCloudTimeoutSeconds ?? 30,
                 printer.Version,
                 printer.IsDeleted);
         }
@@ -155,8 +161,9 @@ namespace ZEN.Infrastructure.Services
             printer.ApiKey = request.ApiKey;
             printer.ApiSecret = request.ApiSecret;
             printer.DeviceId = request.DeviceId;
-            printer.PointOfSaleId = request.PointOfSaleId;
-            printer.FiscalCloudBaseUrl = request.FiscalCloudBaseUrl;
+             printer.PointOfSaleId = request.PointOfSaleId;
+             printer.FiscalCloudBaseUrl = request.FiscalCloudBaseUrl;
+             printer.FiscalCloudTimeoutSeconds = request.FiscalCloudTimeoutSeconds;
 
             await _dbContext.SaveChangesAsync(cancellationToken);
 
@@ -171,9 +178,10 @@ namespace ZEN.Infrastructure.Services
                 printer.ApiSecret,
                 printer.DeviceId,
                 printer.PointOfSaleId,
-                printer.FiscalCloudBaseUrl,
-                printer.Version,
-                printer.IsDeleted);
+                 printer.FiscalCloudBaseUrl,
+                 printer.FiscalCloudTimeoutSeconds ?? 30,
+                 printer.Version,
+                 printer.IsDeleted);
         }
 
         public async Task<bool> DeleteAsync(Guid id, CancellationToken cancellationToken = default, long baseVersion = 0)

@@ -76,6 +76,7 @@ public sealed class PosPrinterService
             existing.DeviceId = dto.DeviceId;
             existing.PointOfSaleId = dto.PointOfSaleId;
             existing.FiscalCloudBaseUrl = dto.FiscalCloudBaseUrl;
+            existing.FiscalCloudTimeoutSeconds = dto.FiscalCloudTimeoutSeconds;
             existing.Version = dto.Version;
             existing.IsDeleted = dto.IsDeleted;
         }

@@ -278,5 +278,24 @@ public static class DbSeeder
                 await userManager.AddToRoleAsync(cashierUser, "Cashier");
             }
         }
+
+        // Recover existing "Completed" sales that were persisted before the fiscal
+        // fix shipped. Those sales had Status = Completed set optimistically and may
+        // never have received a fiscal receipt. Mark them Failed so they are not
+        // reported as successful taxable transactions.
+        var salesWithoutReceipts = await context.Sales
+            .Where(s => s.Status == SaleStatus.Completed && !s.FiscalReceipts.Any())
+            .ToListAsync();
+
+        foreach (var sale in salesWithoutReceipts)
+        {
+            sale.Status = SaleStatus.Failed;
+            sale.Notes = "Fiscal receipt not found. This sale predates the fiscal fix. Verify in FiscalCloud agent.";
+        }
+
+        if (salesWithoutReceipts.Any())
+        {
+            await context.SaveChangesAsync();
+        }
     }
 }

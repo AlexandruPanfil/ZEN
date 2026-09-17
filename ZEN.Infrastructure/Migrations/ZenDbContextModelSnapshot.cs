@@ -1355,6 +1355,9 @@ namespace ZEN.Infrastructure.Migrations
                     b.Property<string>("FiscalCloudBaseUrl")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<int?>("FiscalCloudTimeoutSeconds")
+                        .HasColumnType("int");
+
                     b.Property<int?>("FiscalDeviceType")
                         .HasColumnType("int");
 

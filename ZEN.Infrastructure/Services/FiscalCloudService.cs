@@ -15,6 +15,11 @@ public class FiscalCloudService : IFiscalCloudService
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly ILogger<FiscalCloudService> _logger;
 
+    // FiscalCloud agent is single-threaded — only one operation at a time.
+    // Static => shared across ALL scoped service instances within the process,
+    // so concurrent API requests are serialized rather than racing the agent.
+    private static readonly SemaphoreSlim _fiscalLock = new(1, 1);
+
     public FiscalCloudService(IHttpClientFactory httpClientFactory, ILogger<FiscalCloudService> logger)
     {
         _httpClientFactory = httpClientFactory;
@@ -229,7 +234,8 @@ public class FiscalCloudService : IFiscalCloudService
             body);
 
         var httpClient = _httpClientFactory.CreateClient();
-        httpClient.Timeout = TimeSpan.FromSeconds(30); // Increased timeout for fiscal operations
+        var fiscalTimeoutSeconds = printer.FiscalCloudTimeoutSeconds ?? 30;
+        httpClient.Timeout = TimeSpan.FromSeconds(fiscalTimeoutSeconds);
 
         // Ensure we have a valid base URL.
         // FiscalCloud runs as a local agent by default (swagger server default: http://localhost:50700).
@@ -262,6 +268,20 @@ public class FiscalCloudService : IFiscalCloudService
         string responseContent = string.Empty;
         var responseStatus = 0;
 
+        // Serialize concurrent FiscalCloud HTTP calls — the local agent is
+        // single-threaded and returns "busy" errors under concurrent load.
+        var lockAcquired = await _fiscalLock.WaitAsync(TimeSpan.FromSeconds(30), cancellationToken);
+        if (cancellationToken.IsCancellationRequested || !lockAcquired)
+        {
+            if (!lockAcquired)
+            {
+                _logger.LogWarning(
+                    "Timed out waiting for FiscalCloud lock after 30 seconds. The agent at {BaseUrl} may be stuck.",
+                    baseUrl);
+            }
+            return default;
+        }
+
         try
         {
             using var httpResponse = await httpClient.SendAsync(httpRequest, cancellationToken);
@@ -291,7 +311,7 @@ public class FiscalCloudService : IFiscalCloudService
         }
         catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException || ex.Message.Contains("timeout"))
         {
-            var errorMsg = $"FiscalCloud request timed out after 30 seconds. Check if agent at {baseUrl} is responsive.";
+            var errorMsg = $"FiscalCloud request timed out after {fiscalTimeoutSeconds} seconds. Check if agent at {baseUrl} is responsive.";
             _logger.LogError(ex, errorMsg);
             throw new InvalidOperationException(errorMsg, ex);
         }
@@ -304,6 +324,7 @@ public class FiscalCloudService : IFiscalCloudService
         finally
         {
             TraceExchange(printer, method, requestUri, body, timestamp, signature, responseStatus, responseContent);
+            _fiscalLock.Release();
         }
 
         // The FiscalCloud agent returns JSON error envelopes (including for 4xx

@@ -6,6 +6,7 @@ using ZEN.ApiService.Hubs;
 using ZEN.Application;
 using ZEN.Infrastructure;
 using ZEN.Infrastructure.Services;
+using ZEN.Infrastructure.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -39,6 +40,9 @@ builder.Services.AddHttpContextAccessor();
 
 // Add SignalR
 builder.Services.AddSignalR();
+
+// Register background service to clean up stale Waiting sales
+builder.Services.AddHostedService<StaleSaleCleanupService>();
 
 // JWT Authentication
 var jwtKey = builder.Configuration["Jwt:Key"] ?? throw new InvalidOperationException("JWT Key not configured");

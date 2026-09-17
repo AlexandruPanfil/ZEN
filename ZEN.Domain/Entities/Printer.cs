@@ -16,4 +16,5 @@ public class Printer : BaseEntity
     public string? DeviceId { get; set; }
     public string? PointOfSaleId { get; set; }
     public string? FiscalCloudBaseUrl { get; set; }
+    public int? FiscalCloudTimeoutSeconds { get; set; }
 }

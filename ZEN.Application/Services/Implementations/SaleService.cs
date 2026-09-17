@@ -78,7 +78,7 @@ public class SaleService : ISaleService
             PaidAmount = request.Payments.Sum(p => p.Amount),
             ChangeAmount = 0,
             LoyaltyPointsRedeemed = request.LoyaltyPointsRedeemed ?? 0,
-            Status = SaleStatus.Completed,
+            Status = SaleStatus.Waiting,
             Notes = null
         };
 
@@ -155,6 +155,12 @@ public class SaleService : ISaleService
                         // Return a failed sale DTO
                         return MapToDto(sale, false, fiscalResult.ErrorMessage);
                     }
+
+                    // FiscalCloud succeeded — transition sale from Waiting to Completed
+                    sale.Status = SaleStatus.Completed;
+                    sale.Notes = null;
+                    _saleRepository.Update(sale);
+                    await _unitOfWork.SaveChangesAsync(cancellationToken);
                 }
                 else
                 {

@@ -215,6 +215,16 @@ else
                                 <MudItem xs="12">
                                     <MudTextField Label="Base URL" Variant="Variant.Outlined" @bind-Value="_editingPrinter.FiscalCloudBaseUrl" Margin="Margin.Dense" Style="font-size: 0.8rem;" Placeholder="http://localhost:50700" HelperText="Default: http://localhost:50700 (local agent)" />
                                 </MudItem>
+                                <MudItem xs="12" sm="6">
+                                    <MudTextField Label="FiscalCloud Timeout (seconds)"
+                                                  Variant="Variant.Outlined"
+                                                  @bind-Value="_editingPrinter.FiscalCloudTimeoutSeconds"
+                                                  Margin="Margin.Dense"
+                                                  Style="font-size: 0.8rem;"
+                                                  Placeholder="30"
+                                                  HelperText="HTTP timeout for fiscal operations. Default: 30s. Range: 10-300."
+                                                  InputType="InputType.Number" />
+                                </MudItem>
                                 <MudItem xs="12">
                                     <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Wifi" OnClick="TestFiscalCloudConnectionFromModal" Size="Size.Small" Disabled="@_isTestingConnection">
                                         @if (_isTestingConnection)
@@ -351,7 +361,7 @@ else
     private void OpenEditDialog(PrinterDto printer)
     {
         _isEditMode = true;
-        _editingPrinter = new PrinterFormModel
+            _editingPrinter = new PrinterFormModel
         {
             Id = printer.Id,
             Name = printer.Name,
@@ -363,7 +373,8 @@ else
             ApiSecret = printer.ApiSecret,
             DeviceId = printer.DeviceId,
             PointOfSaleId = printer.PointOfSaleId,
-            FiscalCloudBaseUrl = printer.FiscalCloudBaseUrl
+            FiscalCloudBaseUrl = printer.FiscalCloudBaseUrl,
+            FiscalCloudTimeoutSeconds = (int?)printer.FiscalCloudTimeoutSeconds
         };
         _isDialogOpen = true;
     }
@@ -426,6 +437,16 @@ else
                         Snackbar.Add($"Please replace placeholder values for: {string.Join(", ", placeholderFields)} with actual credentials.", Severity.Warning);
                     }
                 }
+
+                if (_editingPrinter.FiscalCloudTimeoutSeconds.HasValue)
+                {
+                    var timeout = _editingPrinter.FiscalCloudTimeoutSeconds.Value;
+                    if (timeout < 10 || timeout > 300)
+                    {
+                        Snackbar.Add("FiscalCloud timeout must be between 10 and 300 seconds.", Severity.Error);
+                        return;
+                    }
+                }
             }
             _isSaving = true;
             Task saveTask;
@@ -442,7 +463,8 @@ else
                     _editingPrinter.ApiSecret,
                     _editingPrinter.DeviceId,
                     _editingPrinter.PointOfSaleId,
-                    _editingPrinter.FiscalCloudBaseUrl);
+                    _editingPrinter.FiscalCloudBaseUrl,
+                    _editingPrinter.FiscalCloudTimeoutSeconds);
                 saveTask = PersistUpdateAsync(request);
             }
             else
@@ -457,7 +479,8 @@ else
                     _editingPrinter.ApiSecret,
                     _editingPrinter.DeviceId,
                     _editingPrinter.PointOfSaleId,
-                    _editingPrinter.FiscalCloudBaseUrl);
+                    _editingPrinter.FiscalCloudBaseUrl,
+                    _editingPrinter.FiscalCloudTimeoutSeconds);
                 saveTask = PersistCreateAsync(request);
             }
             if (closeDialog)
@@ -689,6 +712,7 @@ else
         public string? DeviceId { get; set; }
         public string? PointOfSaleId { get; set; }
         public string? FiscalCloudBaseUrl { get; set; }
+        public int? FiscalCloudTimeoutSeconds { get; set; }
     }
 }
 

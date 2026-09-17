@@ -27,8 +27,9 @@ namespace ZEN.Application.Services.Interfaces
         string? ApiSecret,
         string? DeviceId,
         string? PointOfSaleId,
-        string? FiscalCloudBaseUrl,
-        Guid? Id = null);
+         string? FiscalCloudBaseUrl,
+         int? FiscalCloudTimeoutSeconds = null,
+         Guid? Id = null);
 
     public record UpdatePrinterRequest(
         Guid Id,
@@ -41,6 +42,7 @@ namespace ZEN.Application.Services.Interfaces
         string? ApiSecret,
         string? DeviceId,
         string? PointOfSaleId,
-        string? FiscalCloudBaseUrl,
-        long BaseVersion = 0);
+         string? FiscalCloudBaseUrl,
+         int? FiscalCloudTimeoutSeconds = null,
+         long BaseVersion = 0);
 }

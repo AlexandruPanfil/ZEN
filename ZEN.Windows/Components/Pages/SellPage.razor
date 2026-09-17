@@ -1,10 +1,11 @@
 @page "/sell"
 @inject NavigationManager Navigation
-@inject ZEN.Windows.Services.PosAuthState PosAuthState
-@inject ISnackbar Snackbar
-@inject ZEN.Windows.Services.Sync.SyncApiClient ApiClient
-@inject ZEN.Windows.Services.CashDeskHeartbeatService HeartbeatService
-@inject IDialogService DialogService
+ @inject ZEN.Windows.Services.PosAuthState PosAuthState
+ @inject ISnackbar Snackbar
+ @inject ZEN.Windows.Services.Sync.SyncApiClient ApiClient
+ @inject ZEN.Windows.Services.PosPrinterService PrinterService
+ @inject ZEN.Windows.Services.CashDeskHeartbeatService HeartbeatService
+ @inject IDialogService DialogService
 @using ZEN.Windows.Components.POS
 @using ZEN.Application.DTOs.Sales
 
@@ -44,6 +45,15 @@
                               OnHoldSale="HoldSale"
                               OnResumeSale="ResumeSale"
                               OnProcessPayment="ProcessPayment" />
+                @if (IsProcessingSale)
+                {
+                    <MudPaper Class="pa-2 mt-2" Style="background: #fff3cd; border-left: 4px solid #ffc107;">
+                        <MudProgress Linear="true" Indeterminate="true" Color="Color.Info" Size="Size.Small" Class="mt-1" />
+<MudText Typo="Typo.caption" Style="color: #856404;">
+    Waiting for fiscal printer... (this may take some time)
+</MudText>
+                    </MudPaper>
+                }
             </FooterContent>
         </SellPageLayout>
     }
@@ -307,6 +317,7 @@ private async Task LoadProductsAsync()
     private bool ShowPaymentModal = false;
     private List<Domain.Enums.PaymentMethod> AvailableModalMethods = new();
     private List<ZEN.Application.DTOs.Admin.PaymentTerminalDto> ModalTerminals = new();
+    private bool IsProcessingSale = false;
 
     private async Task ProcessPayment()
     {
@@ -434,7 +445,30 @@ private async Task LoadProductsAsync()
             Console.WriteLine($"Request built. Total amount: {TotalAmount}, Items: {Cart.Count}, Payments: {paymentRequests.Count}");
             Console.WriteLine($"Calling ApiClient.CreateSaleWithResultAsync...");
 
-            var (sale, error) = await ApiClient.CreateSaleWithResultAsync(request);
+            // Look up the fiscal printer timeout from cached printers
+            int? fiscalTimeoutSeconds = null;
+            try
+            {
+                var printers = await PrinterService.GetCachedAsync();
+                var fiscalPrinter = printers.FirstOrDefault(p =>
+                    string.Equals(p.PrinterType, "Fiscal", StringComparison.OrdinalIgnoreCase) && p.IsActive && !p.IsDeleted);
+                fiscalTimeoutSeconds = fiscalPrinter?.FiscalCloudTimeoutSeconds;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[SellPage] Error looking up fiscal printer timeout: {ex.Message}");
+            }
+
+            var fiscalTimeoutText = fiscalTimeoutSeconds.HasValue ? fiscalTimeoutSeconds.Value.ToString() : "default (120s)";
+            Console.WriteLine($"[SellPage] Using fiscal timeout: {fiscalTimeoutText}");
+
+            IsProcessingSale = true;
+            StateHasChanged();
+
+            var (sale, error) = await ApiClient.CreateSaleWithResultAsync(request, cancellationToken: default, timeoutSeconds: fiscalTimeoutSeconds);
+
+            IsProcessingSale = false;
+            StateHasChanged();
 
             Console.WriteLine($"API response received: {(sale != null ? $"Success - Receipt #{sale.Number}" : $"Failed - {error}")}");
 
@@ -461,6 +495,7 @@ private async Task LoadProductsAsync()
                     else if (errorMsg.Contains("timed out") || errorMsg.Contains("timeout"))
                     {
                         Snackbar.Add("FiscalCloud agent may be slow or unreachable. Check if agent is running on port 50700.", Severity.Warning);
+                        Snackbar.Add("Sale may still be processing on the server. Check fiscal receipts in ZEN.Web.", Severity.Warning);
                     }
                     else if (errorMsg.Contains("authentication") || errorMsg.Contains("Unauthorized"))
                     {
@@ -505,6 +540,7 @@ private async Task LoadProductsAsync()
                     else if (errorMsg.Contains("timed out") || errorMsg.Contains("timeout"))
                     {
                         Snackbar.Add("FiscalCloud agent may be slow or unreachable. Check if agent is running on port 50700.", Severity.Warning);
+                        Snackbar.Add("Sale may still be processing on the server. Check fiscal receipts in ZEN.Web.", Severity.Warning);
                     }
                     else if (errorMsg.Contains("authentication") || errorMsg.Contains("Unauthorized"))
                     {

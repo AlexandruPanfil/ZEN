@@ -98,14 +98,27 @@
 
 @if (_editingPrinter.PrinterType == "Fiscal")
                 {
-                    <MudItem xs="12">
-                        <MudText Typo="Typo.subtitle2" Class="mt-2 mb-2 font-weight-bold">Fiscal Device Configuration</MudText>
-                        <MudSelect T="string" Label="Fiscal Device Type" Variant="Variant.Outlined" @bind-Value="_editingPrinter.FiscalDeviceType" AnchorOrigin="Origin.BottomLeft" Margin="Margin.Dense" Style="font-size: 0.8rem;" Required="true">
-                            <MudSelectItem T="string" Value="@("FiscalCloud")">FiscalCloud</MudSelectItem>
-                            <MudSelectItem T="string" Value="@("ISFiscalCloud")">IS Fiscal Cloud</MudSelectItem>
-                            <MudSelectItem T="string" Value="@("SLFiscalRegister")">SL Fiscal Register</MudSelectItem>
-                        </MudSelect>
-                    </MudItem>
+            <MudItem xs="12">
+                <MudText Typo="Typo.subtitle2" Class="mt-2 mb-2 font-weight-bold">Advanced Settings</MudText>
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudTextField Label="FiscalCloud Timeout (seconds)"
+                              Variant="Variant.Outlined"
+                              @bind-Value="_editingPrinter.FiscalCloudTimeoutSeconds"
+                              Margin="Margin.Dense"
+                              Style="font-size: 0.8rem;"
+                              Placeholder="30"
+                              HelperText="HTTP timeout for fiscal operations. Default: 30s. Range: 10-300."
+                              InputType="InputType.Number" />
+            </MudItem>
+            <MudItem xs="12">
+                <MudText Typo="Typo.subtitle2" Class="mt-2 mb-2 font-weight-bold">Fiscal Device Configuration</MudText>
+                <MudSelect T="string" Label="Fiscal Device Type" Variant="Variant.Outlined" @bind-Value="_editingPrinter.FiscalDeviceType" AnchorOrigin="Origin.BottomLeft" Margin="Margin.Dense" Style="font-size: 0.8rem;" Required="true">
+                    <MudSelectItem T="string" Value="@("FiscalCloud")">FiscalCloud</MudSelectItem>
+                    <MudSelectItem T="string" Value="@("ISFiscalCloud")">IS Fiscal Cloud</MudSelectItem>
+                    <MudSelectItem T="string" Value="@("SLFiscalRegister")">SL Fiscal Register</MudSelectItem>
+                </MudSelect>
+            </MudItem>
                     <MudItem xs="12">
                         <MudAlert Severity="Severity.Info" Class="mb-3" Variant="Variant.Filled">
                             <MudText Typo="Typo.caption">
@@ -291,20 +304,21 @@
     private void OpenEditDialog(PrinterDto printer)
     {
         _isEditMode = true;
-        _editingPrinter = new PrinterFormModel
-        {
-            Id = printer.Id,
-            Name = printer.Name,
-            PrinterType = printer.PrinterType,
-            FiscalDeviceType = printer.FiscalDeviceType,
-            IsDefault = printer.IsDefault,
-            IsActive = printer.IsActive,
-            ApiKey = printer.ApiKey,
-            ApiSecret = printer.ApiSecret,
-            DeviceId = printer.DeviceId,
-            PointOfSaleId = printer.PointOfSaleId,
-            FiscalCloudBaseUrl = printer.FiscalCloudBaseUrl
-        };
+            _editingPrinter = new PrinterFormModel
+         {
+             Id = printer.Id,
+             Name = printer.Name,
+             PrinterType = printer.PrinterType,
+             FiscalDeviceType = printer.FiscalDeviceType,
+             IsDefault = printer.IsDefault,
+             IsActive = printer.IsActive,
+             ApiKey = printer.ApiKey,
+             ApiSecret = printer.ApiSecret,
+             DeviceId = printer.DeviceId,
+             PointOfSaleId = printer.PointOfSaleId,
+             FiscalCloudBaseUrl = printer.FiscalCloudBaseUrl,
+             FiscalCloudTimeoutSeconds = (int?)printer.FiscalCloudTimeoutSeconds
+         };
         _isDialogOpen = true;
     }
 
@@ -371,7 +385,17 @@
                 }
             }
 
-            if (_isEditMode)
+                if (_editingPrinter.FiscalCloudTimeoutSeconds.HasValue)
+                {
+                    var timeout = _editingPrinter.FiscalCloudTimeoutSeconds.Value;
+                    if (timeout < 10 || timeout > 300)
+                    {
+                        Snackbar.Add($"FiscalCloud timeout must be between 10 and 300 seconds.", Severity.Error);
+                        return;
+                    }
+                }
+
+                if (_isEditMode)
             {
                 var request = new UpdatePrinterRequest(
                     _editingPrinter.Id,
@@ -384,7 +408,8 @@
                     _editingPrinter.ApiSecret,
                     _editingPrinter.DeviceId,
                     _editingPrinter.PointOfSaleId,
-                    _editingPrinter.FiscalCloudBaseUrl);
+                    _editingPrinter.FiscalCloudBaseUrl,
+                    _editingPrinter.FiscalCloudTimeoutSeconds);
                 await PrinterService.UpdateAsync(request);
                 Snackbar.Add("Printer updated successfully.", Severity.Success);
             }
@@ -400,7 +425,8 @@
                     _editingPrinter.ApiSecret,
                     _editingPrinter.DeviceId,
                     _editingPrinter.PointOfSaleId,
-                    _editingPrinter.FiscalCloudBaseUrl);
+                    _editingPrinter.FiscalCloudBaseUrl,
+                    _editingPrinter.FiscalCloudTimeoutSeconds);
                 var created = await PrinterService.CreateAsync(request);
                 // Keep editing the newly created printer so subsequent actions (e.g. test) target it
                 _editingPrinter.Id = created.Id;
@@ -556,5 +582,6 @@
         public string? DeviceId { get; set; }
         public string? PointOfSaleId { get; set; }
         public string? FiscalCloudBaseUrl { get; set; }
+        public int? FiscalCloudTimeoutSeconds { get; set; }
     }
 }
