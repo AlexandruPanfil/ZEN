@@ -86,7 +86,7 @@ app.MapGet("/", () => "ZEN POS API is running.");
 app.MapGroup("/api/auth").MapAuthEndpoints();
 app.MapGroup("/api/products").RequireAuthorization().MapProductEndpoints();
 app.MapGroup("/api/categories").RequireAuthorization().MapCategoryEndpoints();
-app.MapGroup("/api/brands").RequireAuthorization().MapBrandEndpoints();
+app.MapGroup("/api/products/groups").RequireAuthorization().MapProductGroupEndpoints();
 app.MapGroup("/api/taxes").RequireAuthorization().MapTaxEndpoints();
 app.MapGroup("/api/discounts").RequireAuthorization().MapDiscountEndpoints();
 app.MapGroup("/api/promotions").RequireAuthorization().MapPromotionEndpoints();

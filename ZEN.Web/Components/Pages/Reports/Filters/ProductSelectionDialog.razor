@@ -57,7 +57,7 @@
                 <MudTd>@context.Name</MudTd>
                 <MudTd>@context.Barcode</MudTd>
                 <MudTd>@context.CategoryName</MudTd>
-                <MudTd>@context.BrandName</MudTd>
+                <MudTd>@context.ProductGroupName</MudTd>
             </RowTemplate>
         </MudTable>
     </DialogContent>
@@ -77,7 +77,7 @@
     private List<ProductDto> _filteredProducts = new();
     private HashSet<ProductDto> _selectedItems = new();
     private List<CategoryDto> _categories = new();
-    private List<BrandDto> _groups = new();
+    private List<ProductGroupDto> _groups = new();
     private Guid? _selectedCategoryId = null;
     private Guid? _selectedGroupId = null;
 
@@ -92,7 +92,7 @@
         {
             _allProducts = (await ProductService.GetAllAsync()).ToList();
             _categories = (await ProductService.GetCategoriesAsync()).ToList();
-            _groups = (await ProductService.GetBrandsAsync()).ToList();
+            _groups = (await ProductService.GetProductGroupsAsync()).ToList();
             
             ApplyFilters();
             
@@ -130,7 +130,7 @@
         
         if (_selectedGroupId.HasValue && _selectedGroupId.Value != Guid.Empty)
         {
-            query = query.Where(p => p.BrandId == _selectedGroupId.Value);
+            query = query.Where(p => p.ProductGroupId == _selectedGroupId.Value);
         }
         
         _filteredProducts = query.Take(200).ToList();

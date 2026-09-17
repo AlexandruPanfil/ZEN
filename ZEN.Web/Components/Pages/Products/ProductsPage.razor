@@ -5,7 +5,7 @@
 @using ZEN.Web.Components.Dialogs
 @inject IProductService ProductService
 @inject ICategoryService CategoryService
-@inject IBrandService BrandService
+@inject IProductGroupService ProductGroupService
 @inject ITaxService TaxService
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
@@ -53,7 +53,7 @@
                     <MudTh Style="text-align: right; font-size: 0.77rem; font-weight: 700;"><MudTableSortLabel SortBy="new Func<ProductDto, object>(x => x.CostPrice)">Cost Price</MudTableSortLabel></MudTh>
                     <MudTh Style="text-align: right; font-size: 0.77rem; font-weight: 700;"><MudTableSortLabel SortBy="new Func<ProductDto, object>(x => x.SalePrice)">Retail Price</MudTableSortLabel></MudTh>
                     <MudTh Style="font-size: 0.77rem; font-weight: 700;">Category</MudTh>
-                    <MudTh Style="font-size: 0.77rem; font-weight: 700;">Brand Axis</MudTh>
+                    <MudTh Style="font-size: 0.77rem; font-weight: 700;">Product Group</MudTh>
                     <MudTh Style="font-size: 0.77rem; font-weight: 700;">Tax (TVA)</MudTh>
                     <MudTh Style="font-size: 0.77rem; font-weight: 700;">Status</MudTh>
                     <MudTh Style="text-align: right; min-width: 90px; font-size: 0.77rem; font-weight: 700;">Actions</MudTh>
@@ -67,7 +67,7 @@
                     <MudTd DataLabel="Cost" Style="text-align: right; font-size: 0.75rem; padding: 4px 8px;">@product.CostPrice.ToString("C")</MudTd>
                     <MudTd DataLabel="Sale Price" Style="text-align: right; font-size: 0.75rem; padding: 4px 8px;" Class="font-weight-bold text-success">@product.SalePrice.ToString("C")</MudTd>
                     <MudTd DataLabel="Category" Style="font-size: 0.75rem; padding: 4px 8px;">@product.CategoryName</MudTd>
-                    <MudTd DataLabel="Brand" Style="font-size: 0.75rem; padding: 4px 8px;">@product.BrandName</MudTd>
+                    <MudTd DataLabel="Product Group" Style="font-size: 0.75rem; padding: 4px 8px;">@product.ProductGroupName</MudTd>
                     <MudTd DataLabel="Tax" Style="font-size: 0.75rem; padding: 4px 8px;">@(product.TaxName != null ? $"{product.TaxName} ({product.TaxRate}%)" : "—")</MudTd>
                     <MudTd DataLabel="Status" Style="padding: 2px 8px;">
                         <MudChip T="string" Color="@(product.IsActive ? Color.Success : Color.Error)" Variant="Variant.Text" Size="Size.Small" Class="font-weight-bold pa-0" Style="font-size: 0.72rem; margin: 0;">
@@ -95,7 +95,7 @@
                     <MudText Typo="Typo.subtitle2" Class="font-weight-bold">System Lookups</MudText>
                     <MudToggleGroup T="string" @bind-Value="_activeLookupTab" Color="Color.Primary" Size="Size.Small" Outline="true">
                         <MudToggleItem Value="@("categories")">Categories</MudToggleItem>
-                        <MudToggleItem Value="@("brands")">Brands</MudToggleItem>
+                        <MudToggleItem Value="@("product-groups")">Product Groups</MudToggleItem>
                     </MudToggleGroup>
                 </div>
 
@@ -129,18 +129,24 @@
                 else
                 {
                     <div class="d-flex align-center justify-space-between mb-2">
-                        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="font-weight-bold">Product Brands Registry</MudText>
-                        <MudIconButton Icon="@Icons.Material.Filled.AddCircle" Color="Color.Primary" Size="Size.Small" OnClick="OpenInlineBrandDialog" />
+                        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="font-weight-bold">Product Groups Registry</MudText>
+                        <MudIconButton Icon="@Icons.Material.Filled.AddCircle" Color="Color.Primary" Size="Size.Small" OnClick="OpenInlineProductGroupDialog" />
                     </div>
                     <div style="max-height: 520px; overflow-y: auto;">
-                        <MudList T="BrandDto" Dense="true" Clickable="false" Class="pa-0">
-                            @foreach (var brand in _brands)
+                        <MudList T="ProductGroupDto" Dense="true" Clickable="false" Class="pa-0">
+                            @foreach (var pg in _productGroups)
                             {
                                 <div class="d-flex align-center justify-space-between mud-width-full py-1 border-bottom border-solid mud-border-default">
-                                    <MudText Typo="Typo.caption" Class="font-weight-bold">@brand.Name</MudText>
+                                    <div class="d-flex flex-column">
+                                        <MudText Typo="Typo.caption" Class="font-weight-bold">@pg.Name</MudText>
+                                        @if (!string.IsNullOrWhiteSpace(pg.ParentGroupName))
+                                        {
+                                            <MudText Typo="Typo.caption" Style="font-size: 0.7rem;" Color="Color.Secondary">Parent: @pg.ParentGroupName</MudText>
+                                        }
+                                    </div>
                                     <div class="d-flex">
-                                        <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" Color="Color.Info" Class="pa-1" OnClick="() => OpenEditBrandInline(brand)" />
-                                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" Class="pa-1" OnClick="() => DeleteBrandInline(brand)" />
+                                        <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" Color="Color.Info" Class="pa-1" OnClick="() => OpenEditProductGroupInline(pg)" />
+                                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" Class="pa-1" OnClick="() => DeleteProductGroupInline(pg)" />
                                     </div>
                                 </div>
                             }
@@ -191,11 +197,11 @@
                     </MudSelect>
                 </MudItem>
                 <MudItem xs="12" sm="6">
-                    <MudSelect T="Guid?" Label="Brand Context Label" Variant="Variant.Outlined" @bind-Value="_editingProduct.BrandId" AnchorOrigin="Origin.BottomLeft" Margin="Margin.Dense" Style="font-size: 0.8rem;">
-                        <MudSelectItem T="Guid?" Value="@(null)">Generic Brand Entity</MudSelectItem>
-                        @foreach (var brand in _brands)
+                    <MudSelect T="Guid?" Label="Product Group" Variant="Variant.Outlined" @bind-Value="_editingProduct.ProductGroupId" AnchorOrigin="Origin.BottomLeft" Margin="Margin.Dense" Style="font-size: 0.8rem;">
+                        <MudSelectItem T="Guid?" Value="@(null)">Unassigned / Base Context</MudSelectItem>
+                        @foreach (var pg in _productGroups)
                         {
-                            <MudSelectItem T="Guid?" Value="@brand.Id">@brand.Name</MudSelectItem>
+                            <MudSelectItem T="Guid?" Value="@pg.Id">@pg.Name</MudSelectItem>
                         }
                     </MudSelect>
                 </MudItem>
@@ -265,31 +271,43 @@
     </DialogActions>
 </MudDialog>
 
-<!-- Sub-Dialog Wrapper for Brand CRUD Forms -->
-<MudDialog @bind-Visible="_isBrandDialogOpen" Options="new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseButton = true }">
+<!-- Sub-Dialog Wrapper for Product Group CRUD Forms -->
+<MudDialog @bind-Visible="_isProductGroupDialogOpen" Options="new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseButton = true }">
     <TitleContent>
         <MudText Typo="Typo.subtitle1" Class="font-weight-bold">
-            <MudIcon Icon="@Icons.Material.Filled.Stars" Class="mr-2" /> @(_isLookupEditMode ? "Modify Brand" : "Add Brand Entry")
+            <MudIcon Icon="@Icons.Material.Filled.Category" Class="mr-2" /> @(_isLookupEditMode ? "Modify Product Group" : "Add Product Group Entry")
         </MudText>
     </TitleContent>
     <DialogContent>
-        <MudForm @ref="_brandForm" @bind-IsValid="@_brandFormIsValid">
+        <MudForm @ref="_productGroupForm" @bind-IsValid="@_productGroupFormIsValid">
             <MudGrid Spacing="2">
                 <MudItem xs="12">
-                    <MudTextField Label="Brand Name" Variant="Variant.Outlined" @bind-Value="_editingBrand.Name" Required="true" For="@(() => _editingBrand.Name)" Margin="Margin.Dense" Style="font-size: 0.8rem;" />
+                    <MudTextField Label="Product Group Name" Variant="Variant.Outlined" @bind-Value="_editingProductGroup.Name" Required="true" For="@(() => _editingProductGroup.Name)" Margin="Margin.Dense" Style="font-size: 0.8rem;" />
                 </MudItem>
                 <MudItem xs="12">
-                    <MudTextField Label="Description" Variant="Variant.Outlined" @bind-Value="_editingBrand.Description" Multiline="true" Lines="2" Margin="Margin.Dense" Style="font-size: 0.8rem;" />
+                    <MudTextField Label="Description" Variant="Variant.Outlined" @bind-Value="_editingProductGroup.Description" Multiline="true" Lines="2" Margin="Margin.Dense" Style="font-size: 0.8rem;" />
                 </MudItem>
                 <MudItem xs="12">
-                    <MudSwitch @bind-Value="_editingBrand.IsActive" Color="Color.Primary" Label="Active" Dense="true" Style="font-size: 0.75rem;" />
+                    <MudSelect T="Guid?" Label="Parent Group" Variant="Variant.Outlined" @bind-Value="_editingProductGroup.ParentGroupId" AnchorOrigin="Origin.BottomLeft" Margin="Margin.Dense" Style="font-size: 0.8rem;">
+                        <MudSelectItem T="Guid?" Value="@null">None</MudSelectItem>
+                        @foreach (var pg in _productGroups.Where(c => c.Id != _editingProductGroup.Id))
+                        {
+                            <MudSelectItem T="Guid?" Value="@pg.Id">@pg.Name</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudNumericField @bind-Value="_editingProductGroup.SortOrder" Label="Sort Order" Min="0" Variant="Variant.Outlined" Margin="Margin.Dense" Style="font-size: 0.8rem;" />
+                </MudItem>
+                <MudItem xs="12" sm="6" Class="d-flex align-center">
+                    <MudSwitch @bind-Value="_editingProductGroup.IsActive" Color="Color.Primary" Label="Active" Dense="true" Style="font-size: 0.75rem;" />
                 </MudItem>
             </MudGrid>
         </MudForm>
     </DialogContent>
     <DialogActions>
-        <MudButton OnClick="(() => _isBrandDialogOpen = false)" Size="Size.Small">Cancel</MudButton>
-        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveBrandInline" Disabled="@(!_brandFormIsValid)" Size="Size.Small">@(_isLookupEditMode ? "Update" : "Create")</MudButton>
+        <MudButton OnClick="(() => _isProductGroupDialogOpen = false)" Size="Size.Small">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveProductGroupInline" Disabled="@(!_productGroupFormIsValid)" Size="Size.Small">@(_isLookupEditMode ? "Update" : "Create")</MudButton>
     </DialogActions>
 </MudDialog>
 
@@ -305,7 +323,7 @@
 @code {
     private IEnumerable<ProductDto> _products = new List<ProductDto>();
     private IEnumerable<CategoryDto> _categories = new List<CategoryDto>();
-    private IEnumerable<BrandDto> _brands = new List<BrandDto>();
+    private IEnumerable<ProductGroupDto> _productGroups = new List<ProductGroupDto>();
     private IEnumerable<TaxDto> _taxes = new List<TaxDto>();
 
     private string _searchTerm = string.Empty;
@@ -315,23 +333,23 @@
     // Window visibility toggles
     private bool _isDialogOpen = false;
     private bool _isCategoryDialogOpen = false;
-    private bool _isBrandDialogOpen = false;
+    private bool _isProductGroupDialogOpen = false;
     private bool _isEditMode = false;
     private bool _isLookupEditMode = false;
 
     // Validation variables
     private bool _formIsValid = false;
     private bool _categoryFormIsValid = false;
-    private bool _brandFormIsValid = false;
+    private bool _productGroupFormIsValid = false;
 
     private MudForm _form = default!;
     private MudForm _categoryForm = default!;
-    private MudForm _brandForm = default!;
+    private MudForm _productGroupForm = default!;
 
     // View Models
     private ProductFormModel _editingProduct = new();
     private CategoryFormModel _editingCategory = new();
-    private BrandFormModel _editingBrand = new();
+    private ProductGroupFormModel _editingProductGroup = new();
 
     protected override async Task OnInitializedAsync()
     {
@@ -344,7 +362,7 @@
         try
         {
             _categories = await ProductService.GetCategoriesAsync();
-            _brands = await ProductService.GetBrandsAsync();
+            _productGroups = await ProductService.GetProductGroupsAsync();
             _taxes = await TaxService.GetAllAsync();
         }
         catch (Exception ex)
@@ -414,7 +432,7 @@
             CostPrice = product.CostPrice,
             SalePrice = product.SalePrice,
             CategoryId = product.CategoryId,
-            BrandId = product.BrandId,
+            ProductGroupId = product.ProductGroupId,
             TaxId = product.TaxId,
             IsActive = product.IsActive
         };
@@ -491,47 +509,49 @@
         }
     }
 
-    // Inline structural interactions for Brand models
-    private void OpenInlineBrandDialog()
+    private void OpenInlineProductGroupDialog()
     {
         _isLookupEditMode = false;
-        _editingBrand = new BrandFormModel();
-        _isBrandDialogOpen = true;
+        _editingProductGroup = new ProductGroupFormModel();
+        _isProductGroupDialogOpen = true;
     }
 
-    private void OpenEditBrandInline(BrandDto item)
+    private void OpenEditProductGroupInline(ProductGroupDto item)
     {
         _isLookupEditMode = true;
-        _editingBrand = new BrandFormModel
+        _editingProductGroup = new ProductGroupFormModel
         {
             Id = item.Id,
             Name = item.Name,
-            IsActive = true
+            Description = item.Description,
+            ParentGroupId = item.ParentGroupId,
+            SortOrder = item.SortOrder,
+            IsActive = item.IsActive
         };
-        _isBrandDialogOpen = true;
+        _isProductGroupDialogOpen = true;
     }
 
-    private async Task SaveBrandInline()
+    private async Task SaveProductGroupInline()
     {
-        _brandForm.Validate();
-        if (!_brandFormIsValid) return;
+        _productGroupForm.Validate();
+        if (!_productGroupFormIsValid) return;
 
         try
         {
             if (_isLookupEditMode)
             {
-                var request = new UpdateBrandRequest(_editingBrand.Id, _editingBrand.Name, _editingBrand.Description, _editingBrand.IsActive);
-                await BrandService.UpdateAsync(request);
-                Snackbar.Add("Brand properties verified.", Severity.Success);
+                var request = new UpdateProductGroupRequest(_editingProductGroup.Id, _editingProductGroup.Name, _editingProductGroup.Description, _editingProductGroup.ParentGroupId, _editingProductGroup.SortOrder, _editingProductGroup.IsActive);
+                await ProductGroupService.UpdateAsync(request);
+                Snackbar.Add("Product group mapping altered.", Severity.Success);
             }
             else
             {
-                var request = new CreateBrandRequest(_editingBrand.Name, _editingBrand.Description, _editingBrand.IsActive);
-                await BrandService.CreateAsync(request);
-                Snackbar.Add("Brand schema recorded.", Severity.Success);
+                var request = new CreateProductGroupRequest(_editingProductGroup.Name, _editingProductGroup.Description, _editingProductGroup.ParentGroupId, _editingProductGroup.SortOrder, _editingProductGroup.IsActive);
+                await ProductGroupService.CreateAsync(request);
+                Snackbar.Add("Product group node recorded.", Severity.Success);
             }
             await LoadLookups();
-            _isBrandDialogOpen = false;
+            _isProductGroupDialogOpen = false;
         }
         catch (Exception ex)
         {
@@ -539,18 +559,18 @@
         }
     }
 
-    private async Task DeleteBrandInline(BrandDto item)
+    private async Task DeleteProductGroupInline(ProductGroupDto item)
     {
-        var parameters = new DialogParameters { ["ContentText"] = $"Drop brand context registration label {item.Name}?" };
-        var dialog = await DialogService.ShowAsync<ConfirmationDialog>("Purge Brand Unit", parameters);
+        var parameters = new DialogParameters { ["ContentText"] = $"Drop active structural product group link: {item.Name}?" };
+        var dialog = await DialogService.ShowAsync<ConfirmationDialog>("Purge Product Group Link", parameters);
         var result = await dialog.Result;
 
         if (result != null && !result.Canceled)
         {
             try
             {
-                await BrandService.DeleteAsync(item.Id);
-                Snackbar.Add("Brand node dropped.", Severity.Success);
+                await ProductGroupService.DeleteAsync(item.Id);
+                Snackbar.Add("Product group context disconnected.", Severity.Success);
                 await LoadLookups();
             }
             catch (Exception ex)
@@ -566,13 +586,13 @@
         {
             if (_isEditMode)
             {
-                var updateRequest = new UpdateProductRequest(_editingProduct.Id, _editingProduct.Name, _editingProduct.Description, _editingProduct.Barcode, _editingProduct.SKU, _editingProduct.CostPrice, _editingProduct.SalePrice, _editingProduct.CategoryId, _editingProduct.BrandId, _editingProduct.TaxId, _editingProduct.IsActive);
+                var updateRequest = new UpdateProductRequest(_editingProduct.Id, _editingProduct.Name, _editingProduct.Description, _editingProduct.Barcode, _editingProduct.SKU, _editingProduct.CostPrice, _editingProduct.SalePrice, _editingProduct.CategoryId, _editingProduct.ProductGroupId, _editingProduct.TaxId, _editingProduct.IsActive);
                 await ProductService.UpdateAsync(updateRequest);
                 Snackbar.Add("Product node configured.", Severity.Success);
             }
             else
             {
-                var createRequest = new CreateProductRequest(_editingProduct.Name, _editingProduct.Description, _editingProduct.Barcode, _editingProduct.SKU, _editingProduct.CostPrice, _editingProduct.SalePrice, _editingProduct.CategoryId, _editingProduct.BrandId, _editingProduct.TaxId, null, true, _editingProduct.IsActive);
+                var createRequest = new CreateProductRequest(_editingProduct.Name, _editingProduct.Description, _editingProduct.Barcode, _editingProduct.SKU, _editingProduct.CostPrice, _editingProduct.SalePrice, _editingProduct.CategoryId, _editingProduct.ProductGroupId, _editingProduct.TaxId, null, true, _editingProduct.IsActive);
                 await ProductService.CreateAsync(createRequest);
                 Snackbar.Add("Product listing recorded.", Severity.Success);
             }
@@ -620,7 +640,7 @@
         public decimal CostPrice { get; set; }
         public decimal SalePrice { get; set; }
         public Guid? CategoryId { get; set; }
-        public Guid? BrandId { get; set; }
+        public Guid? ProductGroupId { get; set; }
         public Guid? TaxId { get; set; }
         public bool IsActive { get; set; } = true;
     }
@@ -635,11 +655,13 @@
         public bool IsActive { get; set; } = true;
     }
 
-    private class BrandFormModel
+    private class ProductGroupFormModel
     {
         public Guid Id { get; set; }
         public string Name { get; set; } = string.Empty;
         public string? Description { get; set; }
+        public Guid? ParentGroupId { get; set; }
+        public int SortOrder { get; set; }
         public bool IsActive { get; set; } = true;
     }
 }

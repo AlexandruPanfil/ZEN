@@ -10,7 +10,7 @@ public class ProductMappingProfile : Profile
     {
         CreateMap<Product, ProductDto>()
             .ForMember(d => d.CategoryName, opt => opt.MapFrom(s => s.Category != null ? s.Category.Name : null))
-            .ForMember(d => d.BrandName, opt => opt.MapFrom(s => s.Brand != null ? s.Brand.Name : null))
+            .ForMember(d => d.ProductGroupName, opt => opt.MapFrom(s => s.ProductGroup != null ? s.ProductGroup.Name : null))
             .ForMember(d => d.TaxName, opt => opt.MapFrom(s => s.Tax != null ? s.Tax.Name : null))
             .ForMember(d => d.TaxRate, opt => opt.MapFrom(s => s.Tax != null ? s.Tax.Rate : 0m));
 
@@ -28,6 +28,7 @@ public class ProductMappingProfile : Profile
         CreateMap<Category, CategoryDto>()
             .ForMember(d => d.ParentCategoryName, opt => opt.MapFrom(s => s.ParentCategory != null ? s.ParentCategory.Name : null));
 
-        CreateMap<Brand, BrandDto>();
+        CreateMap<ProductGroup, ProductGroupDto>()
+            .ForMember(d => d.ParentGroupName, opt => opt.MapFrom(s => s.ParentGroup != null ? s.ParentGroup.Name : null));
     }
 }

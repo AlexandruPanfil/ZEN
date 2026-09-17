@@ -70,9 +70,9 @@
                             <MudText Style="font-size: 0.75rem;">@context.Item.CategoryName</MudText>
                         </CellTemplate>
                     </PropertyColumn>
-                    <PropertyColumn Property="x => x.BrandName" Title="Brand Axis" Width="140px">
+                    <PropertyColumn Property="x => x.ProductGroupName" Title="Product Group" Width="140px">
                         <CellTemplate>
-                            <MudText Style="font-size: 0.75rem;">@context.Item.BrandName</MudText>
+                            <MudText Style="font-size: 0.75rem;">@context.Item.ProductGroupName</MudText>
                         </CellTemplate>
                     </PropertyColumn>
                     <TemplateColumn Title="Tax (TVA)" Width="140px">
@@ -110,7 +110,7 @@
                     <MudText Typo="Typo.subtitle2" Class="font-weight-bold">System Lookups</MudText>
                     <MudToggleGroup T="string" @bind-Value="_activeLookupTab" Color="Color.Primary" Size="Size.Small" Outline="true">
                         <MudToggleItem Value="@("categories")">Categories</MudToggleItem>
-                        <MudToggleItem Value="@("brands")">Brands</MudToggleItem>
+                        <MudToggleItem Value="@("product-groups")">Product Groups</MudToggleItem>
                     </MudToggleGroup>
                 </div>
 
@@ -144,18 +144,24 @@
                 else
                 {
                     <div class="d-flex align-center justify-space-between mb-2">
-                        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="font-weight-bold">Product Brands Registry</MudText>
-                        <MudIconButton Icon="@Icons.Material.Filled.AddCircle" Color="Color.Primary" Size="Size.Small" OnClick="OpenCreateBrandDialog" />
+                        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="font-weight-bold">Product Groups Registry</MudText>
+                        <MudIconButton Icon="@Icons.Material.Filled.AddCircle" Color="Color.Primary" Size="Size.Small" OnClick="OpenCreateProductGroupDialog" />
                     </div>
                     <div style="max-height: 520px; overflow-y: auto;">
-                        <MudList T="BrandDto" Dense="true" Clickable="false" Class="pa-0">
-                            @foreach (var brand in _brands)
+                        <MudList T="ProductGroupDto" Dense="true" Clickable="false" Class="pa-0">
+                            @foreach (var pg in _productGroups)
                             {
                                 <div class="d-flex align-center justify-space-between mud-width-full py-1 border-bottom border-solid mud-border-default">
-                                    <MudText Typo="Typo.caption" Class="font-weight-bold">@brand.Name</MudText>
+                                    <div class="d-flex flex-column">
+                                        <MudText Typo="Typo.caption" Class="font-weight-bold">@pg.Name</MudText>
+                                        @if (!string.IsNullOrWhiteSpace(pg.ParentGroupName))
+                                        {
+                                            <MudText Typo="Typo.caption" Style="font-size: 0.7rem;" Color="Color.Secondary">Parent: @pg.ParentGroupName</MudText>
+                                        }
+                                    </div>
                                     <div class="d-flex">
-                                        <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" Color="Color.Info" Class="pa-1" OnClick="() => OpenEditBrandDialog(brand)" />
-                                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" Class="pa-1" OnClick="() => DeleteBrand(brand)" />
+                                        <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" Color="Color.Info" Class="pa-1" OnClick="() => OpenEditProductGroupDialog(pg)" />
+                                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" Class="pa-1" OnClick="() => DeleteProductGroup(pg)" />
                                     </div>
                                 </div>
                             }
@@ -173,7 +179,7 @@
                IsEditMode="@_isProductEditMode"
                Model="@_editingProduct"
                Categories="@_categories"
-               Brands="@_brands"
+               ProductGroups="@_productGroups"
                Taxes="@_taxes"
                OnSave="SaveProduct"
                OnClose="CloseProductDialog" />
@@ -187,13 +193,14 @@
                 OnSave="SaveCategory"
                 OnClose="CloseCategoryDialog" />
 
-<!-- Brand Dialog -->
-<BrandDialog @ref="_brandDialog"
-             Visible="@_isBrandDialogOpen"
-             IsEditMode="@_isBrandEditMode"
-             Model="@_editingBrand"
-             OnSave="SaveBrand"
-             OnClose="CloseBrandDialog" />
+<!-- Product Group Dialog -->
+<ProductGroupDialog @ref="_productGroupDialog"
+                    Visible="@_isProductGroupDialogOpen"
+                    IsEditMode="@_isProductGroupEditMode"
+                    Model="@_editingProductGroup"
+                    ProductGroups="@_productGroups"
+                    OnSave="SaveProductGroup"
+                    OnClose="CloseProductGroupDialog" />
 
 <!-- Confirmation Dialogs -->
 <ConfirmationDialog @ref="_confirmDeleteProduct"
@@ -208,11 +215,11 @@
                     Message="@_confirmDeleteMessage"
                     OnResult="ConfirmDeleteCategory" />
 
-<ConfirmationDialog @ref="_confirmDeleteBrand"
-                    Visible="@_showConfirmDeleteBrand"
-                    Title="Purge Brand Unit"
+<ConfirmationDialog @ref="_confirmDeleteProductGroup"
+                    Visible="@_showConfirmDeleteProductGroup"
+                    Title="Purge Product Group Link"
                     Message="@_confirmDeleteMessage"
-                    OnResult="ConfirmDeleteBrand" />
+                    OnResult="ConfirmDeleteProductGroup" />
 
 <style>
     .style-code-box {
@@ -226,7 +233,7 @@
 @code {
     private IEnumerable<ProductDto> _products = new List<ProductDto>();
     private IEnumerable<CategoryDto> _categories = new List<CategoryDto>();
-    private IEnumerable<BrandDto> _brands = new List<BrandDto>();
+    private IEnumerable<ProductGroupDto> _productGroups = new List<ProductGroupDto>();
     private IEnumerable<ServiceTaxDto> _taxes = new List<ServiceTaxDto>();
 
     private string _searchTerm = string.Empty;
@@ -238,30 +245,30 @@
     private bool _isProductEditMode = false;
     private bool _isCategoryDialogOpen = false;
     private bool _isCategoryEditMode = false;
-    private bool _isBrandDialogOpen = false;
-    private bool _isBrandEditMode = false;
+    private bool _isProductGroupDialogOpen = false;
+    private bool _isProductGroupEditMode = false;
 
     // Confirmation dialogs
     private bool _showConfirmDeleteProduct = false;
     private bool _showConfirmDeleteCategory = false;
-    private bool _showConfirmDeleteBrand = false;
+    private bool _showConfirmDeleteProductGroup = false;
     private string _confirmDeleteMessage = string.Empty;
     private ProductDto? _productToDelete;
     private CategoryDto? _categoryToDelete;
-    private BrandDto? _brandToDelete;
+    private ProductGroupDto? _productGroupToDelete;
 
     // Dialog refs
     private ProductDialog? _productDialog;
     private CategoryDialog? _categoryDialog;
-    private BrandDialog? _brandDialog;
+    private ProductGroupDialog? _productGroupDialog;
     private ConfirmationDialog? _confirmDeleteProduct;
     private ConfirmationDialog? _confirmDeleteCategory;
-    private ConfirmationDialog? _confirmDeleteBrand;
+    private ConfirmationDialog? _confirmDeleteProductGroup;
 
     // View Models
     private ProductDialog.ProductFormModel _editingProduct = new();
     private CategoryDialog.CategoryFormModel _editingCategory = new();
-    private BrandDialog.BrandFormModel _editingBrand = new();
+    private ProductGroupDialog.ProductGroupFormModel _editingProductGroup = new();
 
     protected override async Task OnInitializedAsync()
     {
@@ -274,7 +281,7 @@
         try
         {
             _categories = await ApiClient.GetCategoriesAsync();
-            _brands = await ApiClient.GetBrandsAsync();
+            _productGroups = await ApiClient.GetProductGroupsAsync();
             _taxes = await ApiClient.GetTaxesAsync();
         }
         catch (Exception ex)
@@ -328,7 +335,7 @@
             CostPrice = product.CostPrice,
             SalePrice = product.SalePrice,
             CategoryId = product.CategoryId,
-            BrandId = product.BrandId,
+            ProductGroupId = product.ProductGroupId,
             TaxId = product.TaxId,
             IsActive = product.IsActive
         };
@@ -341,7 +348,7 @@
         {
             if (_isProductEditMode)
             {
-                var updateRequest = new UpdateProductRequest(model.Id, model.Name, model.Description, model.Barcode, model.SKU, model.CostPrice, model.SalePrice, model.CategoryId, model.BrandId, model.TaxId, model.IsActive);
+                var updateRequest = new UpdateProductRequest(model.Id, model.Name, model.Description, model.Barcode, model.SKU, model.CostPrice, model.SalePrice, model.CategoryId, model.ProductGroupId, model.TaxId, model.IsActive);
                 var result = await ApiClient.UpdateProductAsync(updateRequest);
                 if (result != null)
                 {
@@ -354,7 +361,7 @@
             }
             else
             {
-                var createRequest = new CreateProductRequest(model.Name, model.Description, model.Barcode, model.SKU, model.CostPrice, model.SalePrice, model.CategoryId, model.BrandId, model.TaxId, null, true, model.IsActive);
+                var createRequest = new CreateProductRequest(model.Name, model.Description, model.Barcode, model.SKU, model.CostPrice, model.SalePrice, model.CategoryId, model.ProductGroupId, model.TaxId, null, true, model.IsActive);
                 var result = await ApiClient.CreateProductAsync(createRequest);
                 if (result != null)
                 {
@@ -494,54 +501,57 @@
         }
     }
 
-    // Brand Dialog
-    private void OpenCreateBrandDialog()
+    // Product Group Dialog
+    private void OpenCreateProductGroupDialog()
     {
-        _isBrandEditMode = false;
-        _editingBrand = new BrandDialog.BrandFormModel();
-        _isBrandDialogOpen = true;
+        _isProductGroupEditMode = false;
+        _editingProductGroup = new ProductGroupDialog.ProductGroupFormModel();
+        _isProductGroupDialogOpen = true;
     }
 
-    private void OpenEditBrandDialog(BrandDto item)
+    private void OpenEditProductGroupDialog(ProductGroupDto item)
     {
-        _isBrandEditMode = true;
-        _editingBrand = new BrandDialog.BrandFormModel
+        _isProductGroupEditMode = true;
+        _editingProductGroup = new ProductGroupDialog.ProductGroupFormModel
         {
             Id = item.Id,
             Name = item.Name,
-            IsActive = true
+            Description = item.Description,
+            ParentGroupId = item.ParentGroupId,
+            SortOrder = item.SortOrder,
+            IsActive = item.IsActive
         };
-        _isBrandDialogOpen = true;
+        _isProductGroupDialogOpen = true;
     }
 
-    private async Task SaveBrand(BrandDialog.BrandFormModel model)
+    private async Task SaveProductGroup(ProductGroupDialog.ProductGroupFormModel model)
     {
         try
         {
-            if (_isBrandEditMode)
+            if (_isProductGroupEditMode)
             {
-                var request = new UpdateBrandRequest(model.Id, model.Name, model.Description, model.IsActive);
-                var result = await ApiClient.UpdateBrandAsync(request);
+                var request = new UpdateProductGroupRequest(model.Id, model.Name, model.Description, model.ParentGroupId, model.SortOrder, model.IsActive);
+                var result = await ApiClient.UpdateProductGroupAsync(request);
                 if (result != null)
                 {
-                    Snackbar.Add("Brand properties verified.", Severity.Success);
+                    Snackbar.Add("Product group mapping altered.", Severity.Success);
                 }
                 else
                 {
-                    Snackbar.Add("Failed to update brand.", Severity.Error);
+                    Snackbar.Add("Failed to update product group.", Severity.Error);
                 }
             }
             else
             {
-                var request = new CreateBrandRequest(model.Name, model.Description, model.IsActive);
-                var result = await ApiClient.CreateBrandAsync(request);
+                var request = new CreateProductGroupRequest(model.Name, model.Description, model.ParentGroupId, model.SortOrder, model.IsActive);
+                var result = await ApiClient.CreateProductGroupAsync(request);
                 if (result != null)
                 {
-                    Snackbar.Add("Brand schema recorded.", Severity.Success);
+                    Snackbar.Add("Product group node recorded.", Severity.Success);
                 }
                 else
                 {
-                    Snackbar.Add("Failed to create brand.", Severity.Error);
+                    Snackbar.Add("Failed to create product group.", Severity.Error);
                 }
             }
             await LoadLookups();
@@ -552,24 +562,24 @@
         }
     }
 
-    private void CloseBrandDialog() => _isBrandDialogOpen = false;
+    private void CloseProductGroupDialog() => _isProductGroupDialogOpen = false;
 
-    private void DeleteBrand(BrandDto item)
+    private void DeleteProductGroup(ProductGroupDto item)
     {
-        _brandToDelete = item;
-        _confirmDeleteMessage = $"Drop brand context registration label {item.Name}?";
-        _showConfirmDeleteBrand = true;
+        _productGroupToDelete = item;
+        _confirmDeleteMessage = $"Drop active structural product group link: {item.Name}?";
+        _showConfirmDeleteProductGroup = true;
     }
 
-    private async Task ConfirmDeleteBrand(bool confirmed)
+    private async Task ConfirmDeleteProductGroup(bool confirmed)
     {
-        if (!confirmed || _brandToDelete == null) return;
+        if (!confirmed || _productGroupToDelete == null) return;
 
         try
         {
-            if (await ApiClient.DeleteBrandAsync(_brandToDelete.Id))
+            if (await ApiClient.DeleteProductGroupAsync(_productGroupToDelete.Id))
             {
-                Snackbar.Add("Brand node dropped.", Severity.Success);
+                Snackbar.Add("Product group context disconnected.", Severity.Success);
                 await LoadLookups();
             }
         }
@@ -579,7 +589,7 @@
         }
         finally
         {
-            _brandToDelete = null;
+            _productGroupToDelete = null;
         }
     }
 }

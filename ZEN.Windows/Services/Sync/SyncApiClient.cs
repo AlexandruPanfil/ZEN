@@ -895,20 +895,20 @@ public class SyncApiClient
         }
     }
 
-    // Brand CRUD
-    public async Task<IEnumerable<BrandDto>> GetBrandsAsync(CancellationToken cancellationToken = default)
+    // Product Group CRUD
+    public async Task<IEnumerable<ProductGroupDto>> GetProductGroupsAsync(CancellationToken cancellationToken = default)
     {
-        return await _httpClient.GetFromJsonAsync<IEnumerable<BrandDto>>("api/products/brands", cancellationToken) ?? [];
+        return await _httpClient.GetFromJsonAsync<IEnumerable<ProductGroupDto>>("api/products/groups", cancellationToken) ?? [];
     }
 
-    public async Task<BrandDto?> CreateBrandAsync(CreateBrandRequest request, CancellationToken cancellationToken = default)
+    public async Task<ProductGroupDto?> CreateProductGroupAsync(CreateProductGroupRequest request, CancellationToken cancellationToken = default)
     {
         try
         {
-            var response = await _httpClient.PostAsJsonAsync("api/products/brands", request, cancellationToken);
+            var response = await _httpClient.PostAsJsonAsync("api/products/groups", request, cancellationToken);
             if (response.IsSuccessStatusCode)
             {
-                return await response.Content.ReadFromJsonAsync<BrandDto>(cancellationToken);
+                return await response.Content.ReadFromJsonAsync<ProductGroupDto>(cancellationToken);
             }
             return null;
         }
@@ -918,14 +918,14 @@ public class SyncApiClient
         }
     }
 
-    public async Task<BrandDto?> UpdateBrandAsync(UpdateBrandRequest request, CancellationToken cancellationToken = default)
+    public async Task<ProductGroupDto?> UpdateProductGroupAsync(UpdateProductGroupRequest request, CancellationToken cancellationToken = default)
     {
         try
         {
-            var response = await _httpClient.PutAsJsonAsync($"api/products/brands/{request.Id}", request, cancellationToken);
+            var response = await _httpClient.PutAsJsonAsync($"api/products/groups/{request.Id}", request, cancellationToken);
             if (response.IsSuccessStatusCode)
             {
-                return await response.Content.ReadFromJsonAsync<BrandDto>(cancellationToken);
+                return await response.Content.ReadFromJsonAsync<ProductGroupDto>(cancellationToken);
             }
             return null;
         }
@@ -935,11 +935,11 @@ public class SyncApiClient
         }
     }
 
-    public async Task<bool> DeleteBrandAsync(Guid id, CancellationToken cancellationToken = default)
+    public async Task<bool> DeleteProductGroupAsync(Guid id, CancellationToken cancellationToken = default)
     {
         try
         {
-            var response = await _httpClient.DeleteAsync($"api/products/brands/{id}", cancellationToken);
+            var response = await _httpClient.DeleteAsync($"api/products/groups/{id}", cancellationToken);
             return response.IsSuccessStatusCode;
         }
         catch

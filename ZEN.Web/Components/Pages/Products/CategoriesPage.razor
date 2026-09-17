@@ -2,7 +2,6 @@
 @using Microsoft.AspNetCore.Authorization
 @using ZEN.Application.Services.Interfaces
 @using ZEN.Application.DTOs.Products
-@using ZEN.Domain.Entities
 @using ZEN.Shared.Components.Common
 @inject ICategoryService CategoryService
 @inject ISnackbar Snackbar
@@ -10,20 +9,10 @@
 
 @attribute [Authorize(Roles = "Administrator,Manager,InventoryManager")]
 
-@* <ZEN.Shared.Components.Common.PageTitle>Categories - ZEN POS</ZEN.Shared.Components.Common.PageTitle> *@
-
 <MudText Typo="Typo.h3" GutterBottom="true">Product Categories</MudText>
 
 <MudPaper Class="pa-4 mb-4">
     <div class="d-flex align-center justify-space-between mb-4">
-        <MudTextField @bind-Value="_searchTerm" 
-                      Label="Search Categories" 
-                      Variant="Variant.Outlined" 
-                      Adornment="Adornment.Start" 
-                      AdornmentIcon="@Icons.Material.Filled.Search" 
-                      OnKeyDown="@HandleKeyDown" 
-                      Class="flex-grow-1 mr-4" />
-
         <MudButton Variant="Variant.Filled" 
                    Color="Color.Primary" 
                    StartIcon="@Icons.Material.Filled.Add" 
@@ -31,30 +20,51 @@
             Add Category
         </MudButton>
     </div>
+</MudPaper>
 
-<MudTable T="CategoryDto" Items="@FilteredCategories" Hover="true" Breakpoint="Breakpoint.Sm" Loading="@_isLoading" LoadingProgressColor="Color.Info">
-        <ToolBarContent>
-            <MudText Typo="Typo.h6">Categories List</MudText>
-        </ToolBarContent>
-        <HeaderContent>
-            <MudTh>Name</MudTh>
-            <MudTh>Parent Category</MudTh>
-            <MudTh>Sort Order</MudTh>
-            <MudTh>Actions</MudTh>
-        </HeaderContent>
-        <RowTemplate>
-            <MudTd DataLabel="Name">@context.Name</MudTd>
-            <MudTd DataLabel="Parent Category">@context.ParentCategoryName</MudTd>
-            <MudTd DataLabel="Sort Order">@_sortOrders.GetValueOrDefault(context.Id, 0)</MudTd>
-            <MudTd DataLabel="Actions">
-                <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" OnClick="@(() => OpenEditDialog(context))" />
-                <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" OnClick="@(() => DeleteCategory(context))" />
-            </MudTd>
-        </RowTemplate>
-        <PagerContent>
-            <MudTablePager />
-        </PagerContent>
-    </MudTable>
+<MudPaper Class="pa-4">
+    @if (_isLoading)
+    {
+        <MudProgress Circular="true" Indeterminate="true" />
+    }
+    else
+    {
+        <MudTable Class="mt-0" Items="_categories">
+            <HeaderContent>
+                <MudTh>Name</MudTh>
+                <MudTh>Description</MudTh>
+                <MudTh>Parent Category</MudTh>
+                <MudTh>Sort Order</MudTh>
+                <MudTh>Status</MudTh>
+                <MudTh>Actions</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="Name">@context.Name</MudTd>
+                <MudTd DataLabel="Description">@context.Description</MudTd>
+                <MudTd DataLabel="Parent Category">
+                    @if (context.ParentCategoryId.HasValue)
+                    {
+                        var parent = _categories.FirstOrDefault(c => c.Id == context.ParentCategoryId.Value);
+                        @(parent?.Name ?? "Unknown")
+                    }
+                    else
+                    {
+                        <span>None</span>
+                    }
+                </MudTd>
+                <MudTd DataLabel="Sort Order">@context.SortOrder</MudTd>
+                <MudTd DataLabel="Status">
+                    <MudChip T="string" Color="@(context.IsActive == true ? Color.Success : Color.Error)" Size="Size.Small">
+                        @(context.IsActive ? "Active" : "Inactive")
+                    </MudChip>
+                </MudTd>
+                <MudTd DataLabel="Actions">
+                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" Color="Color.Primary" OnClick="@(() => OpenEditDialog(context))" />
+                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="@(() => DeleteCategory(context))" />
+                </MudTd>
+            </RowTemplate>
+        </MudTable>
+    }
 </MudPaper>
 
 <!-- Create/Edit Dialog -->
@@ -115,10 +125,6 @@
 
 @code {
     private List<CategoryDto> _categories = new();
-    private List<Category> _allCategoriesForEdit = new();
-    private Dictionary<Guid, int> _sortOrders = new();
-
-    private string _searchTerm = string.Empty;
     private bool _isLoading = false;
     private bool _isDialogOpen = false;
     private bool _isEditMode = false;
@@ -138,7 +144,6 @@
         try
         {
             _categories = (await CategoryService.GetAllAsync()).ToList();
-            _sortOrders = _categories.ToDictionary(c => c.Id, c => 0);
         }
         catch (Exception ex)
         {
@@ -147,19 +152,6 @@
         finally
         {
             _isLoading = false;
-        }
-    }
-
-    private IEnumerable<CategoryDto> FilteredCategories =>
-        _categories.Where(c => string.IsNullOrEmpty(_searchTerm) || 
-                              c.Name.Contains(_searchTerm, StringComparison.OrdinalIgnoreCase) ||
-                              (c.ParentCategoryName != null && c.ParentCategoryName.Contains(_searchTerm, StringComparison.OrdinalIgnoreCase)));
-
-    private async Task HandleKeyDown(KeyboardEventArgs e)
-    {
-        if (e.Key == "Enter")
-        {
-            _searchTerm = _searchTerm.Trim();
         }
     }
 
@@ -176,9 +168,10 @@
         {
             Id = category.Id,
             Name = category.Name,
+            Description = category.Description,
             ParentCategoryId = category.ParentCategoryId,
-            SortOrder = 0,
-            IsActive = true
+            SortOrder = category.SortOrder,
+            IsActive = category.IsActive
         };
         _isEditMode = true;
         _isDialogOpen = true;

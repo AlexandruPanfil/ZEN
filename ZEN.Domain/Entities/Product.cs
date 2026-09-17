@@ -7,7 +7,7 @@ public class Product : BaseEntity
     public string Name { get; set; } = string.Empty;
     public string? Description { get; set; }
     public Guid? CategoryId { get; set; }
-    public Guid? BrandId { get; set; }
+    public Guid? ProductGroupId { get; set; }
     public Guid? TaxId { get; set; }
     public Guid? SupplierId { get; set; }
     public decimal CostPrice { get; set; }
@@ -19,7 +19,7 @@ public class Product : BaseEntity
     public bool IsActive { get; set; } = true;
 
     public Category? Category { get; set; }
-    public Brand? Brand { get; set; }
+    public ProductGroup? ProductGroup { get; set; }
     public Tax? Tax { get; set; }
     public Supplier? Supplier { get; set; }
     public ICollection<ProductImage> Images { get; set; } = [];

@@ -173,42 +173,6 @@ namespace ZEN.Infrastructure.Migrations
                     b.ToTable("AuditLogs", (string)null);
                 });
 
-            modelBuilder.Entity("ZEN.Domain.Entities.Brand", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("Description")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("bit");
-
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("bit");
-
-                    b.Property<string>("LogoPath")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<long>("Version")
-                        .HasColumnType("bigint");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("Brands");
-                });
-
             modelBuilder.Entity("ZEN.Domain.Entities.CashCount", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1435,9 +1399,6 @@ namespace ZEN.Infrastructure.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
-                    b.Property<Guid?>("BrandId")
-                        .HasColumnType("uniqueidentifier");
-
                     b.Property<Guid?>("CategoryId")
                         .HasColumnType("uniqueidentifier");
 
@@ -1464,6 +1425,9 @@ namespace ZEN.Infrastructure.Migrations
                         .IsRequired()
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
+
+                    b.Property<Guid?>("ProductGroupId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("SKU")
                         .HasMaxLength(100)
@@ -1501,11 +1465,11 @@ namespace ZEN.Infrastructure.Migrations
                         .IsUnique()
                         .HasFilter("[Barcode] IS NOT NULL");
 
-                    b.HasIndex("BrandId");
-
                     b.HasIndex("CategoryId");
 
                     b.HasIndex("Name");
+
+                    b.HasIndex("ProductGroupId");
 
                     b.HasIndex("SKU")
                         .IsUnique()
@@ -1516,6 +1480,50 @@ namespace ZEN.Infrastructure.Migrations
                     b.HasIndex("TaxId");
 
                     b.ToTable("Products");
+                });
+
+            modelBuilder.Entity("ZEN.Domain.Entities.ProductGroup", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<Guid?>("ParentGroupId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long>("Version")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Name");
+
+                    b.HasIndex("ParentGroupId");
+
+                    b.ToTable("ProductGroups");
                 });
 
             modelBuilder.Entity("ZEN.Domain.Entities.ProductImage", b =>
@@ -3489,14 +3497,14 @@ namespace ZEN.Infrastructure.Migrations
 
             modelBuilder.Entity("ZEN.Domain.Entities.Product", b =>
                 {
-                    b.HasOne("ZEN.Domain.Entities.Brand", "Brand")
-                        .WithMany("Products")
-                        .HasForeignKey("BrandId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
                     b.HasOne("ZEN.Domain.Entities.Category", "Category")
                         .WithMany("Products")
                         .HasForeignKey("CategoryId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("ZEN.Domain.Entities.ProductGroup", "ProductGroup")
+                        .WithMany("Products")
+                        .HasForeignKey("ProductGroupId")
                         .OnDelete(DeleteBehavior.SetNull);
 
                     b.HasOne("ZEN.Domain.Entities.Supplier", "Supplier")
@@ -3509,13 +3517,23 @@ namespace ZEN.Infrastructure.Migrations
                         .HasForeignKey("TaxId")
                         .OnDelete(DeleteBehavior.SetNull);
 
-                    b.Navigation("Brand");
-
                     b.Navigation("Category");
+
+                    b.Navigation("ProductGroup");
 
                     b.Navigation("Supplier");
 
                     b.Navigation("Tax");
+                });
+
+            modelBuilder.Entity("ZEN.Domain.Entities.ProductGroup", b =>
+                {
+                    b.HasOne("ZEN.Domain.Entities.ProductGroup", "ParentGroup")
+                        .WithMany("SubGroups")
+                        .HasForeignKey("ParentGroupId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("ParentGroup");
                 });
 
             modelBuilder.Entity("ZEN.Domain.Entities.ProductImage", b =>
@@ -3923,11 +3941,6 @@ namespace ZEN.Infrastructure.Migrations
                     b.Navigation("CashDesk");
                 });
 
-            modelBuilder.Entity("ZEN.Domain.Entities.Brand", b =>
-                {
-                    b.Navigation("Products");
-                });
-
             modelBuilder.Entity("ZEN.Domain.Entities.CashDesk", b =>
                 {
                     b.Navigation("PaymentTerminals");
@@ -4001,6 +4014,13 @@ namespace ZEN.Infrastructure.Migrations
                     b.Navigation("InventoryItems");
 
                     b.Navigation("Variants");
+                });
+
+            modelBuilder.Entity("ZEN.Domain.Entities.ProductGroup", b =>
+                {
+                    b.Navigation("Products");
+
+                    b.Navigation("SubGroups");
                 });
 
             modelBuilder.Entity("ZEN.Domain.Entities.ProductVariant", b =>

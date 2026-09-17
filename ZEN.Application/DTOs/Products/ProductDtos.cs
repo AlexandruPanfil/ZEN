@@ -10,8 +10,8 @@ public record ProductDto(
     decimal SalePrice,
     Guid? CategoryId,
     string? CategoryName,
-    Guid? BrandId,
-    string? BrandName,
+    Guid? ProductGroupId,
+    string? ProductGroupName,
     Guid? TaxId,
     string? TaxName,
     decimal TaxRate,
@@ -25,7 +25,7 @@ public record CreateProductRequest(
     decimal CostPrice,
     decimal SalePrice,
     Guid? CategoryId,
-    Guid? BrandId,
+    Guid? ProductGroupId,
     Guid? TaxId,
     Guid? SupplierId,
     bool TrackStock,
@@ -40,11 +40,11 @@ public record UpdateProductRequest(
     decimal CostPrice,
     decimal SalePrice,
     Guid? CategoryId,
-    Guid? BrandId,
+    Guid? ProductGroupId,
     Guid? TaxId,
     bool IsActive);
 
-public record CategoryDto(Guid Id, string Name, Guid? ParentCategoryId, string? ParentCategoryName);
+public record CategoryDto(Guid Id, string Name, string? Description, Guid? ParentCategoryId, string? ParentCategoryName, int SortOrder, bool IsActive);
 
 public record CreateCategoryRequest(
     string Name,
@@ -61,15 +61,19 @@ public record UpdateCategoryRequest(
     int SortOrder,
     bool IsActive);
 
-public record BrandDto(Guid Id, string Name);
+public record ProductGroupDto(Guid Id, string Name, string? Description, Guid? ParentGroupId, string? ParentGroupName, int SortOrder, bool IsActive);
 
-public record CreateBrandRequest(
+public record CreateProductGroupRequest(
     string Name,
     string? Description,
+    Guid? ParentGroupId,
+    int SortOrder,
     bool IsActive);
 
-public record UpdateBrandRequest(
+public record UpdateProductGroupRequest(
     Guid Id,
     string Name,
     string? Description,
+    Guid? ParentGroupId,
+    int SortOrder,
     bool IsActive);

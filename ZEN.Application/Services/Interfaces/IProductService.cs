@@ -12,5 +12,5 @@ public interface IProductService
     Task<ProductDto> UpdateAsync(UpdateProductRequest request, CancellationToken cancellationToken = default);
     Task<bool> DeleteAsync(Guid id, CancellationToken cancellationToken = default);
     Task<IEnumerable<CategoryDto>> GetCategoriesAsync(CancellationToken cancellationToken = default);
-    Task<IEnumerable<BrandDto>> GetBrandsAsync(CancellationToken cancellationToken = default);
+    Task<IEnumerable<ProductGroupDto>> GetProductGroupsAsync(CancellationToken cancellationToken = default);
 }

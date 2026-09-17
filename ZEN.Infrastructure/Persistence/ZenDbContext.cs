@@ -41,7 +41,7 @@ public class ZenDbContext : IdentityDbContext<AppUser, AppRole, string>
 
     // Products
     public DbSet<Category> Categories => Set<Category>();
-    public DbSet<Brand> Brands => Set<Brand>();
+    public DbSet<ProductGroup> ProductGroups => Set<ProductGroup>();
     public DbSet<Product> Products => Set<Product>();
     public DbSet<ProductImage> ProductImages => Set<ProductImage>();
     public DbSet<ProductVariant> ProductVariants => Set<ProductVariant>();

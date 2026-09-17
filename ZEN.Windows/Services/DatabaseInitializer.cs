@@ -397,7 +397,7 @@ public static class DatabaseInitializer
         command.CommandText = """
             CREATE TABLE IF NOT EXISTS "Products" (
                 "Id" TEXT NOT NULL CONSTRAINT "PK_Products" PRIMARY KEY,
-                "BrandId" TEXT NULL,
+                "ProductGroupId" TEXT NULL,
                 "CategoryId" TEXT NULL,
                 "Barcode" TEXT NULL,
                 "CostPrice" NUMERIC(18,4) NULL,
@@ -416,8 +416,8 @@ public static class DatabaseInitializer
                 "UpdatedAt" TEXT NOT NULL,
                 "Version" INTEGER NOT NULL DEFAULT 1
             );
-            CREATE INDEX IF NOT EXISTS "IX_Products_BrandId"
-                ON "Products" ("BrandId");
+            CREATE INDEX IF NOT EXISTS "IX_Products_ProductGroupId"
+                ON "Products" ("ProductGroupId");
             CREATE INDEX IF NOT EXISTS "IX_Products_CategoryId"
                 ON "Products" ("CategoryId");
             CREATE INDEX IF NOT EXISTS "IX_Products_SKU"

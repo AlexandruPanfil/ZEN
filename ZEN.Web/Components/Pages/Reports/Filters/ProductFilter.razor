@@ -128,7 +128,7 @@
     private List<ProductDto> _searchResults = new();
     private List<ProductDto> _selectedProducts = new();
     private List<CategoryDto> _categories = new();
-    private List<BrandDto> _groups = new(); // Using Brand as Group for now
+    private List<ProductGroupDto> _groups = new();
     private List<Guid?> _categoryItemIds = new();
     private List<Guid?> _groupItemIds = new();
     private Guid? _selectedCategoryId = null;
@@ -186,7 +186,7 @@
     {
         try
         {
-            _groups = (await ProductService.GetBrandsAsync()).ToList();
+            _groups = (await ProductService.GetProductGroupsAsync()).ToList();
             _groupItemIds = _groups.Select(g => (Guid?)g.Id).Prepend(null).ToList();
         }
         catch

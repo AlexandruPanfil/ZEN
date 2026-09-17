@@ -18,8 +18,10 @@ namespace ZEN.Application.Mappings
             CreateMap<UpdateCategoryRequest, Category>()
                 .ForMember(d => d.ImagePath, opt => opt.Ignore());
 
-            CreateMap<Category, CategoryDto>();
+            CreateMap<Category, CategoryDto>()
+                .ForMember(d => d.Description, opt => opt.MapFrom(s => s.Description))
+                .ForMember(d => d.SortOrder, opt => opt.MapFrom(s => s.SortOrder))
+                .ForMember(d => d.IsActive, opt => opt.MapFrom(s => s.IsActive));
         }
     }
-
 }

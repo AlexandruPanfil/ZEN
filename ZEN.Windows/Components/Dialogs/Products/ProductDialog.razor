@@ -41,11 +41,11 @@
                     </MudSelect>
                 </MudItem>
                 <MudItem xs="12" sm="6">
-                    <MudSelect T="Guid?" Label="Brand Context Label" Variant="Variant.Outlined" @bind-Value="Model.BrandId" AnchorOrigin="Origin.BottomLeft" Margin="Margin.Dense" Style="font-size: 0.8rem;">
-                        <MudSelectItem T="Guid?" Value="@(null)">Generic Brand Entity</MudSelectItem>
-                        @foreach (var brand in Brands)
+                    <MudSelect T="Guid?" Label="Product Group" Variant="Variant.Outlined" @bind-Value="Model.ProductGroupId" AnchorOrigin="Origin.BottomLeft" Margin="Margin.Dense" Style="font-size: 0.8rem;">
+                        <MudSelectItem T="Guid?" Value="@(null)">Unassigned / Base Context</MudSelectItem>
+                        @foreach (var pg in ProductGroups)
                         {
-                            <MudSelectItem T="Guid?" Value="@brand.Id">@brand.Name</MudSelectItem>
+                            <MudSelectItem T="Guid?" Value="@pg.Id">@pg.Name</MudSelectItem>
                         }
                     </MudSelect>
                 </MudItem>
@@ -80,7 +80,7 @@
     [Parameter] public bool IsEditMode { get; set; }
     [Parameter] public ProductFormModel Model { get; set; } = new();
     [Parameter] public IEnumerable<CategoryDto> Categories { get; set; } = new List<CategoryDto>();
-    [Parameter] public IEnumerable<BrandDto> Brands { get; set; } = new List<BrandDto>();
+    [Parameter] public IEnumerable<ProductGroupDto> ProductGroups { get; set; } = new List<ProductGroupDto>();
     [Parameter] public IEnumerable<ServiceTaxDto> Taxes { get; set; } = new List<ServiceTaxDto>();
     [Parameter] public EventCallback<ProductFormModel> OnSave { get; set; }
     [Parameter] public EventCallback OnClose { get; set; }
@@ -113,7 +113,7 @@
         public decimal CostPrice { get; set; }
         public decimal SalePrice { get; set; }
         public Guid? CategoryId { get; set; }
-        public Guid? BrandId { get; set; }
+        public Guid? ProductGroupId { get; set; }
         public Guid? TaxId { get; set; }
         public bool IsActive { get; set; } = true;
     }

@@ -1,0 +1,262 @@
+@page "/product-groups"
+@using Microsoft.AspNetCore.Authorization
+@using ZEN.Application.Services.Interfaces
+@using ZEN.Application.DTOs.Products
+@using ZEN.Shared.Components.Common
+@inject IProductGroupService ProductGroupService
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+
+@attribute [Authorize(Roles = "Administrator,Manager,InventoryManager")]
+
+<MudText Typo="Typo.h3" GutterBottom="true">Product Groups</MudText>
+
+<MudPaper Class="pa-4 mb-4">
+    <div class="d-flex align-center justify-space-between mb-4">
+        <MudButton Variant="Variant.Filled" 
+                   Color="Color.Primary" 
+                   StartIcon="@Icons.Material.Filled.Add" 
+                   OnClick="OpenCreateDialog">
+            Add Product Group
+        </MudButton>
+    </div>
+</MudPaper>
+
+<MudPaper Class="pa-4">
+    @if (_isLoading)
+    {
+        <MudProgress Circular="true" Indeterminate="true" />
+    }
+    else
+    {
+        <MudTable Class="mt-0" Items="_productGroups">
+            <HeaderContent>
+                <MudTh>Name</MudTh>
+                <MudTh>Description</MudTh>
+                <MudTh>Parent Group</MudTh>
+                <MudTh>Sort Order</MudTh>
+                <MudTh>Status</MudTh>
+                <MudTh>Actions</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="Name">@context.Name</MudTd>
+                <MudTd DataLabel="Description">@context.Description</MudTd>
+                <MudTd DataLabel="Parent Group">
+                    @if (context.ParentGroupId.HasValue)
+                    {
+                        var parent = _productGroups.FirstOrDefault(pg => pg.Id == context.ParentGroupId.Value);
+                        @(parent?.Name ?? "Unknown")
+                    }
+                    else
+                    {
+                        <span>None</span>
+                    }
+                </MudTd>
+                <MudTd DataLabel="Sort Order">@context.SortOrder</MudTd>
+                <MudTd DataLabel="Status">
+                    <MudChip T="string" Color="@(context.IsActive == true ? Color.Success : Color.Error)" Size="Size.Small">
+                        @(context.IsActive ? "Active" : "Inactive")
+                    </MudChip>
+                </MudTd>
+                <MudTd DataLabel="Actions">
+                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" Color="Color.Primary" OnClick="@(() => OpenEditDialog(context))" />
+                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="@(() => DeleteProductGroup(context))" />
+                </MudTd>
+            </RowTemplate>
+        </MudTable>
+    }
+</MudPaper>
+
+<!-- Create/Edit Dialog -->
+<MudDialog @bind-Visible="_isDialogOpen">
+    <TitleContent>
+        <MudText Typo="Typo.h6">@(_isEditMode ? "Edit Product Group" : "Create Product Group")</MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudForm @ref="_form" @bind-IsValid="@_formIsValid">
+            <MudGrid>
+                <MudItem xs="12">
+                    <MudTextField Label="Name" 
+                                  @bind-Value="_editingProductGroup.Name" 
+                                  Required="true" 
+                                  For="@(() => _editingProductGroup.Name)" />
+                </MudItem>
+                <MudItem xs="12">
+                    <MudTextField Label="Description" 
+                                  @bind-Value="_editingProductGroup.Description" 
+                                  For="@(() => _editingProductGroup.Description)" 
+                                  Multiline="true" 
+                                  Lines="2" />
+                </MudItem>
+                <MudItem xs="12">
+                    <MudSelect T="Guid?" 
+                               Label="Parent Group" 
+                               @bind-Value="_editingProductGroup.ParentGroupId"
+                               For="@(() => _editingProductGroup.ParentGroupId)">
+                        <MudSelectItem T="Guid?" Value="@null">None</MudSelectItem>
+                        @foreach (var pg in _productGroups.Where(p => p.Id != _editingProductGroup.Id))
+                        {
+                            <MudSelectItem T="Guid?" Value="@pg.Id">@pg.Name</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudNumericField @bind-Value="_editingProductGroup.SortOrder" 
+                                     Label="Sort Order" 
+                                     Min="0" 
+                                     For="@(() => _editingProductGroup.SortOrder)" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudSwitch @bind-Value="_editingProductGroup.IsActive" Color="Color.Primary" Label="Active" />
+                </MudItem>
+            </MudGrid>
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="CloseDialog">Cancel</MudButton>
+        <MudButton Color="Color.Primary" 
+                   Variant="Variant.Filled" 
+                   OnClick="SaveProductGroup"
+                   Disabled="!_formIsValid">
+            @(_isEditMode ? "Update" : "Create")
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private List<ProductGroupDto> _productGroups = new();
+    private bool _isLoading = false;
+    private bool _isDialogOpen = false;
+    private bool _isEditMode = false;
+    private bool _formIsValid = false;
+    private MudForm? _form;
+
+    private ProductGroupEditModel _editingProductGroup = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadProductGroupsAsync();
+    }
+
+    private async Task LoadProductGroupsAsync()
+    {
+        _isLoading = true;
+        try
+        {
+            _productGroups = (await ProductGroupService.GetAllAsync()).ToList();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error loading product groups: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private void OpenCreateDialog()
+    {
+        _editingProductGroup = new ProductGroupEditModel();
+        _isEditMode = false;
+        _isDialogOpen = true;
+    }
+
+    private void OpenEditDialog(ProductGroupDto productGroup)
+    {
+        _editingProductGroup = new ProductGroupEditModel
+        {
+            Id = productGroup.Id,
+            Name = productGroup.Name,
+            Description = productGroup.Description,
+            ParentGroupId = productGroup.ParentGroupId,
+            SortOrder = productGroup.SortOrder,
+            IsActive = productGroup.IsActive
+        };
+        _isEditMode = true;
+        _isDialogOpen = true;
+    }
+
+    private async Task SaveProductGroup()
+    {
+        if (_form == null)
+            return;
+
+        _form.Validate();
+        if (!_formIsValid)
+            return;
+
+        try
+        {
+            if (_isEditMode)
+            {
+                var request = new UpdateProductGroupRequest(
+                    _editingProductGroup.Id,
+                    _editingProductGroup.Name,
+                    _editingProductGroup.Description,
+                    _editingProductGroup.ParentGroupId,
+                    _editingProductGroup.SortOrder,
+                    _editingProductGroup.IsActive);
+
+                await ProductGroupService.UpdateAsync(request);
+                Snackbar.Add("Product group updated successfully", Severity.Success);
+            }
+            else
+            {
+                var request = new CreateProductGroupRequest(
+                    _editingProductGroup.Name,
+                    _editingProductGroup.Description,
+                    _editingProductGroup.ParentGroupId,
+                    _editingProductGroup.SortOrder,
+                    _editingProductGroup.IsActive);
+
+                await ProductGroupService.CreateAsync(request);
+                Snackbar.Add("Product group created successfully", Severity.Success);
+            }
+
+            CloseDialog();
+            await LoadProductGroupsAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error saving product group: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task DeleteProductGroup(ProductGroupDto productGroup)
+    {
+        var confirm = await DialogService.ShowAsync<ZEN.Shared.Components.Common.ConfirmDialog>("Delete Product Group",
+            new DialogParameters { { "Message", $"Are you sure you want to delete '{productGroup.Name}'?" } });
+
+        var result = await confirm.Result;
+        if (!result.Canceled)
+        {
+            try
+            {
+                await ProductGroupService.DeleteAsync(productGroup.Id);
+                Snackbar.Add("Product group deleted successfully", Severity.Success);
+                await LoadProductGroupsAsync();
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Error deleting product group: {ex.Message}", Severity.Error);
+            }
+        }
+    }
+
+    private void CloseDialog()
+    {
+        _isDialogOpen = false;
+        _editingProductGroup = new();
+    }
+
+    public class ProductGroupEditModel
+    {
+        public Guid Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string? Description { get; set; }
+        public Guid? ParentGroupId { get; set; }
+        public int SortOrder { get; set; }
+        public bool IsActive { get; set; } = true;
+    }
+}

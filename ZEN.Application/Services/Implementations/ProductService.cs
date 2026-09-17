@@ -11,20 +11,20 @@ public class ProductService : IProductService
 {
     private readonly IRepository<Product> _productRepository;
     private readonly IRepository<Category> _categoryRepository;
-    private readonly IRepository<Brand> _brandRepository;
+    private readonly IRepository<ProductGroup> _productGroupRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IMapper _mapper;
 
     public ProductService(
         IRepository<Product> productRepository,
         IRepository<Category> categoryRepository,
-        IRepository<Brand> brandRepository,
+        IRepository<ProductGroup> productGroupRepository,
         IUnitOfWork unitOfWork,
         IMapper mapper)
     {
         _productRepository = productRepository;
         _categoryRepository = categoryRepository;
-        _brandRepository = brandRepository;
+        _productGroupRepository = productGroupRepository;
         _unitOfWork = unitOfWork;
         _mapper = mapper;
     }
@@ -92,9 +92,9 @@ public class ProductService : IProductService
         return _mapper.Map<IEnumerable<CategoryDto>>(categories);
     }
 
-    public async Task<IEnumerable<BrandDto>> GetBrandsAsync(CancellationToken cancellationToken = default)
+    public async Task<IEnumerable<ProductGroupDto>> GetProductGroupsAsync(CancellationToken cancellationToken = default)
     {
-        var brands = await _brandRepository.GetAllAsync(cancellationToken);
-        return _mapper.Map<IEnumerable<BrandDto>>(brands);
+        var productGroups = await _productGroupRepository.GetAllAsync(cancellationToken);
+        return _mapper.Map<IEnumerable<ProductGroupDto>>(productGroups);
     }
 }
