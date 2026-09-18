@@ -29,7 +29,7 @@
     }
     else
     {
-        <MudTable Class="mt-0" Items="_categories">
+        <MudTable Class="mt-0" Items="_displayCategories">
             <HeaderContent>
                 <MudTh>Name</MudTh>
                 <MudTh>Description</MudTh>
@@ -44,7 +44,7 @@
                 <MudTd DataLabel="Parent Category">
                     @if (context.ParentCategoryId.HasValue)
                     {
-                        var parent = _categories.FirstOrDefault(c => c.Id == context.ParentCategoryId.Value);
+                        var parent = _displayCategories.FirstOrDefault(c => c.Id == context.ParentCategoryId.Value);
                         @(parent?.Name ?? "Unknown")
                     }
                     else
@@ -94,7 +94,7 @@
                                @bind-Value="_editingCategory.ParentCategoryId"
                                For="@(() => _editingCategory.ParentCategoryId)">
                         <MudSelectItem T="Guid?" Value="@null">None</MudSelectItem>
-                        @foreach (var cat in _categories.Where(c => c.Id != _editingCategory.Id))
+                        @foreach (var cat in _displayCategories.Where(c => c.Id != _editingCategory.Id))
                         {
                             <MudSelectItem T="Guid?" Value="@cat.Id">@cat.Name</MudSelectItem>
                         }
@@ -125,6 +125,7 @@
 
 @code {
     private List<CategoryDto> _categories = new();
+    private List<CategoryDto> _displayCategories = new();
     private bool _isLoading = false;
     private bool _isDialogOpen = false;
     private bool _isEditMode = false;
@@ -144,6 +145,7 @@
         try
         {
             _categories = (await CategoryService.GetAllAsync()).ToList();
+            _displayCategories = OrderHierarchically(_categories).ToList();
         }
         catch (Exception ex)
         {
@@ -258,5 +260,36 @@
         public Guid? ParentCategoryId { get; set; }
         public int SortOrder { get; set; }
         public bool IsActive { get; set; } = true;
+    }
+
+    private static IEnumerable<CategoryDto> OrderHierarchically(IEnumerable<CategoryDto> categories)
+    {
+        var categoriesList = categories.ToList();
+        var childrenByParent = categoriesList
+            .Where(c => c.ParentCategoryId.HasValue)
+            .GroupBy(c => c.ParentCategoryId!.Value)
+            .ToDictionary(g => g.Key, g => g.OrderBy(c => c.SortOrder).ToList());
+
+        var result = new List<CategoryDto>();
+        var roots = categoriesList.Where(c => !c.ParentCategoryId.HasValue).OrderBy(c => c.SortOrder).ToList();
+
+        foreach (var root in roots)
+        {
+            AddCategoryAndChildren(root, childrenByParent, result);
+        }
+
+        return result;
+    }
+
+    private static void AddCategoryAndChildren(CategoryDto category, Dictionary<Guid, List<CategoryDto>> childrenByParent, List<CategoryDto> result)
+    {
+        result.Add(category);
+        if (childrenByParent.TryGetValue(category.Id, out var children))
+        {
+            foreach (var child in children)
+            {
+                AddCategoryAndChildren(child, childrenByParent, result);
+            }
+        }
     }
 }

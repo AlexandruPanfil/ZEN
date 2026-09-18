@@ -76,6 +76,195 @@ public static class DbSeeder
             await context.SaveChangesAsync();
         }
 
+        // Seed ProductGroups Hierarchy
+        // Reorganize existing ProductGroup data to match desired hierarchy
+        var existingGroups = await context.ProductGroups.Where(g => g.IsActive).ToListAsync();
+        
+        if (existingGroups.Any())
+        {
+            // We'll update existing groups to match our desired structure
+            // First, let's identify or create the root groups we need
+            
+            // Get or create Main Group
+            var mainGroup = existingGroups.FirstOrDefault(g => g.Name == "Main Group" && !g.ParentGroupId.HasValue);
+            if (mainGroup == null)
+            {
+                mainGroup = existingGroups.FirstOrDefault(g => !g.ParentGroupId.HasValue); // Take first root as Main Group
+                if (mainGroup != null)
+                {
+                    mainGroup.Name = "Main Group";
+                    mainGroup.SortOrder = 1;
+                }
+            }
+            
+            // Get or create Second Group  
+            var secondGroup = existingGroups.FirstOrDefault(g => g.Name == "Second Group" && !g.ParentGroupId.HasValue);
+            if (secondGroup == null && mainGroup != null)
+            {
+                secondGroup = existingGroups.FirstOrDefault(g => g.Id != mainGroup.Id && !g.ParentGroupId.HasValue);
+                if (secondGroup != null)
+                {
+                    secondGroup.Name = "Second Group";
+                    secondGroup.SortOrder = 2;
+                }
+            }
+            
+            // Get or create ThirdGroup
+            var thirdGroup = existingGroups.FirstOrDefault(g => g.Name == "ThirdGroup" && !g.ParentGroupId.HasValue);
+            if (thirdGroup == null && mainGroup != null && secondGroup != null)
+            {
+                thirdGroup = existingGroups.FirstOrDefault(g => 
+                    g.Id != mainGroup.Id && 
+                    g.Id != secondGroup.Id && 
+                    !g.ParentGroupId.HasValue);
+                if (thirdGroup != null)
+                {
+                    thirdGroup.Name = "ThirdGroup";
+                    thirdGroup.SortOrder = 3;
+                }
+            }
+            
+            // Get or create FourGroup
+            var fourGroup = existingGroups.FirstOrDefault(g => g.Name == "FourGroup" && !g.ParentGroupId.HasValue);
+            if (fourGroup == null && mainGroup != null && secondGroup != null && thirdGroup != null)
+            {
+                fourGroup = existingGroups.FirstOrDefault(g => 
+                    g.Id != mainGroup.Id && 
+                    g.Id != secondGroup.Id && 
+                    g.Id != thirdGroup.Id && 
+                    !g.ParentGroupId.HasValue);
+                if (fourGroup != null)
+                {
+                    fourGroup.Name = "FourGroup";
+                    fourGroup.SortOrder = 4;
+                }
+            }
+            
+            // Now handle child groups
+            // MainGroup children
+            if (mainGroup != null)
+            {
+                var mainChild1 = existingGroups.FirstOrDefault(g => g.Name == "MainChildGroup1" && g.ParentGroupId == mainGroup.Id);
+                if (mainChild1 == null)
+                {
+                    mainChild1 = existingGroups.FirstOrDefault(g => 
+                        g.ParentGroupId == mainGroup.Id && 
+                        g.Name != "MainChildGroup2");
+                }
+                if (mainChild1 != null)
+                {
+                    mainChild1.Name = "MainChildGroup1";
+                    mainChild1.SortOrder = 1;
+                }
+                
+                var mainChild2 = existingGroups.FirstOrDefault(g => g.Name == "MainChildGroup2" && g.ParentGroupId == mainGroup.Id);
+                if (mainChild2 == null)
+                {
+                    mainChild2 = existingGroups.FirstOrDefault(g => 
+                        g.ParentGroupId == mainGroup.Id && 
+                        g.Id != (mainChild1?.Id ?? Guid.Empty) &&
+                        g.Name != "MainChildGroup1");
+                }
+                if (mainChild2 != null)
+                {
+                    mainChild2.Name = "MainChildGroup2";
+                    mainChild2.SortOrder = 2;
+                }
+            }
+            
+            // SecondGroup children
+            if (secondGroup != null)
+            {
+                var secondChild1 = existingGroups.FirstOrDefault(g => g.Name == "SecondChildGroup1" && g.ParentGroupId == secondGroup.Id);
+                if (secondChild1 == null)
+                {
+                    secondChild1 = existingGroups.FirstOrDefault(g => 
+                        g.ParentGroupId == secondGroup.Id && 
+                        g.Name != "SecondChildGroup2" && 
+                        g.Name != "SecondChildGroup3");
+                }
+                if (secondChild1 != null)
+                {
+                    secondChild1.Name = "SecondChildGroup1";
+                    secondChild1.SortOrder = 1;
+                }
+                
+                var secondChild2 = existingGroups.FirstOrDefault(g => g.Name == "SecondChildGroup2" && g.ParentGroupId == secondGroup.Id);
+                if (secondChild2 == null)
+                {
+                    secondChild2 = existingGroups.FirstOrDefault(g => 
+                        g.ParentGroupId == secondGroup.Id && 
+                        g.Id != (secondChild1?.Id ?? Guid.Empty) &&
+                        g.Name != "SecondChildGroup1" &&
+                        g.Name != "SecondChildGroup3");
+                }
+                if (secondChild2 != null)
+                {
+                    secondChild2.Name = "SecondChildGroup2";
+                    secondChild2.SortOrder = 2;
+                }
+                
+                var secondChild3 = existingGroups.FirstOrDefault(g => g.Name == "SecondChildGroup3" && g.ParentGroupId == secondGroup.Id);
+                if (secondChild3 == null)
+                {
+                    secondChild3 = existingGroups.FirstOrDefault(g => 
+                        g.ParentGroupId == secondGroup.Id && 
+                        g.Id != (secondChild1?.Id ?? Guid.Empty) &&
+                        g.Id != (secondChild2?.Id ?? Guid.Empty) &&
+                        g.Name != "SecondChildGroup1" &&
+                        g.Name != "SecondChildGroup2");
+                }
+                if (secondChild3 != null)
+                {
+                    secondChild3.Name = "SecondChildGroup3";
+                    secondChild3.SortOrder = 3;
+                }
+            }
+            
+            // FourGroup children
+            if (fourGroup != null)
+            {
+                var fourChild1 = existingGroups.FirstOrDefault(g => g.Name == "FourChildGroup1" && g.ParentGroupId == fourGroup.Id);
+                if (fourChild1 == null)
+                {
+                    fourChild1 = existingGroups.FirstOrDefault(g => 
+                        g.ParentGroupId == fourGroup.Id);
+                }
+                if (fourChild1 != null)
+                {
+                    fourChild1.Name = "FourChildGroup1";
+                    fourChild1.SortOrder = 1;
+                }
+            }
+            
+            // Deactivate any extra groups that don't fit our structure
+            var usedGroupIds = new HashSet<Guid?>();
+            if (mainGroup != null) usedGroupIds.Add(mainGroup.Id);
+            if (secondGroup != null) usedGroupIds.Add(secondGroup.Id);
+            if (thirdGroup != null) usedGroupIds.Add(thirdGroup.Id);
+            if (fourGroup != null) usedGroupIds.Add(fourGroup.Id);
+            
+            // Add children to used IDs
+            var allGroups = new List<ProductGroup> { mainGroup, secondGroup, thirdGroup, fourGroup };
+            foreach (var group in allGroups.Where(g => g != null))
+            {
+                var children = existingGroups.Where(g => g.ParentGroupId == group.Id).ToList();
+                foreach (var child in children)
+                {
+                    usedGroupIds.Add(child.Id);
+                }
+            }
+            
+            // Deactivate unused active groups
+            var groupsToDeactivate = existingGroups.Where(g => g.IsActive && !usedGroupIds.Contains(g.Id));
+            foreach (var group in groupsToDeactivate)
+            {
+                group.IsActive = false;
+            }
+            
+            await context.SaveChangesAsync();
+        }
+
         // Seed Products for Menu demo
         if (!await context.Products.AnyAsync())
         {

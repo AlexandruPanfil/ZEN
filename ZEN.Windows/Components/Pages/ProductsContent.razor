@@ -122,7 +122,7 @@
                     </div>
                     <div style="max-height: 520px; overflow-y: auto;">
                         <MudList T="CategoryDto" Dense="true" Clickable="false" Class="pa-0">
-                            @foreach (var cat in _categories)
+                            @foreach (var cat in _displayCategories)
                             {
                                 <div class="d-flex align-center justify-space-between mud-width-full py-1 border-bottom border-solid mud-border-default">
                                     <div class="d-flex flex-column">
@@ -149,7 +149,7 @@
                     </div>
                     <div style="max-height: 520px; overflow-y: auto;">
                         <MudList T="ProductGroupDto" Dense="true" Clickable="false" Class="pa-0">
-                            @foreach (var pg in _productGroups)
+                            @foreach (var pg in _displayProductGroups)
                             {
                                 <div class="d-flex align-center justify-space-between mud-width-full py-1 border-bottom border-solid mud-border-default">
                                     <div class="d-flex flex-column">
@@ -233,7 +233,9 @@
 @code {
     private IEnumerable<ProductDto> _products = new List<ProductDto>();
     private IEnumerable<CategoryDto> _categories = new List<CategoryDto>();
+    private List<CategoryDto> _displayCategories = new();
     private IEnumerable<ProductGroupDto> _productGroups = new List<ProductGroupDto>();
+    private List<ProductGroupDto> _displayProductGroups = new();
     private IEnumerable<ServiceTaxDto> _taxes = new List<ServiceTaxDto>();
 
     private string _searchTerm = string.Empty;
@@ -281,7 +283,9 @@
         try
         {
             _categories = await ApiClient.GetCategoriesAsync();
+            _displayCategories = OrderHierarchically(_categories).ToList();
             _productGroups = await ApiClient.GetProductGroupsAsync();
+            _displayProductGroups = OrderHierarchically(_productGroups).ToList();
             _taxes = await ApiClient.GetTaxesAsync();
         }
         catch (Exception ex)
@@ -590,6 +594,68 @@
         finally
         {
             _productGroupToDelete = null;
+        }
+    }
+
+    private static IEnumerable<ProductGroupDto> OrderHierarchically(IEnumerable<ProductGroupDto> groups)
+    {
+        var groupsList = groups.ToList();
+        var childrenByParent = groupsList
+            .Where(g => g.ParentGroupId.HasValue)
+            .GroupBy(g => g.ParentGroupId!.Value)
+            .ToDictionary(g => g.Key, g => g.OrderBy(c => c.SortOrder).ToList());
+
+        var result = new List<ProductGroupDto>();
+        var roots = groupsList.Where(g => !g.ParentGroupId.HasValue).OrderBy(g => g.SortOrder).ToList();
+
+        foreach (var root in roots)
+        {
+            AddGroupAndChildren(root, childrenByParent, result);
+        }
+
+        return result;
+    }
+
+    private static void AddGroupAndChildren(ProductGroupDto group, Dictionary<Guid, List<ProductGroupDto>> childrenByParent, List<ProductGroupDto> result)
+    {
+        result.Add(group);
+        if (childrenByParent.TryGetValue(group.Id, out var children))
+        {
+            foreach (var child in children)
+            {
+                AddGroupAndChildren(child, childrenByParent, result);
+            }
+        }
+    }
+
+    private static IEnumerable<CategoryDto> OrderHierarchically(IEnumerable<CategoryDto> categories)
+    {
+        var categoriesList = categories.ToList();
+        var childrenByParent = categoriesList
+            .Where(c => c.ParentCategoryId.HasValue)
+            .GroupBy(c => c.ParentCategoryId!.Value)
+            .ToDictionary(g => g.Key, g => g.OrderBy(c => c.SortOrder).ToList());
+
+        var result = new List<CategoryDto>();
+        var roots = categoriesList.Where(c => !c.ParentCategoryId.HasValue).OrderBy(c => c.SortOrder).ToList();
+
+        foreach (var root in roots)
+        {
+            AddCategoryAndChildren(root, childrenByParent, result);
+        }
+
+        return result;
+    }
+
+    private static void AddCategoryAndChildren(CategoryDto category, Dictionary<Guid, List<CategoryDto>> childrenByParent, List<CategoryDto> result)
+    {
+        result.Add(category);
+        if (childrenByParent.TryGetValue(category.Id, out var children))
+        {
+            foreach (var child in children)
+            {
+                AddCategoryAndChildren(child, childrenByParent, result);
+            }
         }
     }
 }

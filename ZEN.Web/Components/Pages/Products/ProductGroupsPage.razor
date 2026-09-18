@@ -29,7 +29,7 @@
     }
     else
     {
-        <MudTable Class="mt-0" Items="_productGroups">
+        <MudTable Class="mt-0" Items="_displayProductGroups">
             <HeaderContent>
                 <MudTh>Name</MudTh>
                 <MudTh>Description</MudTh>
@@ -94,7 +94,7 @@
                                @bind-Value="_editingProductGroup.ParentGroupId"
                                For="@(() => _editingProductGroup.ParentGroupId)">
                         <MudSelectItem T="Guid?" Value="@null">None</MudSelectItem>
-                        @foreach (var pg in _productGroups.Where(p => p.Id != _editingProductGroup.Id))
+                        @foreach (var pg in _displayProductGroups.Where(p => p.Id != _editingProductGroup.Id))
                         {
                             <MudSelectItem T="Guid?" Value="@pg.Id">@pg.Name</MudSelectItem>
                         }
@@ -125,6 +125,7 @@
 
 @code {
     private List<ProductGroupDto> _productGroups = new();
+    private List<ProductGroupDto> _displayProductGroups = new();
     private bool _isLoading = false;
     private bool _isDialogOpen = false;
     private bool _isEditMode = false;
@@ -144,6 +145,7 @@
         try
         {
             _productGroups = (await ProductGroupService.GetAllAsync()).ToList();
+            _displayProductGroups = OrderHierarchically(_productGroups).ToList();
         }
         catch (Exception ex)
         {
@@ -152,6 +154,37 @@
         finally
         {
             _isLoading = false;
+        }
+    }
+
+    private static IEnumerable<ProductGroupDto> OrderHierarchically(IEnumerable<ProductGroupDto> groups)
+    {
+        var groupsList = groups.ToList();
+        var childrenByParent = groupsList
+            .Where(g => g.ParentGroupId.HasValue)
+            .GroupBy(g => g.ParentGroupId!.Value)
+            .ToDictionary(g => g.Key, g => g.OrderBy(c => c.SortOrder).ToList());
+
+        var result = new List<ProductGroupDto>();
+        var roots = groupsList.Where(g => !g.ParentGroupId.HasValue).OrderBy(g => g.SortOrder).ToList();
+
+        foreach (var root in roots)
+        {
+            AddGroupAndChildren(root, childrenByParent, result);
+        }
+
+        return result;
+    }
+
+    private static void AddGroupAndChildren(ProductGroupDto group, Dictionary<Guid, List<ProductGroupDto>> childrenByParent, List<ProductGroupDto> result)
+    {
+        result.Add(group);
+        if (childrenByParent.TryGetValue(group.Id, out var children))
+        {
+            foreach (var child in children)
+            {
+                AddGroupAndChildren(child, childrenByParent, result);
+            }
         }
     }
 

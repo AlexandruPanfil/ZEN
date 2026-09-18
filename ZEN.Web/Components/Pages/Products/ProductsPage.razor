@@ -107,7 +107,7 @@
                     </div>
                     <div style="max-height: 520px; overflow-y: auto;">
                         <MudList T="CategoryDto" Dense="true" Clickable="false" Class="pa-0">
-                            @foreach (var cat in _categories)
+                            @foreach (var cat in _displayCategories)
                             {
                                 <div class="d-flex align-center justify-space-between mud-width-full py-1 border-bottom border-solid mud-border-default">
                                     <div class="d-flex flex-column">
@@ -134,7 +134,7 @@
                     </div>
                     <div style="max-height: 520px; overflow-y: auto;">
                         <MudList T="ProductGroupDto" Dense="true" Clickable="false" Class="pa-0">
-                            @foreach (var pg in _productGroups)
+                            @foreach (var pg in _displayProductGroups)
                             {
                                 <div class="d-flex align-center justify-space-between mud-width-full py-1 border-bottom border-solid mud-border-default">
                                     <div class="d-flex flex-column">
@@ -199,7 +199,7 @@
                 <MudItem xs="12" sm="6">
                     <MudSelect T="Guid?" Label="Product Group" Variant="Variant.Outlined" @bind-Value="_editingProduct.ProductGroupId" AnchorOrigin="Origin.BottomLeft" Margin="Margin.Dense" Style="font-size: 0.8rem;">
                         <MudSelectItem T="Guid?" Value="@(null)">Unassigned / Base Context</MudSelectItem>
-                        @foreach (var pg in _productGroups)
+                        @foreach (var pg in _displayProductGroups)
                         {
                             <MudSelectItem T="Guid?" Value="@pg.Id">@pg.Name</MudSelectItem>
                         }
@@ -250,7 +250,7 @@
                 <MudItem xs="12">
                     <MudSelect T="Guid?" Label="Parent Category" Variant="Variant.Outlined" @bind-Value="_editingCategory.ParentCategoryId" AnchorOrigin="Origin.BottomLeft" Margin="Margin.Dense" Style="font-size: 0.8rem;">
                         <MudSelectItem T="Guid?" Value="@null">None</MudSelectItem>
-                        @foreach (var cat in _categories.Where(c => c.Id != _editingCategory.Id))
+                        @foreach (var cat in _displayCategories.Where(c => c.Id != _editingCategory.Id))
                         {
                             <MudSelectItem T="Guid?" Value="@cat.Id">@cat.Name</MudSelectItem>
                         }
@@ -290,7 +290,7 @@
                 <MudItem xs="12">
                     <MudSelect T="Guid?" Label="Parent Group" Variant="Variant.Outlined" @bind-Value="_editingProductGroup.ParentGroupId" AnchorOrigin="Origin.BottomLeft" Margin="Margin.Dense" Style="font-size: 0.8rem;">
                         <MudSelectItem T="Guid?" Value="@null">None</MudSelectItem>
-                        @foreach (var pg in _productGroups.Where(c => c.Id != _editingProductGroup.Id))
+                        @foreach (var pg in _displayProductGroups.Where(c => c.Id != _editingProductGroup.Id))
                         {
                             <MudSelectItem T="Guid?" Value="@pg.Id">@pg.Name</MudSelectItem>
                         }
@@ -351,6 +351,9 @@
     private CategoryFormModel _editingCategory = new();
     private ProductGroupFormModel _editingProductGroup = new();
 
+    private List<ProductGroupDto> _displayProductGroups = new();
+    private List<CategoryDto> _displayCategories = new();
+
     protected override async Task OnInitializedAsync()
     {
         await LoadLookups();
@@ -361,8 +364,10 @@
     {
         try
         {
-            _categories = await ProductService.GetCategoriesAsync();
-            _productGroups = await ProductService.GetProductGroupsAsync();
+            _categories = await CategoryService.GetAllAsync();
+            _displayCategories = OrderHierarchically(_categories).ToList();
+            _productGroups = await ProductGroupService.GetAllAsync();
+            _displayProductGroups = OrderHierarchically(_productGroups).ToList();
             _taxes = await TaxService.GetAllAsync();
         }
         catch (Exception ex)
@@ -663,6 +668,68 @@
         public Guid? ParentGroupId { get; set; }
         public int SortOrder { get; set; }
         public bool IsActive { get; set; } = true;
+    }
+
+    private static IEnumerable<ProductGroupDto> OrderHierarchically(IEnumerable<ProductGroupDto> groups)
+    {
+        var groupsList = groups.ToList();
+        var childrenByParent = groupsList
+            .Where(g => g.ParentGroupId.HasValue)
+            .GroupBy(g => g.ParentGroupId!.Value)
+            .ToDictionary(g => g.Key, g => g.OrderBy(c => c.SortOrder).ToList());
+
+        var result = new List<ProductGroupDto>();
+        var roots = groupsList.Where(g => !g.ParentGroupId.HasValue).OrderBy(g => g.SortOrder).ToList();
+
+        foreach (var root in roots)
+        {
+            AddGroupAndChildren(root, childrenByParent, result);
+        }
+
+        return result;
+    }
+
+    private static void AddGroupAndChildren(ProductGroupDto group, Dictionary<Guid, List<ProductGroupDto>> childrenByParent, List<ProductGroupDto> result)
+    {
+        result.Add(group);
+        if (childrenByParent.TryGetValue(group.Id, out var children))
+        {
+            foreach (var child in children)
+            {
+                AddGroupAndChildren(child, childrenByParent, result);
+            }
+        }
+    }
+
+    private static IEnumerable<CategoryDto> OrderHierarchically(IEnumerable<CategoryDto> categories)
+    {
+        var categoriesList = categories.ToList();
+        var childrenByParent = categoriesList
+            .Where(c => c.ParentCategoryId.HasValue)
+            .GroupBy(c => c.ParentCategoryId!.Value)
+            .ToDictionary(g => g.Key, g => g.OrderBy(c => c.SortOrder).ToList());
+
+        var result = new List<CategoryDto>();
+        var roots = categoriesList.Where(c => !c.ParentCategoryId.HasValue).OrderBy(c => c.SortOrder).ToList();
+
+        foreach (var root in roots)
+        {
+            AddCategoryAndChildren(root, childrenByParent, result);
+        }
+
+        return result;
+    }
+
+    private static void AddCategoryAndChildren(CategoryDto category, Dictionary<Guid, List<CategoryDto>> childrenByParent, List<CategoryDto> result)
+    {
+        result.Add(category);
+        if (childrenByParent.TryGetValue(category.Id, out var children))
+        {
+            foreach (var child in children)
+            {
+                AddCategoryAndChildren(child, childrenByParent, result);
+            }
+        }
     }
 }
 

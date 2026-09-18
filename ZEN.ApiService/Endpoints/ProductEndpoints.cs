@@ -90,15 +90,6 @@ public static class ProductEndpoints
         .WithOpenApi()
         .RequireAuthorization();
 
-        group.MapGet("/groups", async (IProductService productService, CancellationToken ct) =>
-        {
-            var groups = await productService.GetProductGroupsAsync(ct);
-            return Results.Ok(groups);
-        })
-        .WithName("GetProductGroups")
-        .WithOpenApi()
-        .RequireAuthorization();
-
         return group;
     }
 }
