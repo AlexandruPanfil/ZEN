@@ -33,25 +33,17 @@
             <HeaderContent>
                 <MudTh>Name</MudTh>
                 <MudTh>Description</MudTh>
-                <MudTh>Parent Category</MudTh>
                 <MudTh>Sort Order</MudTh>
                 <MudTh>Status</MudTh>
                 <MudTh>Actions</MudTh>
             </HeaderContent>
             <RowTemplate>
-                <MudTd DataLabel="Name">@context.Name</MudTd>
-                <MudTd DataLabel="Description">@context.Description</MudTd>
-                <MudTd DataLabel="Parent Category">
-                    @if (context.ParentCategoryId.HasValue)
-                    {
-                        var parent = _displayCategories.FirstOrDefault(c => c.Id == context.ParentCategoryId.Value);
-                        @(parent?.Name ?? "Unknown")
-                    }
-                    else
-                    {
-                        <span>None</span>
-                    }
+                <MudTd DataLabel="Name">
+                    <div style="padding-left: @(GetDepth(_displayCategories, context.Id) * 20)px;">
+                        @(GetTreePrefix(_displayCategories, context.Id, GetDepth(_displayCategories, context.Id)))@context.Name
+                    </div>
                 </MudTd>
+                <MudTd DataLabel="Description">@context.Description</MudTd>
                 <MudTd DataLabel="Sort Order">@context.SortOrder</MudTd>
                 <MudTd DataLabel="Status">
                     <MudChip T="string" Color="@(context.IsActive == true ? Color.Success : Color.Error)" Size="Size.Small">
@@ -227,7 +219,7 @@
 
     private async Task DeleteCategory(CategoryDto category)
     {
-        var confirm = await DialogService.ShowAsync<ZEN.Shared.Components.Common.ConfirmDialog>("Delete Category",
+        var confirm = await DialogService.ShowAsync<ConfirmDialog>("Delete Category",
             new DialogParameters { { "Message", $"Are you sure you want to delete '{category.Name}'?" } });
 
         var result = await confirm.Result;
@@ -291,5 +283,34 @@
                 AddCategoryAndChildren(child, childrenByParent, result);
             }
         }
+    }
+
+    private static int GetDepth(List<CategoryDto> items, Guid id)
+    {
+        var item = items.FirstOrDefault(i => i.Id == id);
+        if (item == null) return 0;
+
+        if (!item.ParentCategoryId.HasValue) return 0;
+
+        return 1 + GetDepth(items, item.ParentCategoryId.Value);
+    }
+
+    private static string GetTreePrefix(List<CategoryDto> items, Guid id, int depth)
+    {
+        if (depth == 0) return "";
+        
+        var item = items.FirstOrDefault(i => i.Id == id);
+        if (item == null || !item.ParentCategoryId.HasValue) return new string(' ', depth * 2) + "└─ ";
+
+        var parent = items.FirstOrDefault(i => i.Id == item.ParentCategoryId.Value);
+        if (parent == null) return new string(' ', depth * 2) + "└─ ";
+
+        var children = items.Where(c => c.ParentCategoryId == parent.Id).OrderBy(c => c.SortOrder).ToList();
+        var lastChild = children.LastOrDefault();
+        
+        if (lastChild?.Id == id)
+            return new string(' ', (depth - 1) * 2) + "└─ ";
+        else
+            return new string(' ', (depth - 1) * 2) + "├─ ";
     }
 }

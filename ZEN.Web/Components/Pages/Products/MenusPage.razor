@@ -10,6 +10,7 @@
 @inject IProductService ProductService
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
+@inject NavigationManager Navigation
 @attribute [Authorize(Roles = "Administrator,Manager")]
 
 <Microsoft.AspNetCore.Components.Web.PageTitle>Cash Desk Menus - ZEN POS</Microsoft.AspNetCore.Components.Web.PageTitle>
@@ -39,7 +40,7 @@
             <MudTd DataLabel="Products">@_menuProductCounts.GetValueOrDefault(menu.Id, 0)</MudTd>
             <MudTd DataLabel="Groups">@_menuGroupCounts.GetValueOrDefault(menu.Id, 0)</MudTd>
             <MudTd DataLabel="Actions" Style="text-align: right;">
-                <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Info" Size="Size.Small" OnClick="@(() => OpenEditDialog(menu))" />
+                <MudIconButton Icon="@Icons.Material.Filled.List" Color="Color.Primary" Size="Size.Small" OnClick="@(() => NavigateToEditor(menu.Id))" Title="Edit Menu Content" />
                 <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small" OnClick="@(() => DeleteMenu(menu))" />
             </MudTd>
         </RowTemplate>
@@ -55,8 +56,8 @@
 <MudDialog @bind-Visible="_isDialogOpen" Options="new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true }">
     <TitleContent>
         <MudText Typo="Typo.subtitle1" Class="font-weight-bold">
-            <MudIcon Icon="@(_isEditMode ? Icons.Material.Filled.Edit : Icons.Material.Filled.Add)" Class="mr-2" />
-            @(_isEditMode ? "Edit Menu" : "Add Menu")
+            <MudIcon Icon="@Icons.Material.Filled.Add" Class="mr-2" />
+            Add Menu
         </MudText>
     </TitleContent>
     <DialogContent>
@@ -74,75 +75,6 @@
                         }
                     </MudSelect>
                 </MudItem>
-
-                @if (_currentMenu != null)
-                {
-                    <MudItem xs="12">
-                        <MudTabs Outlined="true">
-                            <MudTabPanel Text="Products" Icon="@Icons.Material.Filled.Inventory">
-                                <div class="d-flex justify-space-between align-center mb-2">
-                                    <MudText Typo="Typo.caption" Class="font-weight-bold">Products in Menu</MudText>
-                                    <MudButton OnClick="OpenProductPickerDialog" StartIcon="@Icons.Material.Filled.Add" Color="Color.Primary" Size="Size.Small">Add Product</MudButton>
-                                </div>
-                                <MudPaper Style="max-height: 250px; overflow-y: auto;">
-                                    @if (_currentMenu.Products.Any())
-                                    {
-                                        <MudList T="MenuProductDto" Dense="true">
-                                            @foreach (var product in _currentMenu.Products.OrderBy(p => p.Position))
-                                            {
-                                                <MudListItem>
-                                                    <MudGrid>
-                                                        <MudItem xs="8">
-                                                            <MudText>@product.ProductName (@product.SalePrice.ToString("C"))</MudText>
-                                                        </MudItem>
-                                                        <MudItem xs="4" Style="text-align: right;">
-                                                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small" OnClick="() => RemoveMenuProduct(product.Id)" />
-                                                        </MudItem>
-                                                    </MudGrid>
-                                                </MudListItem>
-                                            }
-                                        </MudList>
-                                    }
-                                    else
-                                    {
-                                        <MudText>No products assigned.</MudText>
-                                    }
-                                </MudPaper>
-                            </MudTabPanel>
-
-                            <MudTabPanel Text="Groups" Icon="@Icons.Material.Filled.Folder">
-                                <div class="d-flex justify-space-between align-center mb-2">
-                                    <MudText Typo="Typo.caption" Class="font-weight-bold">Groups in Menu</MudText>
-                                    <MudButton OnClick="OpenGroupPickerDialog" StartIcon="@Icons.Material.Filled.Add" Color="Color.Secondary" Size="Size.Small">Add Group</MudButton>
-                                </div>
-                                <MudPaper Style="max-height: 250px; overflow-y: auto;">
-                                    @if (_currentMenu.Groups.Any())
-                                    {
-                                        <MudList T="MenuGroupDto" Dense="true">
-                                            @foreach (var group in _currentMenu.Groups.OrderBy(g => g.Position))
-                                            {
-                                                <MudListItem>
-                                                    <MudGrid>
-                                                        <MudItem xs="8">
-                                                            <MudText>@group.GroupName (@group.Products.Count() products)</MudText>
-                                                        </MudItem>
-                                                        <MudItem xs="4" Style="text-align: right;">
-                                                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small" OnClick="() => RemoveMenuGroup(group.Id)" />
-                                                        </MudItem>
-                                                    </MudGrid>
-                                                </MudListItem>
-                                            }
-                                        </MudList>
-                                    }
-                                    else
-                                    {
-                                        <MudText>No groups assigned.</MudText>
-                                    }
-                                </MudPaper>
-                            </MudTabPanel>
-                        </MudTabs>
-                    </MudItem>
-                }
             </MudGrid>
         </MudForm>
     </DialogContent>
@@ -162,7 +94,6 @@
     private Dictionary<Guid, int> _menuGroupCounts = new();
     private bool _isLoading = true;
     private bool _isDialogOpen = false;
-    private bool _isEditMode = false;
     private bool _formIsValid = false;
     private MudForm? _form;
 
@@ -221,19 +152,8 @@
 
     private void OpenCreateDialog()
     {
-        _isEditMode = false;
         _editing = new MenuFormModel();
         _currentMenu = null;
-        _isDialogOpen = true;
-    }
-
-    private async Task OpenEditDialog(MenuSummaryDto menu)
-    {
-        _isEditMode = true;
-        var detail = await MenuService.GetByIdAsync(menu.Id);
-        if (detail == null) return;
-        _editing = new MenuFormModel { Id = detail.Id, Name = detail.Name, StoreId = detail.StoreId };
-        _currentMenu = detail;
         _isDialogOpen = true;
     }
 
@@ -250,9 +170,22 @@
     private async Task AddProductToMenu(Guid productId)
     {
         if (_currentMenu == null) return;
-        _currentMenu = await MenuService.AddProductAsync(new AddProductToMenuRequest(_currentMenu.Id, productId, _currentMenu.Products.Count()));
+        var result = await MenuService.AddProductAsync(new AddProductToMenuRequest(_currentMenu.Id, productId, _currentMenu.Products.Count()));
+        _currentMenu = await MenuService.GetByIdAsync(_currentMenu.Id);
         _menuProductCounts[_currentMenu.Id] = _currentMenu.Products.Count();
-        Snackbar.Add("Product added to menu.", Severity.Success);
+        
+        switch (result.Action)
+        {
+            case AddProductAction.Added:
+                Snackbar.Add("Product added to menu.", Severity.Success);
+                break;
+            case AddProductAction.MovedFromGroup:
+                Snackbar.Add("Product moved from group to root.", Severity.Success);
+                break;
+            case AddProductAction.Skipped:
+                Snackbar.Add("Product already exists in root.", Severity.Warning);
+                break;
+        }
         StateHasChanged();
     }
 
@@ -303,17 +236,9 @@
     {
         try
         {
-            if (_isEditMode && _editing.Id.HasValue)
-            {
-                await MenuService.UpdateAsync(new UpdateMenuRequest(_editing.Id.Value, _editing.Name, _editing.StoreId));
-                Snackbar.Add("Menu updated successfully.", Severity.Success);
-            }
-            else
-            {
-                var created = await MenuService.CreateAsync(new CreateMenuRequest(_editing.Name, _editing.StoreId));
-                Snackbar.Add("Menu created successfully.", Severity.Success);
-                _currentMenu = await MenuService.GetByIdAsync(created.Id);
-            }
+            var created = await MenuService.CreateAsync(new CreateMenuRequest(_editing.Name, _editing.StoreId));
+            Snackbar.Add("Menu created successfully.", Severity.Success);
+            _currentMenu = await MenuService.GetByIdAsync(created.Id);
             await LoadMenus();
             CloseDialog();
         }
@@ -347,6 +272,11 @@
     }
 
     private void CloseDialog() => _isDialogOpen = false;
+
+    private void NavigateToEditor(Guid menuId)
+    {
+        Navigation.NavigateTo($"/products/menus/{menuId}/edit");
+    }
 
     private class MenuFormModel
     {

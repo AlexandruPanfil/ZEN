@@ -6,6 +6,7 @@
 @inject PosStoreService StoreService
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
+@inject NavigationManager Navigation
 
 <PageTitle>Cash Desk Menus - ZEN POS</PageTitle>
 
@@ -46,6 +47,7 @@
             <MudTd DataLabel="Store">@_stores.FirstOrDefault(s => s.Id == menu.StoreId)?.Name ?? "All stores"</MudTd>
             <MudTd Style="text-align:right">
                 <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" OnClick="@(() => StartEdit(menu))" />
+                <MudIconButton Icon="@Icons.Material.Filled.MenuBook" Color="Color.Info" OnClick="@(() => NavigateToEditor(menu.Id))" Title="Edit Menu Content" />
                 <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" OnClick="@(() => Delete(menu))" />
             </MudTd>
         </RowTemplate>
@@ -102,6 +104,11 @@
     }
 
     private void CancelEdit() => _editing = false;
+
+    private void NavigateToEditor(Guid menuId)
+    {
+        Navigation.NavigateTo($"/manager/equipments/cash-desk-menus/{menuId}/edit");
+    }
 
     private async Task Save()
     {

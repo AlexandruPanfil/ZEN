@@ -779,10 +779,118 @@ return Results.Ok(new
             IMenuService menuService,
             CancellationToken ct) =>
         {
-            var deleted = await menuService.RemoveMenuGroupAsync(menuGroupId, ct);
+            var deleted = await menuService.RemoveMenuGroupReferenceAsync(menuGroupId, ct);
+            return deleted ? Results.NoContent() : Results.NotFound();
+        })
+        .WithName("RemoveMenuGroupReference")
+        .WithOpenApi()
+        .RequireAuthorization();
+
+        // Menu Groups (new independent groups)
+        group.MapGet("/menus/{id:guid}/structure", async (
+            Guid id,
+            IMenuService menuService,
+            CancellationToken ct) =>
+        {
+            var menu = await menuService.GetByIdAsync(id, ct);
+            return menu is not null ? Results.Ok(menu) : Results.NotFound();
+        })
+        .WithName("GetMenuStructure")
+        .WithOpenApi()
+        .RequireAuthorization();
+
+        group.MapPost("/menus/{id:guid}/menu-groups", async (
+            Guid id,
+            [FromBody] CreateMenuGroupRequest request,
+            IMenuService menuService,
+            CancellationToken ct) =>
+        {
+            var requestWithMenuId = request with { MenuId = id };
+            var menu = await menuService.AddMenuGroupAsync(requestWithMenuId, ct);
+            return Results.Ok(menu);
+        })
+        .WithName("AddMenuGroup")
+        .WithOpenApi()
+        .RequireAuthorization();
+
+        group.MapPut("/menu-groups/{id:guid}", async (
+            Guid id,
+            [FromBody] UpdateMenuGroupRequest request,
+            IMenuService menuService,
+            CancellationToken ct) =>
+        {
+            if (id != request.Id) return Results.BadRequest();
+            var menu = await menuService.UpdateMenuGroupAsync(request, ct);
+            return Results.Ok(menu);
+        })
+        .WithName("UpdateMenuGroup")
+        .WithOpenApi()
+        .RequireAuthorization();
+
+        group.MapDelete("/menu-groups/{id:guid}", async (
+            Guid id,
+            IMenuService menuService,
+            CancellationToken ct) =>
+        {
+            var deleted = await menuService.RemoveMenuGroupAsync(id, ct);
             return deleted ? Results.NoContent() : Results.NotFound();
         })
         .WithName("RemoveMenuGroup")
+        .WithOpenApi()
+        .RequireAuthorization();
+
+        group.MapPost("/menu-groups/{id:guid}/products", async (
+            Guid id,
+            [FromBody] AddProductToMenuGroupRequest request,
+            IMenuService menuService,
+            CancellationToken ct) =>
+        {
+            var requestWithGroupId = request with { MenuGroupId = id };
+            var menu = await menuService.AddProductToMenuGroupAsync(requestWithGroupId, ct);
+            return Results.Ok(menu);
+        })
+        .WithName("AddProductToMenuGroup")
+        .WithOpenApi()
+        .RequireAuthorization();
+
+        group.MapDelete("/menu-groups/{menuGroupId:guid}/products/{menuGroupProductId:guid}", async (
+            Guid menuGroupId,
+            Guid menuGroupProductId,
+            IMenuService menuService,
+            CancellationToken ct) =>
+        {
+            var deleted = await menuService.RemoveProductFromMenuGroupAsync(menuGroupProductId, ct);
+            return deleted ? Results.NoContent() : Results.NotFound();
+        })
+        .WithName("RemoveProductFromMenuGroup")
+        .WithOpenApi()
+        .RequireAuthorization();
+
+        group.MapPut("/menus/{id:guid}/reorder-groups", async (
+            Guid id,
+            [FromBody] ReorderMenuGroupsRequest request,
+            IMenuService menuService,
+            CancellationToken ct) =>
+        {
+            var requestWithMenuId = request with { MenuId = id };
+            var menu = await menuService.ReorderMenuGroupsAsync(requestWithMenuId, ct);
+            return Results.Ok(menu);
+        })
+        .WithName("ReorderMenuGroups")
+        .WithOpenApi()
+        .RequireAuthorization();
+
+        group.MapPut("/menu-groups/{id:guid}/reorder-products", async (
+            Guid id,
+            [FromBody] ReorderMenuGroupProductsRequest request,
+            IMenuService menuService,
+            CancellationToken ct) =>
+        {
+            var requestWithGroupId = request with { MenuGroupId = id };
+            var menu = await menuService.ReorderMenuGroupProductsAsync(requestWithGroupId, ct);
+            return Results.Ok(menu);
+        })
+        .WithName("ReorderMenuGroupProducts")
         .WithOpenApi()
         .RequireAuthorization();
 

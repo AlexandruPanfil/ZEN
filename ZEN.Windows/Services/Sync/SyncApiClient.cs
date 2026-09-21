@@ -448,6 +448,115 @@ public class SyncApiClient
         }
     }
 
+    public async Task<MenuDto?> GetMenuStructureAsync(Guid menuId, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            return await _httpClient.GetFromJsonAsync<MenuDto>($"api/equipments/menus/{menuId}/structure", cancellationToken);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    public async Task<MenuDto?> AddMenuGroupAsync(
+        CreateMenuGroupRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        using var response = await _httpClient.PostAsJsonAsync($"api/equipments/menus/{request.MenuId}/menu-groups", request, cancellationToken);
+        return response.IsSuccessStatusCode
+            ? await response.Content.ReadFromJsonAsync<MenuDto>(cancellationToken)
+            : null;
+    }
+
+    public async Task<MenuDto?> UpdateMenuGroupAsync(
+        UpdateMenuGroupRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        using var response = await _httpClient.PutAsJsonAsync($"api/equipments/menu-groups/{request.Id}", request, cancellationToken);
+        await ThrowIfConflictAsync(response, "menu group", cancellationToken);
+        return response.IsSuccessStatusCode
+            ? await response.Content.ReadFromJsonAsync<MenuDto>(cancellationToken)
+            : null;
+    }
+
+    public async Task<bool> DeleteMenuGroupAsync(
+        Guid id,
+        CancellationToken cancellationToken = default)
+    {
+        using var response = await _httpClient.DeleteAsync(
+            $"api/equipments/menu-groups/{id}",
+            cancellationToken);
+        await ThrowIfConflictAsync(response, "menu group", cancellationToken);
+        return response.IsSuccessStatusCode;
+    }
+
+    public async Task<MenuDto?> AddProductToMenuGroupAsync(
+        AddProductToMenuGroupRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        using var response = await _httpClient.PostAsJsonAsync($"api/equipments/menu-groups/{request.MenuGroupId}/products", request, cancellationToken);
+        return response.IsSuccessStatusCode
+            ? await response.Content.ReadFromJsonAsync<MenuDto>(cancellationToken)
+            : null;
+    }
+
+    public async Task<bool> RemoveProductFromMenuGroupAsync(
+        Guid menuGroupId,
+        Guid menuGroupProductId,
+        CancellationToken cancellationToken = default)
+    {
+        using var response = await _httpClient.DeleteAsync(
+            $"api/equipments/menu-groups/{menuGroupId}/products/{menuGroupProductId}",
+            cancellationToken);
+        await ThrowIfConflictAsync(response, "menu group product", cancellationToken);
+        return response.IsSuccessStatusCode;
+    }
+
+    public async Task<MenuDto?> AddProductToMenuAsync(
+        AddProductToMenuRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        using var response = await _httpClient.PostAsJsonAsync($"api/equipments/menus/{request.MenuId}/products", request, cancellationToken);
+        return response.IsSuccessStatusCode
+            ? await response.Content.ReadFromJsonAsync<MenuDto>(cancellationToken)
+            : null;
+    }
+
+    public async Task<bool> RemoveProductFromMenuAsync(
+        Guid menuProductId,
+        CancellationToken cancellationToken = default)
+    {
+        using var response = await _httpClient.DeleteAsync(
+            $"api/equipments/menus/products/{menuProductId}",
+            cancellationToken);
+        await ThrowIfConflictAsync(response, "menu product", cancellationToken);
+        return response.IsSuccessStatusCode;
+    }
+
+    public async Task<MenuDto?> ReorderMenuGroupsAsync(
+        ReorderMenuGroupsRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        using var response = await _httpClient.PutAsJsonAsync($"api/equipments/menus/{request.MenuId}/reorder-groups", request, cancellationToken);
+        await ThrowIfConflictAsync(response, "menu groups reorder", cancellationToken);
+        return response.IsSuccessStatusCode
+            ? await response.Content.ReadFromJsonAsync<MenuDto>(cancellationToken)
+            : null;
+    }
+
+    public async Task<MenuDto?> ReorderMenuGroupProductsAsync(
+        ReorderMenuGroupProductsRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        using var response = await _httpClient.PutAsJsonAsync($"api/equipments/menu-groups/{request.MenuGroupId}/reorder-products", request, cancellationToken);
+        await ThrowIfConflictAsync(response, "menu group products reorder", cancellationToken);
+        return response.IsSuccessStatusCode
+            ? await response.Content.ReadFromJsonAsync<MenuDto>(cancellationToken)
+            : null;
+    }
+
     public async Task<IEnumerable<GroupDto>> GetGroupsAsync(CancellationToken cancellationToken = default)
     {
         try

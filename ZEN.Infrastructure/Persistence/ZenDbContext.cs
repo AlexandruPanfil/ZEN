@@ -32,6 +32,8 @@ public class ZenDbContext : IdentityDbContext<AppUser, AppRole, string>
     public DbSet<Menu> Menus => Set<Menu>();
     public DbSet<MenuProduct> MenuProducts => Set<MenuProduct>();
     public DbSet<MenuGroup> MenuGroups => Set<MenuGroup>();
+    public DbSet<MenuGroupProduct> MenuGroupProducts => Set<MenuGroupProduct>();
+    public DbSet<MenuGroupReference> MenuGroupReferences => Set<MenuGroupReference>();
 
     // Auth & Security
     public DbSet<Permission> Permissions => Set<Permission>();

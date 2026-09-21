@@ -8,6 +8,7 @@ public class Menu : BaseEntity
     public Store? Store { get; set; }
     public ICollection<MenuProduct> Products { get; set; } = [];
     public ICollection<MenuGroup> Groups { get; set; } = [];
+    public ICollection<MenuGroupReference> GroupReferences { get; set; } = [];
     public ICollection<CashDesk> CashDesks { get; set; } = [];
 }
 
@@ -22,6 +23,26 @@ public class MenuProduct : BaseEntity
 }
 
 public class MenuGroup : BaseEntity
+{
+    public string Name { get; set; } = string.Empty;
+    public Guid MenuId { get; set; }
+    public int Position { get; set; }
+
+    public Menu Menu { get; set; } = null!;
+    public ICollection<MenuGroupProduct> Products { get; set; } = [];
+}
+
+public class MenuGroupProduct : BaseEntity
+{
+    public Guid MenuGroupId { get; set; }
+    public Guid ProductId { get; set; }
+    public int Position { get; set; }
+
+    public MenuGroup MenuGroup { get; set; } = null!;
+    public Product Product { get; set; } = null!;
+}
+
+public class MenuGroupReference : BaseEntity
 {
     public Guid MenuId { get; set; }
     public Guid GroupId { get; set; }

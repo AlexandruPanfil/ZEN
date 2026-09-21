@@ -12,11 +12,18 @@ public interface IMenuService
     Task<MenuDto> UpdateAsync(UpdateMenuRequest request, CancellationToken cancellationToken = default);
     Task<bool> DeleteAsync(Guid id, CancellationToken cancellationToken = default, long baseVersion = 0);
     Task<IEnumerable<FlatMenuItemDto>> GetFlatItemsAsync(Guid menuId, CancellationToken cancellationToken = default);
-    Task<MenuDto> AddProductAsync(AddProductToMenuRequest request, CancellationToken cancellationToken = default);
+    Task<AddProductResult> AddProductAsync(AddProductToMenuRequest request, CancellationToken cancellationToken = default);
     Task<MenuDto> AddGroupAsync(AddGroupToMenuRequest request, CancellationToken cancellationToken = default);
     Task<bool> RemoveMenuProductAsync(Guid menuProductId, CancellationToken cancellationToken = default);
-    Task<bool> RemoveMenuGroupAsync(Guid menuGroupId, CancellationToken cancellationToken = default);
+    Task<bool> RemoveMenuGroupReferenceAsync(Guid menuGroupReferenceId, CancellationToken cancellationToken = default);
 
+    Task<MenuDto> AddMenuGroupAsync(CreateMenuGroupRequest request, CancellationToken cancellationToken = default);
+    Task<MenuDto> UpdateMenuGroupAsync(UpdateMenuGroupRequest request, CancellationToken cancellationToken = default);
+    Task<bool> RemoveMenuGroupAsync(Guid menuGroupId, CancellationToken cancellationToken = default);
+    Task<AddProductResult> AddProductToMenuGroupAsync(AddProductToMenuGroupRequest request, CancellationToken cancellationToken = default);
+    Task<bool> RemoveProductFromMenuGroupAsync(Guid menuGroupProductId, CancellationToken cancellationToken = default);
+    Task<MenuDto> ReorderMenuGroupsAsync(ReorderMenuGroupsRequest request, CancellationToken cancellationToken = default);
+    Task<MenuDto> ReorderMenuGroupProductsAsync(ReorderMenuGroupProductsRequest request, CancellationToken cancellationToken = default);
 
     Task<IEnumerable<GroupDto>> GetGroupsAsync(CancellationToken cancellationToken = default);
     Task<GroupDto> CreateGroupAsync(CreateGroupRequest request, CancellationToken cancellationToken = default);

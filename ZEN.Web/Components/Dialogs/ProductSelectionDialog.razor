@@ -1,0 +1,66 @@
+@using ZEN.Application.DTOs.Products
+@using MudBlazor
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">@Title</MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudTextField @bind-Value="_searchTerm" Placeholder="Search products..." Variant="Variant.Outlined" Class="w-100 mb-3" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" DebounceInterval="300" />
+        
+        <MudGrid Spacing="2" Class="product-grid">
+            @foreach (var product in _filteredProducts)
+            {
+                var isSelected = _selectedProductIds.Contains(product.Id);
+                <MudItem xs="6" md="4" lg="3">
+                    <MudCard Class="@($"product-selection-card {(isSelected ? "selected" : "")}")" Style="cursor: pointer;">
+                        <MudCardContent @onclick="@(() => ToggleProductSelection(product))">
+                            <MudText Typo="Typo.h6">@product.Name</MudText>
+                            <MudText Typo="Typo.body2" Color="Color.Primary">@product.SalePrice.ToString("C")</MudText>
+                            @if (isSelected)
+                            {
+                                <MudChip T="bool" Color="Color.Primary" Size="Size.Small" Class="mt-2">Selected</MudChip>
+                            }
+                        </MudCardContent>
+                    </MudCard>
+                </MudItem>
+            }
+        </MudGrid>
+        
+        @if (!_filteredProducts.Any())
+        {
+            <MudText Typo="Typo.body1" Color="Color.Default" Class="pa-4" Align="Align.Center">No products found</MudText>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel" Variant="Variant.Text">Cancel</MudButton>
+        <MudButton Color="Color.Primary" OnClick="Confirm" Disabled="!_selectedProductIds.Any()">Add @_selectedProductIds.Count Product(s)</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [Parameter] public IEnumerable<ProductDto> Products { get; set; } = [];
+    [Parameter] public string Title { get; set; } = "Select Products";
+    [CascadingParameter] private IMudDialogInstance Dialog { get; set; } = default!;
+
+    private string _searchTerm = "";
+    private HashSet<Guid> _selectedProductIds = new();
+    private IEnumerable<ProductDto> _filteredProducts => string.IsNullOrWhiteSpace(_searchTerm)
+        ? Products
+        : Products.Where(p => p.Name.Contains(_searchTerm, StringComparison.OrdinalIgnoreCase));
+
+    private void ToggleProductSelection(ProductDto product)
+    {
+        if (_selectedProductIds.Contains(product.Id))
+        {
+            _selectedProductIds.Remove(product.Id);
+        }
+        else
+        {
+            _selectedProductIds.Add(product.Id);
+        }
+    }
+
+    private void Confirm() => Dialog.Close(DialogResult.Ok(_selectedProductIds.Select(id => Products.ToList().First(p => p.Id == id)).ToList()));
+    private void Cancel() => Dialog.Close(DialogResult.Cancel());
+}

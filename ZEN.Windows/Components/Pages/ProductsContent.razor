@@ -124,13 +124,11 @@
                         <MudList T="CategoryDto" Dense="true" Clickable="false" Class="pa-0">
                             @foreach (var cat in _displayCategories)
                             {
-                                <div class="d-flex align-center justify-space-between mud-width-full py-1 border-bottom border-solid mud-border-default">
+                                var depth = GetDepth(_displayCategories, cat.Id);
+                                var prefix = GetTreePrefix(_displayCategories, cat.Id, depth);
+                                <div class="d-flex align-center justify-space-between mud-width-full py-1 border-bottom border-solid mud-border-default" style="padding-left: @(depth * 20)px;">
                                     <div class="d-flex flex-column">
-                                        <MudText Typo="Typo.caption" Class="font-weight-bold">@cat.Name</MudText>
-                                        @if (!string.IsNullOrWhiteSpace(cat.ParentCategoryName))
-                                        {
-                                            <MudText Typo="Typo.caption" Style="font-size: 0.7rem;" Color="Color.Secondary">Parent: @cat.ParentCategoryName</MudText>
-                                        }
+                                        <MudText Typo="Typo.caption" Class="font-weight-bold">@(prefix)@cat.Name</MudText>
                                     </div>
                                     <div class="d-flex">
                                         <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" Color="Color.Info" Class="pa-1" OnClick="() => OpenEditCategoryDialog(cat)" />
@@ -151,13 +149,11 @@
                         <MudList T="ProductGroupDto" Dense="true" Clickable="false" Class="pa-0">
                             @foreach (var pg in _displayProductGroups)
                             {
-                                <div class="d-flex align-center justify-space-between mud-width-full py-1 border-bottom border-solid mud-border-default">
+                                var depth = GetDepth(_displayProductGroups, pg.Id);
+                                var prefix = GetTreePrefix(_displayProductGroups, pg.Id, depth);
+                                <div class="d-flex align-center justify-space-between mud-width-full py-1 border-bottom border-solid mud-border-default" style="padding-left: @(depth * 20)px;">
                                     <div class="d-flex flex-column">
-                                        <MudText Typo="Typo.caption" Class="font-weight-bold">@pg.Name</MudText>
-                                        @if (!string.IsNullOrWhiteSpace(pg.ParentGroupName))
-                                        {
-                                            <MudText Typo="Typo.caption" Style="font-size: 0.7rem;" Color="Color.Secondary">Parent: @pg.ParentGroupName</MudText>
-                                        }
+                                        <MudText Typo="Typo.caption" Class="font-weight-bold">@(prefix)@pg.Name</MudText>
                                     </div>
                                     <div class="d-flex">
                                         <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" Color="Color.Info" Class="pa-1" OnClick="() => OpenEditProductGroupDialog(pg)" />
@@ -657,5 +653,49 @@
                 AddCategoryAndChildren(child, childrenByParent, result);
             }
         }
+    }
+
+    private static int GetDepth<T>(List<T> items, Guid id) where T : class
+    {
+        var item = items.FirstOrDefault(i => i.GetType().GetProperty("Id")?.GetValue(i)?.Equals(id) == true);
+        if (item == null) return 0;
+
+        var parentIdProp = item.GetType().GetProperty("ParentCategoryId") ?? item.GetType().GetProperty("ParentGroupId");
+        if (parentIdProp == null) return 0;
+
+        var parentId = parentIdProp.GetValue(item) as Guid?;
+        if (!parentId.HasValue) return 0;
+
+        return 1 + GetDepth(items, parentId.Value);
+    }
+
+    private static string GetTreePrefix<T>(List<T> items, Guid id, int depth) where T : class
+    {
+        if (depth == 0) return "";
+        
+        var item = items.FirstOrDefault(i => i.GetType().GetProperty("Id")?.GetValue(i)?.Equals(id) == true);
+        if (item == null) return new string(' ', depth * 2) + "└─ ";
+
+        var parentIdProp = item.GetType().GetProperty("ParentCategoryId") ?? item.GetType().GetProperty("ParentGroupId");
+        var childrenPropName = item.GetType().GetProperty("ParentCategoryId") != null ? "SubCategories" : "SubGroups";
+        
+        var parentId = parentIdProp?.GetValue(item) as Guid?;
+        if (!parentId.HasValue) return new string(' ', depth * 2) + "└─ ";
+
+        var parent = items.FirstOrDefault(i => i.GetType().GetProperty("Id")?.GetValue(i)?.Equals(parentId.Value) == true);
+        if (parent == null) return new string(' ', depth * 2) + "└─ ";
+
+        var childrenProp = parent.GetType().GetProperty(childrenPropName);
+        var children = childrenProp?.GetValue(parent) as System.Collections.IEnumerable;
+        if (children == null) return new string(' ', depth * 2) + "└─ ";
+
+        var childrenList = children.Cast<T>().ToList();
+        var lastChild = childrenList.LastOrDefault();
+        var lastChildId = lastChild?.GetType().GetProperty("Id")?.GetValue(lastChild);
+        
+        if (lastChildId?.Equals(id) == true)
+            return new string(' ', (depth - 1) * 2) + "└─ ";
+        else
+            return new string(' ', (depth - 1) * 2) + "├─ ";
     }
 }

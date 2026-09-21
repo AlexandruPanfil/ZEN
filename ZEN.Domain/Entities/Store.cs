@@ -19,4 +19,5 @@ public class Store : BaseEntity
     public ICollection<Warehouse> Warehouses { get; set; } = [];
     public ICollection<CashDesk> CashDesks { get; set; } = [];
     public ICollection<Shift> Shifts { get; set; } = [];
+    public ICollection<Menu> Menus { get; set; } = [];
 }

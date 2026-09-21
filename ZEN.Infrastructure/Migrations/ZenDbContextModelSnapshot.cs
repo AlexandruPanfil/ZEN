@@ -1124,7 +1124,8 @@ namespace ZEN.Infrastructure.Migrations
 
                     b.Property<string>("Name")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
 
                     b.Property<Guid?>("StoreId")
                         .HasColumnType("uniqueidentifier");
@@ -1143,6 +1144,79 @@ namespace ZEN.Infrastructure.Migrations
                 });
 
             modelBuilder.Entity("ZEN.Domain.Entities.MenuGroup", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<Guid>("MenuId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<int>("Position")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long>("Version")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MenuId", "Position");
+
+                    b.ToTable("MenuGroups");
+                });
+
+            modelBuilder.Entity("ZEN.Domain.Entities.MenuGroupProduct", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<Guid>("MenuGroupId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Position")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long>("Version")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProductId");
+
+                    b.HasIndex("MenuGroupId", "ProductId")
+                        .IsUnique();
+
+                    b.ToTable("MenuGroupProducts");
+                });
+
+            modelBuilder.Entity("ZEN.Domain.Entities.MenuGroupReference", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -1173,9 +1247,10 @@ namespace ZEN.Infrastructure.Migrations
 
                     b.HasIndex("GroupId");
 
-                    b.HasIndex("MenuId");
+                    b.HasIndex("MenuId", "GroupId")
+                        .IsUnique();
 
-                    b.ToTable("MenuGroups");
+                    b.ToTable("MenuGroupReferences");
                 });
 
             modelBuilder.Entity("ZEN.Domain.Entities.MenuProduct", b =>
@@ -1207,9 +1282,10 @@ namespace ZEN.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("MenuId");
-
                     b.HasIndex("ProductId");
+
+                    b.HasIndex("MenuId", "ProductId")
+                        .IsUnique();
 
                     b.ToTable("MenuProducts");
                 });
@@ -3207,7 +3283,8 @@ namespace ZEN.Infrastructure.Migrations
 
                     b.HasOne("ZEN.Domain.Entities.Menu", "Menu")
                         .WithMany("CashDesks")
-                        .HasForeignKey("MenuId");
+                        .HasForeignKey("MenuId")
+                        .OnDelete(DeleteBehavior.SetNull);
 
                     b.HasOne("ZEN.Domain.Entities.Store", "Store")
                         .WithMany("CashDesks")
@@ -3441,13 +3518,44 @@ namespace ZEN.Infrastructure.Migrations
             modelBuilder.Entity("ZEN.Domain.Entities.Menu", b =>
                 {
                     b.HasOne("ZEN.Domain.Entities.Store", "Store")
-                        .WithMany()
-                        .HasForeignKey("StoreId");
+                        .WithMany("Menus")
+                        .HasForeignKey("StoreId")
+                        .OnDelete(DeleteBehavior.SetNull);
 
                     b.Navigation("Store");
                 });
 
             modelBuilder.Entity("ZEN.Domain.Entities.MenuGroup", b =>
+                {
+                    b.HasOne("ZEN.Domain.Entities.Menu", "Menu")
+                        .WithMany("Groups")
+                        .HasForeignKey("MenuId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Menu");
+                });
+
+            modelBuilder.Entity("ZEN.Domain.Entities.MenuGroupProduct", b =>
+                {
+                    b.HasOne("ZEN.Domain.Entities.MenuGroup", "MenuGroup")
+                        .WithMany("Products")
+                        .HasForeignKey("MenuGroupId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("ZEN.Domain.Entities.Product", "Product")
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("MenuGroup");
+
+                    b.Navigation("Product");
+                });
+
+            modelBuilder.Entity("ZEN.Domain.Entities.MenuGroupReference", b =>
                 {
                     b.HasOne("ZEN.Domain.Entities.Group", "Group")
                         .WithMany()
@@ -3456,7 +3564,7 @@ namespace ZEN.Infrastructure.Migrations
                         .IsRequired();
 
                     b.HasOne("ZEN.Domain.Entities.Menu", "Menu")
-                        .WithMany("Groups")
+                        .WithMany("GroupReferences")
                         .HasForeignKey("MenuId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -3995,8 +4103,15 @@ namespace ZEN.Infrastructure.Migrations
                 {
                     b.Navigation("CashDesks");
 
+                    b.Navigation("GroupReferences");
+
                     b.Navigation("Groups");
 
+                    b.Navigation("Products");
+                });
+
+            modelBuilder.Entity("ZEN.Domain.Entities.MenuGroup", b =>
+                {
                     b.Navigation("Products");
                 });
 
@@ -4075,6 +4190,8 @@ namespace ZEN.Infrastructure.Migrations
             modelBuilder.Entity("ZEN.Domain.Entities.Store", b =>
                 {
                     b.Navigation("CashDesks");
+
+                    b.Navigation("Menus");
 
                     b.Navigation("Shifts");
 

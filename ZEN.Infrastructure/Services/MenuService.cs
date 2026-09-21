@@ -30,8 +30,9 @@ public class MenuService : IMenuService
     public async Task<MenuDto?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
         var menu = await _dbContext.Menus
-            .Include(m => m.Products).ThenInclude(mp => mp.Product)
-            .Include(m => m.Groups).ThenInclude(mg => mg.Group).ThenInclude(g => g.Products).ThenInclude(gp => gp.Product)
+            .Include(m => m.Products).ThenInclude(mp => mp.Product).ThenInclude(p => p.Tax)
+            .Include(m => m.Groups).ThenInclude(mg => mg.Products).ThenInclude(mgp => mgp.Product).ThenInclude(p => p.Tax)
+            .Include(m => m.GroupReferences).ThenInclude(mgr => mgr.Group).ThenInclude(g => g.Products).ThenInclude(gp => gp.Product).ThenInclude(p => p.Tax)
             .FirstOrDefaultAsync(m => m.Id == id && !m.IsDeleted, cancellationToken);
 
         return menu == null ? null : ToDto(menu);
@@ -83,7 +84,8 @@ public class MenuService : IMenuService
     {
         var menu = await _dbContext.Menus
             .Include(m => m.Products).ThenInclude(mp => mp.Product).ThenInclude(p => p.Tax)
-            .Include(m => m.Groups).ThenInclude(mg => mg.Group).ThenInclude(g => g.Products).ThenInclude(gp => gp.Product).ThenInclude(p => p.Tax)
+            .Include(m => m.Groups).ThenInclude(mg => mg.Products).ThenInclude(mgp => mgp.Product).ThenInclude(p => p.Tax)
+            .Include(m => m.GroupReferences).ThenInclude(mgr => mgr.Group).ThenInclude(g => g.Products).ThenInclude(gp => gp.Product).ThenInclude(p => p.Tax)
             .FirstOrDefaultAsync(m => m.Id == menuId && !m.IsDeleted, cancellationToken);
 
         if (menu == null)
@@ -96,9 +98,17 @@ public class MenuService : IMenuService
             items.Add(new FlatMenuItemDto(mp.ProductId, mp.Product!.Name, mp.Product.SalePrice, null, null, mp.Product.Tax?.Rate ?? 0m));
         }
 
-        foreach (var mg in menu.Groups.Where(g => g.Group != null).OrderBy(g => g.Position))
+        foreach (var mg in menu.Groups.Where(g => g.Products.Any(p => p.Product != null)).OrderBy(g => g.Position))
         {
-            var group = mg.Group!;
+            foreach (var mgp in mg.Products.Where(p => p.Product != null).OrderBy(p => p.Position))
+            {
+                items.Add(new FlatMenuItemDto(mgp.ProductId, mgp.Product!.Name, mgp.Product.SalePrice, mg.Id, mg.Name, mgp.Product.Tax?.Rate ?? 0m));
+            }
+        }
+
+        foreach (var mgr in menu.GroupReferences.Where(g => g.Group != null).OrderBy(g => g.Position))
+        {
+            var group = mgr.Group!;
             foreach (var gp in group.Products.Where(p => p.Product != null).OrderBy(p => p.Position))
             {
                 items.Add(new FlatMenuItemDto(gp.ProductId, gp.Product!.Name, gp.Product.SalePrice, group.Id, group.Name, gp.Product.Tax?.Rate ?? 0m));
@@ -108,7 +118,7 @@ public class MenuService : IMenuService
         return items;
     }
 
-    public async Task<MenuDto> AddProductAsync(AddProductToMenuRequest request, CancellationToken cancellationToken = default)
+public async Task<AddProductResult> AddProductAsync(AddProductToMenuRequest request, CancellationToken cancellationToken = default)
     {
         var menuExists = await _dbContext.Menus.AnyAsync(m => m.Id == request.MenuId && !m.IsDeleted, cancellationToken);
         if (!menuExists)
@@ -118,21 +128,68 @@ public class MenuService : IMenuService
         if (!productExists)
             throw new KeyNotFoundException($"Product with ID {request.ProductId} not found.");
 
-        var alreadyInMenu = await _dbContext.MenuProducts.AnyAsync(
-            mp => mp.MenuId == request.MenuId && mp.ProductId == request.ProductId, cancellationToken);
-        if (alreadyInMenu)
-            return (await GetByIdAsync(request.MenuId, cancellationToken))!;
+        // Check if product already exists in menu root (including soft-deleted)
+        var existingRootProduct = await _dbContext.MenuProducts.IgnoreQueryFilters()
+            .FirstOrDefaultAsync(mp => mp.MenuId == request.MenuId && mp.ProductId == request.ProductId, cancellationToken);
+        if (existingRootProduct != null)
+        {
+            if (existingRootProduct.IsDeleted)
+            {
+                // Restore soft-deleted record
+                existingRootProduct.IsDeleted = false;
+                existingRootProduct.Position = request.Position;
+                existingRootProduct.UpdatedAt = DateTime.UtcNow;
+                _dbContext.MenuProducts.Update(existingRootProduct);
+                await _dbContext.SaveChangesAsync(cancellationToken);
+            }
+            return new AddProductResult(AddProductAction.Skipped, request.ProductId);
+        }
 
-        var menuProduct = new MenuProduct
+        // Check if product already exists in any group of the same menu (including soft-deleted)
+        var groupIds = await _dbContext.MenuGroups
+            .IgnoreQueryFilters()
+            .Where(g => g.MenuId == request.MenuId)
+            .Select(g => g.Id)
+            .ToListAsync(cancellationToken);
+        
+        MenuGroupProduct? existingGroupProduct = null;
+        if (groupIds.Count > 0)
+        {
+            existingGroupProduct = await _dbContext.MenuGroupProducts
+                .IgnoreQueryFilters()
+                .FirstOrDefaultAsync(mgp => groupIds.Contains(mgp.MenuGroupId) && mgp.ProductId == request.ProductId, cancellationToken);
+        }
+        
+        if (existingGroupProduct != null)
+        {
+            // MOVE: Remove from group and add to root
+            _dbContext.MenuGroupProducts.Remove(existingGroupProduct);
+            
+            var menuProduct = new MenuProduct
+            {
+                MenuId = request.MenuId,
+                ProductId = request.ProductId,
+                Position = request.Position
+            };
+
+            _dbContext.MenuProducts.Add(menuProduct);
+            await _dbContext.SaveChangesAsync(cancellationToken);
+            
+            return new AddProductResult(AddProductAction.MovedFromGroup, request.ProductId);
+        }
+
+        // Add new product to root
+        var newMenuProduct = new MenuProduct
         {
             MenuId = request.MenuId,
             ProductId = request.ProductId,
             Position = request.Position
         };
 
-        _dbContext.MenuProducts.Add(menuProduct);
+        _dbContext.MenuProducts.Add(newMenuProduct);
         await _dbContext.SaveChangesAsync(cancellationToken);
-        return (await GetByIdAsync(request.MenuId, cancellationToken))!;
+        
+        return new AddProductResult(AddProductAction.Added, request.ProductId);
     }
 
     public async Task<MenuDto> AddGroupAsync(AddGroupToMenuRequest request, CancellationToken cancellationToken = default)
@@ -145,19 +202,19 @@ public class MenuService : IMenuService
         if (!groupExists)
             throw new KeyNotFoundException($"Group with ID {request.GroupId} not found.");
 
-        var alreadyInMenu = await _dbContext.MenuGroups.AnyAsync(
+        var alreadyInMenu = await _dbContext.MenuGroupReferences.AnyAsync(
             mg => mg.MenuId == request.MenuId && mg.GroupId == request.GroupId, cancellationToken);
         if (alreadyInMenu)
             return (await GetByIdAsync(request.MenuId, cancellationToken))!;
 
-        var menuGroup = new MenuGroup
+        var menuGroupRef = new MenuGroupReference
         {
             MenuId = request.MenuId,
             GroupId = request.GroupId,
             Position = request.Position
         };
 
-        _dbContext.MenuGroups.Add(menuGroup);
+        _dbContext.MenuGroupReferences.Add(menuGroupRef);
         await _dbContext.SaveChangesAsync(cancellationToken);
         return (await GetByIdAsync(request.MenuId, cancellationToken))!;
     }
@@ -173,15 +230,227 @@ public class MenuService : IMenuService
         return true;
     }
 
+    public async Task<bool> RemoveMenuGroupReferenceAsync(Guid menuGroupId, CancellationToken cancellationToken = default)
+    {
+        var menuGroup = await _dbContext.MenuGroupReferences.FindAsync([menuGroupId], cancellationToken);
+        if (menuGroup == null)
+            return false;
+
+        _dbContext.MenuGroupReferences.Remove(menuGroup);
+        await _dbContext.SaveChangesAsync(cancellationToken);
+        return true;
+    }
+
+    public async Task<MenuDto> AddMenuGroupAsync(CreateMenuGroupRequest request, CancellationToken cancellationToken = default)
+    {
+        var menuExists = await _dbContext.Menus.AnyAsync(m => m.Id == request.MenuId && !m.IsDeleted, cancellationToken);
+        if (!menuExists)
+            throw new KeyNotFoundException($"Menu with ID {request.MenuId} not found.");
+
+        var menuGroup = new MenuGroup
+        {
+            MenuId = request.MenuId,
+            Name = request.Name,
+            Position = request.Position
+        };
+
+        _dbContext.MenuGroups.Add(menuGroup);
+        await _dbContext.SaveChangesAsync(cancellationToken);
+        return (await GetByIdAsync(request.MenuId, cancellationToken))!;
+    }
+
+    public async Task<MenuDto> UpdateMenuGroupAsync(UpdateMenuGroupRequest request, CancellationToken cancellationToken = default)
+    {
+        var menuGroup = await _dbContext.MenuGroups.IgnoreQueryFilters().FirstOrDefaultAsync(m => m.Id == request.Id, cancellationToken);
+        if (menuGroup == null)
+            throw new KeyNotFoundException($"MenuGroup with ID {request.Id} not found.");
+
+        menuGroup.Name = request.Name;
+        menuGroup.Position = request.Position;
+        await _dbContext.SaveChangesAsync(cancellationToken);
+        return (await GetByIdAsync(menuGroup.MenuId, cancellationToken))!;
+    }
+
     public async Task<bool> RemoveMenuGroupAsync(Guid menuGroupId, CancellationToken cancellationToken = default)
     {
         var menuGroup = await _dbContext.MenuGroups.FindAsync([menuGroupId], cancellationToken);
         if (menuGroup == null)
             return false;
 
+        var groupProducts = _dbContext.MenuGroupProducts.Where(mgp => mgp.MenuGroupId == menuGroupId);
+        _dbContext.MenuGroupProducts.RemoveRange(groupProducts);
+
         _dbContext.MenuGroups.Remove(menuGroup);
         await _dbContext.SaveChangesAsync(cancellationToken);
         return true;
+    }
+
+public async Task<AddProductResult> AddProductToMenuGroupAsync(AddProductToMenuGroupRequest request, CancellationToken cancellationToken = default)
+        {
+            var menuGroup = await _dbContext.MenuGroups
+                .Include(g => g.Menu)
+                .IgnoreQueryFilters()
+                .FirstOrDefaultAsync(g => g.Id == request.MenuGroupId, cancellationToken);
+            
+            if (menuGroup == null)
+                throw new KeyNotFoundException($"MenuGroup with ID {request.MenuGroupId} not found.");
+            
+            if (menuGroup.IsDeleted)
+                throw new KeyNotFoundException($"MenuGroup with ID {request.MenuGroupId} is deleted.");
+            
+            // Validate MenuGroup belongs to a valid menu
+            if (menuGroup.Menu == null || menuGroup.Menu.IsDeleted)
+                throw new InvalidOperationException($"MenuGroup with ID {request.MenuGroupId} does not belong to a valid menu.");
+
+            var productExists = await _dbContext.Products.AnyAsync(p => p.Id == request.ProductId && !p.IsDeleted, cancellationToken);
+            if (!productExists)
+                throw new KeyNotFoundException($"Product with ID {request.ProductId} not found.");
+
+            var menuId = menuGroup.MenuId;
+
+            // Check if product already exists in this group (including soft-deleted)
+            var existingInGroup = await _dbContext.MenuGroupProducts.IgnoreQueryFilters()
+                .FirstOrDefaultAsync(mgp => mgp.MenuGroupId == request.MenuGroupId && mgp.ProductId == request.ProductId, cancellationToken);
+            if (existingInGroup != null)
+            {
+                if (existingInGroup.IsDeleted)
+                {
+                    // Restore soft-deleted record
+                    existingInGroup.IsDeleted = false;
+                    existingInGroup.Position = request.Position;
+                    existingInGroup.UpdatedAt = DateTime.UtcNow;
+                    _dbContext.MenuGroupProducts.Update(existingInGroup);
+                    await _dbContext.SaveChangesAsync(cancellationToken);
+                }
+                return new AddProductResult(AddProductAction.Skipped, request.ProductId);
+            }
+
+            // Check if product already exists in menu root (including soft-deleted)
+            var existingInRoot = await _dbContext.MenuProducts.IgnoreQueryFilters()
+                .FirstOrDefaultAsync(mp => mp.MenuId == menuId && mp.ProductId == request.ProductId, cancellationToken);
+            if (existingInRoot != null)
+            {
+                // MOVE: Remove from root and add to group
+                _dbContext.MenuProducts.Remove(existingInRoot);
+                
+                var menuGroupProduct = new MenuGroupProduct
+                {
+                    MenuGroupId = request.MenuGroupId,
+                    ProductId = request.ProductId,
+                    Position = request.Position
+                };
+
+                _dbContext.MenuGroupProducts.Add(menuGroupProduct);
+                await _dbContext.SaveChangesAsync(cancellationToken);
+                
+                return new AddProductResult(AddProductAction.MovedFromRoot, request.ProductId);
+            }
+
+            // Check if product already exists in another group of the same menu (including soft-deleted)
+            var otherGroupIds = await _dbContext.MenuGroups
+                .IgnoreQueryFilters()
+                .Where(g => g.MenuId == menuId && g.Id != request.MenuGroupId)
+                .Select(g => g.Id)
+                .ToListAsync(cancellationToken);
+            
+            MenuGroupProduct? existingInOtherGroup = null;
+            if (otherGroupIds.Count > 0)
+            {
+                existingInOtherGroup = await _dbContext.MenuGroupProducts
+                    .IgnoreQueryFilters()
+                    .FirstOrDefaultAsync(mgp => otherGroupIds.Contains(mgp.MenuGroupId) && mgp.ProductId == request.ProductId, cancellationToken);
+            }
+            
+            if (existingInOtherGroup != null)
+            {
+                // MOVE: Remove from other group and add to target group
+                _dbContext.MenuGroupProducts.Remove(existingInOtherGroup);
+                
+                var menuGroupProduct = new MenuGroupProduct
+                {
+                    MenuGroupId = request.MenuGroupId,
+                    ProductId = request.ProductId,
+                    Position = request.Position
+                };
+
+                _dbContext.MenuGroupProducts.Add(menuGroupProduct);
+                await _dbContext.SaveChangesAsync(cancellationToken);
+                
+                return new AddProductResult(AddProductAction.MovedFromGroup, request.ProductId);
+            }
+
+            // Add new product to group
+            var newMenuGroupProduct = new MenuGroupProduct
+            {
+                MenuGroupId = request.MenuGroupId,
+                ProductId = request.ProductId,
+                Position = request.Position
+            };
+
+            _dbContext.MenuGroupProducts.Add(newMenuGroupProduct);
+            await _dbContext.SaveChangesAsync(cancellationToken);
+            
+            return new AddProductResult(AddProductAction.Added, request.ProductId);
+        }
+
+    public async Task<bool> RemoveProductFromMenuGroupAsync(Guid menuGroupProductId, CancellationToken cancellationToken = default)
+    {
+        var menuGroupProduct = await _dbContext.MenuGroupProducts.FindAsync([menuGroupProductId], cancellationToken);
+        if (menuGroupProduct == null)
+            return false;
+
+        _dbContext.MenuGroupProducts.Remove(menuGroupProduct);
+        await _dbContext.SaveChangesAsync(cancellationToken);
+        return true;
+    }
+
+    public async Task<MenuDto> ReorderMenuGroupsAsync(ReorderMenuGroupsRequest request, CancellationToken cancellationToken = default)
+    {
+        var menuExists = await _dbContext.Menus.AnyAsync(m => m.Id == request.MenuId && !m.IsDeleted, cancellationToken);
+        if (!menuExists)
+            throw new KeyNotFoundException($"Menu with ID {request.MenuId} not found.");
+
+        var groupIds = request.GroupIdsInOrder.ToList();
+        var groups = await _dbContext.MenuGroups
+            .Where(g => g.MenuId == request.MenuId && groupIds.Contains(g.Id))
+            .ToListAsync(cancellationToken);
+
+        for (int i = 0; i < groupIds.Count; i++)
+        {
+            var group = groups.FirstOrDefault(g => g.Id == groupIds[i]);
+            if (group != null)
+            {
+                group.Position = i;
+            }
+        }
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+        return (await GetByIdAsync(request.MenuId, cancellationToken))!;
+    }
+
+    public async Task<MenuDto> ReorderMenuGroupProductsAsync(ReorderMenuGroupProductsRequest request, CancellationToken cancellationToken = default)
+    {
+        var menuGroupExists = await _dbContext.MenuGroups.AnyAsync(g => g.Id == request.MenuGroupId && !g.IsDeleted, cancellationToken);
+        if (!menuGroupExists)
+            throw new KeyNotFoundException($"MenuGroup with ID {request.MenuGroupId} not found.");
+
+        var productIds = request.ProductIdsInOrder.ToList();
+        var products = await _dbContext.MenuGroupProducts
+            .Where(gp => gp.MenuGroupId == request.MenuGroupId && productIds.Contains(gp.ProductId))
+            .ToListAsync(cancellationToken);
+
+        for (int i = 0; i < productIds.Count; i++)
+        {
+            var product = products.FirstOrDefault(p => p.ProductId == productIds[i]);
+            if (product != null)
+            {
+                product.Position = i;
+            }
+        }
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+        var menuGroup = await _dbContext.MenuGroups.FirstAsync(g => g.Id == request.MenuGroupId, cancellationToken);
+        return (await GetByIdAsync(menuGroup.MenuId, cancellationToken))!;
     }
 
     public async Task<IEnumerable<GroupDto>> GetGroupsAsync(CancellationToken cancellationToken = default)
@@ -236,8 +505,8 @@ public class MenuService : IMenuService
         var groupProducts = _dbContext.GroupProducts.Where(gp => gp.GroupId == groupId);
         _dbContext.GroupProducts.RemoveRange(groupProducts);
 
-        var menuGroups = _dbContext.MenuGroups.Where(mg => mg.GroupId == groupId);
-        _dbContext.MenuGroups.RemoveRange(menuGroups);
+        var menuGroups = _dbContext.MenuGroupReferences.Where(mg => mg.GroupId == groupId);
+        _dbContext.MenuGroupReferences.RemoveRange(menuGroups);
 
         _dbContext.Groups.Remove(group);
         await _dbContext.SaveChangesAsync(cancellationToken);
@@ -292,8 +561,21 @@ public class MenuService : IMenuService
                 p.Product.SalePrice,
                 p.Position));
 
-        var groups = menu.Groups.Where(g => g.Group != null).OrderBy(g => g.Position)
+        var groups = menu.Groups.OrderBy(g => g.Position)
             .Select(g => new MenuGroupDto(
+                g.Id,
+                g.Name,
+                g.Position,
+                g.Products.Where(gp => gp.Product != null).OrderBy(gp => gp.Position)
+                    .Select(gp => new MenuGroupProductDto(
+                        gp.Id,
+                        gp.ProductId,
+                        gp.Product!.Name,
+                        gp.Product.SalePrice,
+                        gp.Position))));
+
+        var groupReferences = menu.GroupReferences.Where(g => g.Group != null).OrderBy(g => g.Position)
+            .Select(g => new MenuGroupReferenceDto(
                 g.Id,
                 g.GroupId,
                 g.Group!.Name,
@@ -305,7 +587,7 @@ public class MenuService : IMenuService
                         gp.Product.SalePrice,
                         gp.Position))));
 
-        return new MenuDto(menu.Id, menu.Name, menu.StoreId, products, groups);
+        return new MenuDto(menu.Id, menu.Name, menu.StoreId, products, groups, groupReferences);
     }
 
     private static GroupDto ToGroupDto(Group group)

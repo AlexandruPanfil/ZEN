@@ -33,25 +33,17 @@
             <HeaderContent>
                 <MudTh>Name</MudTh>
                 <MudTh>Description</MudTh>
-                <MudTh>Parent Group</MudTh>
                 <MudTh>Sort Order</MudTh>
                 <MudTh>Status</MudTh>
                 <MudTh>Actions</MudTh>
             </HeaderContent>
             <RowTemplate>
-                <MudTd DataLabel="Name">@context.Name</MudTd>
-                <MudTd DataLabel="Description">@context.Description</MudTd>
-                <MudTd DataLabel="Parent Group">
-                    @if (context.ParentGroupId.HasValue)
-                    {
-                        var parent = _productGroups.FirstOrDefault(pg => pg.Id == context.ParentGroupId.Value);
-                        @(parent?.Name ?? "Unknown")
-                    }
-                    else
-                    {
-                        <span>None</span>
-                    }
+                <MudTd DataLabel="Name">
+                    <div style="padding-left: @(GetDepth(_displayProductGroups, context.Id) * 20)px;">
+                        @(GetTreePrefix(_displayProductGroups, context.Id, GetDepth(_displayProductGroups, context.Id)))@context.Name
+                    </div>
                 </MudTd>
+                <MudTd DataLabel="Description">@context.Description</MudTd>
                 <MudTd DataLabel="Sort Order">@context.SortOrder</MudTd>
                 <MudTd DataLabel="Status">
                     <MudChip T="string" Color="@(context.IsActive == true ? Color.Success : Color.Error)" Size="Size.Small">
@@ -132,6 +124,16 @@
     private bool _formIsValid = false;
     private MudForm? _form;
 
+    public class ProductGroupEditModel
+    {
+        public Guid Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string? Description { get; set; }
+        public Guid? ParentGroupId { get; set; }
+        public int SortOrder { get; set; }
+        public bool IsActive { get; set; } = true;
+    }
+
     private ProductGroupEditModel _editingProductGroup = new();
 
     protected override async Task OnInitializedAsync()
@@ -186,6 +188,35 @@
                 AddGroupAndChildren(child, childrenByParent, result);
             }
         }
+    }
+
+    private static int GetDepth(List<ProductGroupDto> items, Guid id)
+    {
+        var item = items.FirstOrDefault(i => i.Id == id);
+        if (item == null) return 0;
+
+        if (!item.ParentGroupId.HasValue) return 0;
+
+        return 1 + GetDepth(items, item.ParentGroupId.Value);
+    }
+
+    private static string GetTreePrefix(List<ProductGroupDto> items, Guid id, int depth)
+    {
+        if (depth == 0) return "";
+        
+        var item = items.FirstOrDefault(i => i.Id == id);
+        if (item == null || !item.ParentGroupId.HasValue) return new string(' ', depth * 2) + "└─ ";
+
+        var parent = items.FirstOrDefault(i => i.Id == item.ParentGroupId.Value);
+        if (parent == null) return new string(' ', depth * 2) + "└─ ";
+
+        var children = items.Where(c => c.ParentGroupId == parent.Id).OrderBy(c => c.SortOrder).ToList();
+        var lastChild = children.LastOrDefault();
+        
+        if (lastChild?.Id == id)
+            return new string(' ', (depth - 1) * 2) + "└─ ";
+        else
+            return new string(' ', (depth - 1) * 2) + "├─ ";
     }
 
     private void OpenCreateDialog()
@@ -258,7 +289,7 @@
 
     private async Task DeleteProductGroup(ProductGroupDto productGroup)
     {
-        var confirm = await DialogService.ShowAsync<ZEN.Shared.Components.Common.ConfirmDialog>("Delete Product Group",
+        var confirm = await DialogService.ShowAsync<ConfirmDialog>("Delete Product Group",
             new DialogParameters { { "Message", $"Are you sure you want to delete '{productGroup.Name}'?" } });
 
         var result = await confirm.Result;
@@ -281,15 +312,5 @@
     {
         _isDialogOpen = false;
         _editingProductGroup = new();
-    }
-
-    public class ProductGroupEditModel
-    {
-        public Guid Id { get; set; }
-        public string Name { get; set; } = string.Empty;
-        public string? Description { get; set; }
-        public Guid? ParentGroupId { get; set; }
-        public int SortOrder { get; set; }
-        public bool IsActive { get; set; } = true;
     }
 }
