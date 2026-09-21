@@ -11,6 +11,7 @@
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
 @inject NavigationManager Navigation
+@inject IJSRuntime JSRuntime
 @attribute [Authorize(Roles = "Administrator,Manager")]
 
 <PageTitle>Edit Menu - ZEN POS</PageTitle>
@@ -194,7 +195,7 @@ else
                             </div>
                         </div>
 
-                        @if (_menu != null && (_menu.Products.Any() || _menu.GroupReferences.Any()))
+                        @if (_menu != null && (_menu.Products.Any() || _menu.GroupReferences.Any() || _menu.Groups.Any()))
                         {
                             <div class="sortable-products" id="root-products">
                                 @foreach (var rootItem in GetRootItems())
@@ -202,14 +203,15 @@ else
                                     if (IsProduct(rootItem))
                                     {
                                         var product = GetItem(rootItem) as MenuProductDto;
-                                        <div class="draggable-product @(_draggedProduct?.ProductId == product.ProductId && _draggedProduct?.GroupId == "root" ? "dragging" : "")" 
+                                        var isDragging = _draggedRootItem.HasValue && _draggedRootItem.Value.Type == RootDragItemType.Product && _draggedRootItem.Value.Id == product.Id;
+                                        <div class="draggable-product @(isDragging ? "dragging" : "")" 
                                              draggable="true" 
                                              data-product-id="@product.ProductId"
                                              data-group-id="root"
-                                             @ondragstart="@(e => OnProductDragStartRoot(e, product))"
-                                             @ondragover="@(e => OnProductDragOverRoot(e, product))"
-                                             @ondrop="@(e => OnProductDropRoot(e, product))"
-                                             @ondragend="@OnProductDragEnd">
+                                             @ondragstart="@(e => OnRootItemDragStart(e, RootDragItemType.Product, product.Id))"
+                                             @ondragover="@OnRootItemDragOver"
+                                             @ondrop="@(e => OnRootItemDrop(e, RootDragItemType.Product, product.Id))"
+                                             @ondragend="@OnRootItemDragEnd">
                                             <MudCard Class="product-grid-card">
                                                 <MudCardContent>
                                                     <MudText Typo="Typo.h6">@product.ProductName</MudText>
@@ -225,13 +227,14 @@ else
                                     else if (IsGroupReference(rootItem))
                                     {
                                         var groupRef = GetItem(rootItem) as MenuGroupReferenceDto;
-                                        <div class="draggable-group-ref @(_draggedGroupRef?.GroupRefId == groupRef.Id ? "dragging" : "")" 
+                                        var isDragging = _draggedRootItem.HasValue && _draggedRootItem.Value.Type == RootDragItemType.GroupReference && _draggedRootItem.Value.Id == groupRef.Id;
+                                        <div class="draggable-group-ref @(isDragging ? "dragging" : "")" 
                                              draggable="true" 
                                              data-group-ref-id="@groupRef.Id"
-                                             @ondragstart="@(e => OnGroupRefDragStart(e, groupRef))"
-                                             @ondragover="@(e => OnGroupRefDragOver(e, groupRef))"
-                                             @ondrop="@(e => OnGroupRefDrop(e, groupRef))"
-                                             @ondragend="@OnGroupRefDragEnd">
+                                             @ondragstart="@(e => OnRootItemDragStart(e, RootDragItemType.GroupReference, groupRef.Id))"
+                                             @ondragover="@OnRootItemDragOver"
+                                             @ondrop="@(e => OnRootItemDrop(e, RootDragItemType.GroupReference, groupRef.Id))"
+                                             @ondragend="@OnRootItemDragEnd">
                                             <MudCard Class="product-grid-card group-ref-card">
                                                 <MudCardContent>
                                                     <div class="d-flex align-center gap-2">
@@ -252,13 +255,14 @@ else
                                     else if (IsMenuGroup(rootItem))
                                     {
                                         var menuGroup = GetItem(rootItem) as MenuGroupDto;
-                                        <div class="draggable-group-ref @(_draggedGroupRef?.GroupRefId == menuGroup.Id ? "dragging" : "")" 
+                                        var isDragging = _draggedRootItem.HasValue && _draggedRootItem.Value.Type == RootDragItemType.MenuGroup && _draggedRootItem.Value.Id == menuGroup.Id;
+                                        <div class="draggable-group-ref @(isDragging ? "dragging" : "")" 
                                              draggable="true" 
                                              data-group-ref-id="@menuGroup.Id"
-                                             @ondragstart="@(e => OnMenuGroupRefDragStart(e, menuGroup))"
-                                             @ondragover="@(e => OnMenuGroupRefDragOver(e, menuGroup))"
-                                             @ondrop="@(e => OnMenuGroupRefDrop(e, menuGroup))"
-                                             @ondragend="@OnMenuGroupRefDragEnd">
+                                             @ondragstart="@(e => OnRootItemDragStart(e, RootDragItemType.MenuGroup, menuGroup.Id))"
+                                             @ondragover="@OnRootItemDragOver"
+                                             @ondrop="@(e => OnRootItemDrop(e, RootDragItemType.MenuGroup, menuGroup.Id))"
+                                             @ondragend="@OnRootItemDragEnd">
                                             <MudCard Class="product-grid-card group-ref-card menu-group-card">
                                                 <MudCardContent>
                                                     <div class="d-flex align-center gap-2">
@@ -475,7 +479,7 @@ else
     // Drag and drop state
     private Guid? _draggedGroupId;
     private (Guid ProductId, string GroupId)? _draggedProduct;
-    private (Guid GroupRefId, string GroupId)? _draggedGroupRef;
+    private (RootDragItemType Type, Guid Id)? _draggedRootItem;
 
     protected override async Task OnInitializedAsync()
     {
@@ -601,8 +605,7 @@ else
 
     private void OnGroupDragOver(DragEventArgs e, MenuGroupDto targetGroup)
     {
-        // In Blazor, we can't call PreventDefault on DragEventArgs
-        // The browser handles this automatically for draggable elements
+        // Global document listeners handle preventDefault
     }
 
     private async Task OnGroupDrop(DragEventArgs e, MenuGroupDto targetGroup)
@@ -669,7 +672,7 @@ else
 
     private void OnProductDragOver(DragEventArgs e, MenuGroupProductDto targetProduct, string targetGroupId)
     {
-        // In Blazor, we can't call PreventDefault on DragEventArgs
+        // Global document listeners handle preventDefault
     }
 
     private async Task OnProductDrop(DragEventArgs e, MenuGroupProductDto targetProduct, string targetGroupId)
@@ -686,25 +689,141 @@ else
         _draggedProduct = null;
     }
 
+    // Unified Root item drag handlers (for Products, MenuGroups, and GroupReferences)
+    private enum RootDragItemType { Product, MenuGroup, GroupReference }
+    
+    private void OnRootItemDragStart(DragEventArgs e, RootDragItemType type, Guid id)
+    {
+        _draggedRootItem = (type, id);
+    }
+
+    private void OnRootItemDragOver(DragEventArgs e)
+    {
+        // Global document listeners handle preventDefault
+    }
+
+    private async Task OnRootItemDrop(DragEventArgs e, RootDragItemType targetType, Guid targetId)
+    {
+        if (_draggedRootItem.HasValue && (_draggedRootItem.Value.Type != targetType || _draggedRootItem.Value.Id != targetId))
+        {
+            await ReorderRootItems(_draggedRootItem.Value.Type, _draggedRootItem.Value.Id, targetType, targetId);
+        }
+        _draggedRootItem = null;
+    }
+
+    private void OnRootItemDragEnd(DragEventArgs e)
+    {
+        _draggedRootItem = null;
+    }
+
+    private async Task ReorderRootItems(RootDragItemType draggedType, Guid draggedId, RootDragItemType targetType, Guid targetId)
+    {
+        if (_menu == null) return;
+
+        try
+        {
+            // Get all root items in current order
+            var rootItems = GetRootItems().ToList();
+            
+            // Find indices
+            var draggedIndex = rootItems.FindIndex(i => 
+                (IsProduct(i) && draggedType == RootDragItemType.Product && GetItem(i).Id == draggedId) ||
+                (IsMenuGroup(i) && draggedType == RootDragItemType.MenuGroup && GetItem(i).Id == draggedId) ||
+                (IsGroupReference(i) && draggedType == RootDragItemType.GroupReference && GetItem(i).Id == draggedId));
+            
+            var targetIndex = rootItems.FindIndex(i => 
+                (IsProduct(i) && targetType == RootDragItemType.Product && GetItem(i).Id == targetId) ||
+                (IsMenuGroup(i) && targetType == RootDragItemType.MenuGroup && GetItem(i).Id == targetId) ||
+                (IsGroupReference(i) && targetType == RootDragItemType.GroupReference && GetItem(i).Id == targetId));
+
+            if (draggedIndex >= 0 && targetIndex >= 0 && draggedIndex != targetIndex)
+            {
+                // Move the item
+                var draggedItem = rootItems[draggedIndex];
+                rootItems.RemoveAt(draggedIndex);
+                rootItems.Insert(targetIndex, draggedItem);
+
+                // Build the reorder request
+                var itemsInOrder = rootItems.Select((item, index) => 
+                {
+                    var type = IsProduct(item) ? RootItemType.Product : 
+                               IsMenuGroup(item) ? RootItemType.MenuGroup : 
+                               RootItemType.GroupReference;
+                    var id = GetItem(item).Id;
+                    return new RootItemOrder(type, id, index);
+                }).ToList();
+
+                var request = new ReorderMenuRootItemsRequest(MenuId, itemsInOrder);
+                var updatedMenu = await MenuService.ReorderMenuRootItemsAsync(request);
+                if (updatedMenu != null)
+                {
+                    _menu = updatedMenu;
+                    Snackbar.Add("Items reordered", Severity.Success);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error reordering items: {ex.Message}", Severity.Error);
+            _menu = await MenuService.GetByIdAsync(MenuId);
+        }
+    }
+
+    // Keep old handlers for backward compatibility within groups
     // Root product drag handlers (separate because they use MenuProductDto)
     private void OnProductDragStartRoot(DragEventArgs e, MenuProductDto product)
     {
-        _draggedProduct = (product.ProductId, "root");
+        OnRootItemDragStart(e, RootDragItemType.Product, product.Id);
     }
 
     private void OnProductDragOverRoot(DragEventArgs e, MenuProductDto targetProduct)
     {
-        // In Blazor, we can't call PreventDefault on DragEventArgs
+        OnRootItemDragOver(e);
     }
 
     private async Task OnProductDropRoot(DragEventArgs e, MenuProductDto targetProduct)
     {
-        if (_draggedProduct.HasValue && _draggedProduct.Value.ProductId != targetProduct.ProductId)
-        {
-            // For root products, we don't have reorder API yet
-            Snackbar.Add("Reordering root products not yet implemented", Severity.Warning);
-        }
-        _draggedProduct = null;
+        await OnRootItemDrop(e, RootDragItemType.Product, targetProduct.Id);
+    }
+
+    private void OnGroupRefDragStart(DragEventArgs e, MenuGroupReferenceDto groupRef)
+    {
+        OnRootItemDragStart(e, RootDragItemType.GroupReference, groupRef.Id);
+    }
+
+    private void OnGroupRefDragOver(DragEventArgs e, MenuGroupReferenceDto targetGroupRef)
+    {
+        OnRootItemDragOver(e);
+    }
+
+    private async Task OnGroupRefDrop(DragEventArgs e, MenuGroupReferenceDto targetGroupRef)
+    {
+        await OnRootItemDrop(e, RootDragItemType.GroupReference, targetGroupRef.Id);
+    }
+
+    private void OnGroupRefDragEnd(DragEventArgs e)
+    {
+        OnRootItemDragEnd(e);
+    }
+
+    private void OnMenuGroupRefDragStart(DragEventArgs e, MenuGroupDto menuGroup)
+    {
+        OnRootItemDragStart(e, RootDragItemType.MenuGroup, menuGroup.Id);
+    }
+
+    private void OnMenuGroupRefDragOver(DragEventArgs e, MenuGroupDto targetMenuGroup)
+    {
+        OnRootItemDragOver(e);
+    }
+
+    private async Task OnMenuGroupRefDrop(DragEventArgs e, MenuGroupDto targetMenuGroup)
+    {
+        await OnRootItemDrop(e, RootDragItemType.MenuGroup, targetMenuGroup.Id);
+    }
+
+    private void OnMenuGroupRefDragEnd(DragEventArgs e)
+    {
+        OnRootItemDragEnd(e);
     }
 
 private async Task ReorderProducts(Guid draggedProductId, string draggedGroupId, Guid targetProductId, string targetGroupId)
@@ -746,65 +865,13 @@ private async Task ReorderProducts(Guid draggedProductId, string draggedGroupId,
                         _menu = updatedMenu;
                         Snackbar.Add("Products reordered", Severity.Success);
                     }
-                }
-            }
-            catch (Exception ex)
-            {
-                Snackbar.Add($"Error reordering products: {ex.Message}", Severity.Error);
-                _menu = await MenuService.GetByIdAsync(MenuId);
-            }
+}
         }
-
-    // GroupReference Drag and Drop (for root level)
-    private void OnGroupRefDragStart(DragEventArgs e, MenuGroupReferenceDto groupRef)
-    {
-        _draggedGroupRef = (groupRef.Id, "root");
-    }
-
-    private void OnGroupRefDragOver(DragEventArgs e, MenuGroupReferenceDto targetGroupRef)
-    {
-        // In Blazor, we can't call PreventDefault on DragEventArgs
-    }
-
-    private async Task OnGroupRefDrop(DragEventArgs e, MenuGroupReferenceDto targetGroupRef)
-    {
-        if (_draggedGroupRef.HasValue && _draggedGroupRef.Value.GroupRefId != targetGroupRef.Id)
+        catch (Exception ex)
         {
-            // Reorder group references in root - not implemented yet
-            Snackbar.Add("Reordering groups in root not yet implemented", Severity.Warning);
+            Snackbar.Add($"Error reordering products: {ex.Message}", Severity.Error);
+            _menu = await MenuService.GetByIdAsync(MenuId);
         }
-        _draggedGroupRef = null;
-    }
-
-    private void OnGroupRefDragEnd(DragEventArgs e)
-    {
-        _draggedGroupRef = null;
-    }
-
-    // MenuGroup in root drag handlers
-    private void OnMenuGroupRefDragStart(DragEventArgs e, MenuGroupDto menuGroup)
-    {
-        _draggedGroupRef = (menuGroup.Id, "root");
-    }
-
-    private void OnMenuGroupRefDragOver(DragEventArgs e, MenuGroupDto targetMenuGroup)
-    {
-        // In Blazor, we can't call PreventDefault on DragEventArgs
-    }
-
-    private async Task OnMenuGroupRefDrop(DragEventArgs e, MenuGroupDto targetMenuGroup)
-    {
-        if (_draggedGroupRef.HasValue && _draggedGroupRef.Value.GroupRefId != targetMenuGroup.Id)
-        {
-            // Reorder menu groups in root - not implemented yet
-            Snackbar.Add("Reordering groups in root not yet implemented", Severity.Warning);
-        }
-        _draggedGroupRef = null;
-    }
-
-    private void OnMenuGroupRefDragEnd(DragEventArgs e)
-    {
-        _draggedGroupRef = null;
     }
 
     private async Task AddGroup()
@@ -1155,4 +1222,40 @@ private async Task ReorderProducts(Guid draggedProductId, string draggedGroupId,
     {
         Navigation.NavigateTo("/products/menus");
     }
+
+    // JavaScript interop for drag-and-drop
+    private async Task EnableDragOverPrevention()
+    {
+        await JSRuntime.InvokeVoidAsync("enableDragOverPrevention");
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await EnableDragOverPrevention();
+        }
+    }
 }
+
+<script>
+    window.enableDragOverPrevention = function () {
+        // Add event listeners to all draggable elements to allow dropping
+        document.addEventListener('dragover', function (e) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+        }, { passive: false });
+
+        document.addEventListener('dragenter', function (e) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+        }, { passive: false });
+    };
+
+    window.preventDefault = function (e) {
+        if (e && e.preventDefault) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+        }
+    };
+</script>

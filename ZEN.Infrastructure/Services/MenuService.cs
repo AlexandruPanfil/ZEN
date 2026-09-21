@@ -453,6 +453,75 @@ public async Task<AddProductResult> AddProductToMenuGroupAsync(AddProductToMenuG
         return (await GetByIdAsync(menuGroup.MenuId, cancellationToken))!;
     }
 
+    public async Task<MenuDto> ReorderMenuRootItemsAsync(ReorderMenuRootItemsRequest request, CancellationToken cancellationToken = default)
+    {
+        var menuExists = await _dbContext.Menus.AnyAsync(m => m.Id == request.MenuId && !m.IsDeleted, cancellationToken);
+        if (!menuExists)
+            throw new KeyNotFoundException($"Menu with ID {request.MenuId} not found.");
+
+        var itemsInOrder = request.ItemsInOrder.ToList();
+
+        // Update MenuProducts positions
+        var productItems = itemsInOrder.Where(i => i.Type == RootItemType.Product).ToList();
+        if (productItems.Any())
+        {
+            var productIds = productItems.Select(i => i.Id).ToList();
+            var menuProducts = await _dbContext.MenuProducts
+                .Where(mp => mp.MenuId == request.MenuId && productIds.Contains(mp.Id))
+                .ToListAsync(cancellationToken);
+
+            foreach (var item in productItems)
+            {
+                var menuProduct = menuProducts.FirstOrDefault(mp => mp.Id == item.Id);
+                if (menuProduct != null)
+                {
+                    menuProduct.Position = item.Position;
+                }
+            }
+        }
+
+        // Update MenuGroups positions
+        var groupItems = itemsInOrder.Where(i => i.Type == RootItemType.MenuGroup).ToList();
+        if (groupItems.Any())
+        {
+            var groupIds = groupItems.Select(i => i.Id).ToList();
+            var menuGroups = await _dbContext.MenuGroups
+                .Where(g => g.MenuId == request.MenuId && groupIds.Contains(g.Id))
+                .ToListAsync(cancellationToken);
+
+            foreach (var item in groupItems)
+            {
+                var menuGroup = menuGroups.FirstOrDefault(g => g.Id == item.Id);
+                if (menuGroup != null)
+                {
+                    menuGroup.Position = item.Position;
+                }
+            }
+        }
+
+        // Update MenuGroupReferences positions
+        var groupRefItems = itemsInOrder.Where(i => i.Type == RootItemType.GroupReference).ToList();
+        if (groupRefItems.Any())
+        {
+            var groupRefIds = groupRefItems.Select(i => i.Id).ToList();
+            var groupRefs = await _dbContext.MenuGroupReferences
+                .Where(gr => gr.MenuId == request.MenuId && groupRefIds.Contains(gr.Id))
+                .ToListAsync(cancellationToken);
+
+            foreach (var item in groupRefItems)
+            {
+                var groupRef = groupRefs.FirstOrDefault(gr => gr.Id == item.Id);
+                if (groupRef != null)
+                {
+                    groupRef.Position = item.Position;
+                }
+            }
+        }
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+        return (await GetByIdAsync(request.MenuId, cancellationToken))!;
+    }
+
     public async Task<IEnumerable<GroupDto>> GetGroupsAsync(CancellationToken cancellationToken = default)
     {
         var groups = await _dbContext.Groups

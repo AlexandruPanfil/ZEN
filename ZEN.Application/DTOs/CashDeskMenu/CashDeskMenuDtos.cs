@@ -93,6 +93,22 @@ public record ReorderMenuGroupsRequest(Guid MenuId, IEnumerable<Guid> GroupIdsIn
 
 public record ReorderMenuGroupProductsRequest(Guid MenuGroupId, IEnumerable<Guid> ProductIdsInOrder);
 
+public record ReorderMenuRootItemsRequest(
+    Guid MenuId,
+    IEnumerable<RootItemOrder> ItemsInOrder);
+
+public record RootItemOrder(
+    RootItemType Type,
+    Guid Id,
+    int Position);
+
+public enum RootItemType
+{
+    Product,
+    MenuGroup,
+    GroupReference
+}
+
 public record RemoveMenuProductRequest(Guid MenuProductId);
 
 public record RemoveMenuGroupRequest(Guid MenuGroupId);

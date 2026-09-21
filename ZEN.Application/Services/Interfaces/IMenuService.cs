@@ -24,6 +24,7 @@ public interface IMenuService
     Task<bool> RemoveProductFromMenuGroupAsync(Guid menuGroupProductId, CancellationToken cancellationToken = default);
     Task<MenuDto> ReorderMenuGroupsAsync(ReorderMenuGroupsRequest request, CancellationToken cancellationToken = default);
     Task<MenuDto> ReorderMenuGroupProductsAsync(ReorderMenuGroupProductsRequest request, CancellationToken cancellationToken = default);
+    Task<MenuDto> ReorderMenuRootItemsAsync(ReorderMenuRootItemsRequest request, CancellationToken cancellationToken = default);
 
     Task<IEnumerable<GroupDto>> GetGroupsAsync(CancellationToken cancellationToken = default);
     Task<GroupDto> CreateGroupAsync(CreateGroupRequest request, CancellationToken cancellationToken = default);
