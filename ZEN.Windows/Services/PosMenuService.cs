@@ -28,6 +28,18 @@ public sealed class PosMenuService
         CancellationToken cancellationToken = default) =>
         _localService.GetAllSummariesAsync(cancellationToken);
 
+    public async Task<MenuDto?> GetMenuStructureAsync(Guid menuId, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            return await _apiClient.GetMenuStructureAsync(menuId, cancellationToken);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
     public async Task<IReadOnlyList<MenuSummaryDto>> RefreshAsync(
         CancellationToken cancellationToken = default)
     {

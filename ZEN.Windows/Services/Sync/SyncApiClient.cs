@@ -557,6 +557,17 @@ public class SyncApiClient
             : null;
     }
 
+    public async Task<MenuDto?> ReorderMenuRootItemsAsync(
+        ReorderMenuRootItemsRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        using var response = await _httpClient.PutAsJsonAsync($"api/equipments/menus/{request.MenuId}/reorder-root-items", request, cancellationToken);
+        await ThrowIfConflictAsync(response, "menu root items reorder", cancellationToken);
+        return response.IsSuccessStatusCode
+            ? await response.Content.ReadFromJsonAsync<MenuDto>(cancellationToken)
+            : null;
+    }
+
     public async Task<IEnumerable<GroupDto>> GetGroupsAsync(CancellationToken cancellationToken = default)
     {
         try

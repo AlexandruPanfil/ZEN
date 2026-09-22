@@ -1,0 +1,46 @@
+@using MudBlazor
+@using ZEN.Application.DTOs.CashDeskMenu
+@using ZEN.Application.DTOs.Products
+@implements IDisposable
+
+<MudCard Class="menu-group-content">
+    <MudCardHeader>
+        <MudStack Direction="Direction.Row" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Gap="Gap.Medium">
+            <MudStack Direction="Direction.Row" Gap="Gap.Small" AlignItems="AlignItems.Center">
+                @if (IsSharedGroup)
+                {
+                    <MudIcon Icon="@Icons.Material.Filled.FolderShared" Color="Color.Tertiary" Size="Size.Large" />
+                }
+                else
+                {
+                    <MudIcon Icon="@Icons.Material.Filled.Folder" Color="Color.Secondary" Size="Size.Large" />
+                }
+                <MudStack>
+                    <MudText Typo="Typo.h5">@GroupName</MudText>
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">@Products.Count() products</MudText>
+                </MudStack>
+            </MudStack>
+            <MudButton Variant="Variant.Text" Color="Color.Primary" OnClick="OnBackClick" StartIcon="@Icons.Material.Filled.ArrowBack">
+                Back
+            </MudButton>
+        </MudStack>
+    </MudCardHeader>
+    <MudCardContent>
+        <MenuProductGrid Products="Products"
+                         OnProductSelected="OnProductSelected"
+                         IsManagerOrAdmin="IsManagerOrAdmin"
+                         OnReorder="OnReorder" />
+    </MudCardContent>
+</MudCard>
+
+@code {
+    [Parameter] public string GroupName { get; set; } = "";
+    [Parameter] public IEnumerable<MenuGroupProductDto> Products { get; set; } = new List<MenuGroupProductDto>();
+    [Parameter] public bool IsSharedGroup { get; set; }
+    [Parameter] public bool IsManagerOrAdmin { get; set; }
+    [Parameter] public EventCallback<ProductDto> OnProductSelected { get; set; }
+    [Parameter] public EventCallback OnBackClick { get; set; }
+    [Parameter] public EventCallback<IEnumerable<MenuGroupProductDto>> OnReorder { get; set; }
+
+    public void Dispose() { }
+}

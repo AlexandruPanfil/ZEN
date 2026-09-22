@@ -1,0 +1,132 @@
+@using MudBlazor
+@using ZEN.Application.DTOs.CashDeskMenu
+@using ZEN.Application.DTOs.Products
+@implements IDisposable
+
+@if (Products?.Any() == true)
+{
+    <MudGrid Spacing="2" Class="product-grid">
+        @foreach (var product in Products)
+        {
+            <MudItem xs="4" md="3" lg="2">
+                <MudCard Class="@GetDragClass(product)" draggable="@IsManagerOrAdmin"
+                         @ondragstart="@(e => OnDragStart(e, product))"
+                         @ondragover="@(e => OnDragOver(e, product))"
+                         @ondrop="@(e => OnDrop(e, product))"
+                         @ondragleave="@OnDragLeave"
+                         @ondragend="@OnDragEnd"
+                         @onclick="() => SelectProduct(product)">
+                    <MudCardContent>
+                        <MudStack Direction="Direction.Row" Gap="Gap.Small" AlignItems="AlignItems.Center">
+                            @if (IsManagerOrAdmin)
+                            {
+                                <MudIcon Icon="@Icons.Material.Filled.DragIndicator" Class="drag-handle" Size="Size.Small" />
+                            }
+                            <MudStack>
+                                <MudText Typo="Typo.h6">@product.ProductName</MudText>
+                                <MudText Typo="Typo.body2" Color="Color.Primary">@product.SalePrice.ToString("C")</MudText>
+                            </MudStack>
+                        </MudStack>
+                    </MudCardContent>
+                </MudCard>
+            </MudItem>
+        }
+    </MudGrid>
+}
+else
+{
+    <MudText Typo="Typo.body1" Color="Color.Default" Class="empty-state">No products in this group</MudText>
+}
+
+@code {
+    [Parameter] public IEnumerable<MenuGroupProductDto> Products { get; set; } = new List<MenuGroupProductDto>();
+    [Parameter] public bool IsManagerOrAdmin { get; set; }
+    [Parameter] public EventCallback<ProductDto> OnProductSelected { get; set; }
+    [Parameter] public EventCallback<IEnumerable<MenuGroupProductDto>> OnReorder { get; set; }
+
+    private MenuGroupProductDto? _draggedItem;
+    private MenuGroupProductDto? _dragOverItem;
+
+    private string GetDragClass(MenuGroupProductDto product)
+    {
+        var classes = new List<string> { "menu-product-card" };
+        if (product == _draggedItem) classes.Add("dragging");
+        if (product == _dragOverItem) classes.Add("drag-over");
+        return string.Join(" ", classes);
+    }
+
+    private void OnDragStart(DragEventArgs e, MenuGroupProductDto product)
+    {
+        if (!IsManagerOrAdmin) return;
+        _draggedItem = product;
+        _dragOverItem = null;
+    }
+
+    private void OnDragOver(DragEventArgs e, MenuGroupProductDto product)
+    {
+        if (!IsManagerOrAdmin || _draggedItem == null || _draggedItem == product) return;
+        e.DataTransfer.DropEffect = "move";
+        _dragOverItem = product;
+    }
+
+    private void OnDrop(DragEventArgs e, MenuGroupProductDto targetProduct)
+    {
+        if (!IsManagerOrAdmin || _draggedItem == null || _draggedItem == targetProduct) return;
+        
+        var productList = Products.ToList();
+        var fromIndex = productList.IndexOf(_draggedItem);
+        var toIndex = productList.IndexOf(targetProduct);
+        
+        if (fromIndex >= 0 && toIndex >= 0 && fromIndex != toIndex)
+        {
+            productList.RemoveAt(fromIndex);
+            productList.Insert(toIndex, _draggedItem);
+            
+            // Update positions
+            for (int i = 0; i < productList.Count; i++)
+            {
+                // We can't modify the record directly, so we'll rely on the reorder callback
+            }
+            
+            OnReorder.InvokeAsync(productList);
+        }
+        
+        _draggedItem = null;
+        _dragOverItem = null;
+    }
+
+    private void OnDragLeave(DragEventArgs e)
+    {
+        _dragOverItem = null;
+    }
+
+    private void OnDragEnd(DragEventArgs e)
+    {
+        _draggedItem = null;
+        _dragOverItem = null;
+    }
+
+    private Task SelectProduct(MenuGroupProductDto product)
+    {
+        var productDto = new ProductDto(
+            Id: product.ProductId,
+            Name: product.ProductName,
+            Description: null,
+            Barcode: null,
+            SKU: null,
+            CostPrice: 0,
+            SalePrice: product.SalePrice,
+            CategoryId: null,
+            CategoryName: null,
+            ProductGroupId: null,
+            ProductGroupName: null,
+            TaxId: null,
+            TaxName: null,
+            TaxRate: 0,
+            IsActive: true
+        );
+        return OnProductSelected.InvokeAsync(productDto);
+    }
+
+    public void Dispose() { }
+}

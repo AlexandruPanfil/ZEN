@@ -1,0 +1,96 @@
+@using MudBlazor
+@using ZEN.Application.DTOs.CashDeskMenu
+@using ZEN.Application.DTOs.Products
+@implements IDisposable
+
+@if (RootItem is MenuProductDto product)
+{
+    <MudItem xs="4" md="3" lg="2">
+        <MudCard Class="menu-root-item product-card" @onclick="() => HandleProductClick(product)">
+            <MudCardContent>
+                <MudText Typo="Typo.h6">@product.ProductName</MudText>
+                <MudText Typo="Typo.body2" Color="Color.Primary">@product.SalePrice.ToString("C")</MudText>
+                @if (IsManagerOrAdmin)
+                {
+                    <MudIcon Icon="@Icons.Material.Filled.DragIndicator" Class="drag-handle" Size="Size.Small" />
+                }
+            </MudCardContent>
+        </MudCard>
+    </MudItem>
+}
+else if (RootItem is MenuGroupDto group)
+{
+    <MudItem xs="4" md="3" lg="2">
+        <MudCard Class="menu-root-item group-card menu-group-card" @onclick="() => OnGroupClick(group.Id, false)">
+            <MudCardContent>
+                <MudStack Direction="Direction.Row" Gap="Gap.Small" AlignItems="AlignItems.Center">
+                    <MudIcon Icon="@Icons.Material.Filled.Folder" Color="Color.Secondary" Size="Size.Large" />
+                    <MudStack>
+                        <MudText Typo="Typo.h6">@group.Name</MudText>
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">@group.Products.Count() products</MudText>
+                    </MudStack>
+                </MudStack>
+                @if (IsManagerOrAdmin)
+                {
+                    <MudIcon Icon="@Icons.Material.Filled.DragIndicator" Class="drag-handle" Size="Size.Small" />
+                }
+            </MudCardContent>
+        </MudCard>
+    </MudItem>
+}
+else if (RootItem is MenuGroupReferenceDto groupRef)
+{
+    <MudItem xs="4" md="3" lg="2">
+        <MudCard Class="menu-root-item group-card group-reference-card" @onclick="() => OnGroupClick(groupRef.Id, true)">
+            <MudCardContent>
+                <MudStack Direction="Direction.Row" Gap="Gap.Small" AlignItems="AlignItems.Center">
+                    <MudIcon Icon="@Icons.Material.Filled.FolderShared" Color="Color.Tertiary" Size="Size.Large" />
+                    <MudStack>
+                        <MudText Typo="Typo.h6">@groupRef.GroupName</MudText>
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">@groupRef.Products.Count() products (shared)</MudText>
+                    </MudStack>
+                </MudStack>
+                @if (IsManagerOrAdmin)
+                {
+                    <MudIcon Icon="@Icons.Material.Filled.DragIndicator" Class="drag-handle" Size="Size.Small" />
+                }
+            </MudCardContent>
+        </MudCard>
+    </MudItem>
+}
+
+@code {
+    [Parameter] public object? RootItem { get; set; }
+    [Parameter] public bool IsManagerOrAdmin { get; set; }
+    [Parameter] public EventCallback<ProductDto> OnProductSelected { get; set; }
+    [Parameter] public EventCallback<(Guid GroupId, bool IsSharedGroup)> OnGroupNavigate { get; set; }
+
+    private async Task OnGroupClick(Guid groupId, bool isSharedGroup)
+    {
+        await OnGroupNavigate.InvokeAsync((groupId, isSharedGroup));
+    }
+
+    private async Task HandleProductClick(MenuProductDto product)
+    {
+        var productDto = new ProductDto(
+            Id: product.Id,
+            Name: product.ProductName,
+            Description: null,
+            Barcode: null,
+            SKU: null,
+            CostPrice: 0,
+            SalePrice: product.SalePrice,
+            CategoryId: null,
+            CategoryName: null,
+            ProductGroupId: null,
+            ProductGroupName: null,
+            TaxId: null,
+            TaxName: null,
+            TaxRate: 0,
+            IsActive: true
+        );
+        await OnProductSelected.InvokeAsync(productDto);
+    }
+
+    public void Dispose() { }
+}

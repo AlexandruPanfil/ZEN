@@ -1,62 +1,265 @@
 @page "/sell"
 @inject NavigationManager Navigation
- @inject ZEN.Windows.Services.PosAuthState PosAuthState
- @inject ISnackbar Snackbar
- @inject ZEN.Windows.Services.Sync.SyncApiClient ApiClient
- @inject ZEN.Windows.Services.PosPrinterService PrinterService
- @inject ZEN.Windows.Services.CashDeskHeartbeatService HeartbeatService
- @inject IDialogService DialogService
+@inject ZEN.Windows.Services.PosAuthState PosAuthState
+@inject ISnackbar Snackbar
+@inject ZEN.Windows.Services.Sync.SyncApiClient ApiClient
+@inject ZEN.Windows.Services.PosPrinterService PrinterService
+@inject ZEN.Windows.Services.CashDeskHeartbeatService HeartbeatService
+@inject IDialogService DialogService
+@inject ZEN.Windows.Services.PosMenuService PosMenuService
+@inject ZEN.Windows.Services.MenuNavigationState MenuNavigationState
+@inject IJSRuntime JSRuntime
 @using ZEN.Windows.Components.POS
 @using ZEN.Application.DTOs.Sales
+@using ZEN.Application.DTOs.CashDeskMenu
+@using ZEN.Application.DTOs.Products
+@using ZEN.Windows.Services
+
+<style>
+/* Menu Root Items */
+.menu-root-grid {
+    padding: 16px;
+}
+
+.menu-root-item {
+    cursor: pointer;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+    border-radius: 12px;
+    height: 100%;
+    min-height: 120px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+
+.menu-root-item:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+.menu-root-item.product-card {
+    border-left: 4px solid var(--mud-palette-primary);
+}
+
+.menu-root-item.group-card {
+    border-left-width: 4px;
+}
+
+.menu-root-item.menu-group-card {
+    border-left-color: #0d9488; /* Teal */
+}
+
+.menu-root-item.group-reference-card {
+    border-left-color: #7c3aed; /* Purple */
+}
+
+.menu-root-item .drag-handle {
+    opacity: 0;
+    transition: opacity 0.15s ease;
+    color: var(--mud-palette-text-secondary);
+}
+
+.menu-root-item:hover .drag-handle,
+.menu-root-item.dragging .drag-handle {
+    opacity: 1;
+}
+
+/* Menu Group Content */
+.menu-group-content {
+    margin: 16px;
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.menu-group-content .mud-card-header {
+    background: var(--mud-palette-background-gray);
+    border-bottom: 1px solid var(--mud-divider);
+}
+
+.menu-group-content .mud-button {
+    min-width: 80px;
+}
+
+/* Menu Product Cards */
+.menu-product-card {
+    cursor: pointer;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+    border-radius: 12px;
+    height: 100%;
+    min-height: 100px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+
+.menu-product-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+.menu-product-card.dragging {
+    opacity: 0.5;
+    transform: rotate(3deg);
+    z-index: 1000;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+}
+
+.menu-product-card.drag-over {
+    border: 2px dashed var(--mud-palette-primary);
+    background: rgba(var(--mud-palette-primary-rgb), 0.1);
+}
+
+.menu-product-card .drag-handle {
+    opacity: 0;
+    transition: opacity 0.15s ease;
+    color: var(--mud-palette-text-secondary);
+}
+
+.menu-product-card:hover .drag-handle,
+.menu-product-card.dragging .drag-handle {
+    opacity: 1;
+}
+
+/* Empty state */
+.empty-state {
+    text-align: center;
+    padding: 48px 16px;
+    color: var(--mud-palette-text-secondary);
+}
+
+/* Drag-over indicator for root grid */
+.menu-root-grid.drag-over {
+    background: rgba(var(--mud-palette-primary-rgb), 0.05);
+    border-radius: 12px;
+}
+
+.menu-root-item.drag-over-placeholder {
+    border: 2px dashed var(--mud-palette-primary);
+    background: rgba(var(--mud-palette-primary-rgb), 0.1);
+    min-height: 120px;
+}
+</style>
 
 <PageTitle>Point of Sale - ZEN POS</PageTitle>
 
 @if (!PosAuthState.IsAuthenticated)
-    {
-        <MudText Typo="Typo.h5" Class="ma-4">Not authenticated. Redirecting to login...</MudText>
-    }
-    else
-    {
-        <SellPageLayout UserName="@PosAuthState.UserName"
-                        OnExit="HandleExit"
-                        OnSwitchToManager="HandleSwitchToManager"
-                        Class="sell-page-full-height">
-            <SidebarContent>
-                <SellCartSidebar CartItems="Cart"
-                                Subtotal="Subtotal"
-                                DiscountAmount="DiscountAmount"
-                                TaxAmount="TaxAmount"
-                                TotalAmount="TotalAmount"
-                                OnIncrement="IncrementCartItem"
-                                OnDecrement="DecrementCartItem"
-                                OnRemove="RemoveCartItem" />
-            </SidebarContent>
+{
+    <MudText Typo="Typo.h5" Class="ma-4">Not authenticated. Redirecting to login...</MudText>
+}
+else
+{
+    <SellPageLayout UserName="@PosAuthState.UserName"
+                    OnExit="HandleExit"
+                    OnSwitchToManager="HandleSwitchToManager"
+                    Class="sell-page-full-height">
+        <SidebarContent>
+            <SellCartSidebar CartItems="Cart"
+                            Subtotal="Subtotal"
+                            DiscountAmount="DiscountAmount"
+                            TaxAmount="TaxAmount"
+                            TotalAmount="TotalAmount"
+                            OnIncrement="IncrementCartItem"
+                            OnDecrement="DecrementCartItem"
+                            OnRemove="RemoveCartItem" />
+        </SidebarContent>
+        
+        <ChildContent>
+            <ShiftStatusBar />
             
-            <ChildContent>
-                <ShiftStatusBar />
-                <ProductGrid Products="AllProducts" OnProductSelected="AddToCart" />
-            </ChildContent>
-            
-            <FooterContent>
-                <SellActionBar CartEmpty="Cart.Count == 0"
-                              CanProcessPayment="true"
-                              ChangeDue="0"
-                              OnNewSale="ClearCart"
-                              OnHoldSale="HoldSale"
-                              OnResumeSale="ResumeSale"
-                              OnProcessPayment="ProcessPayment" />
-                @if (IsProcessingSale)
+            @if (MenuNavigationState.CurrentContext == null || MenuNavigationState.IsRoot)
+            {
+                @if (_isLoadingMenu)
                 {
-                    <MudPaper Class="pa-2 mt-2" Style="background: #fff3cd; border-left: 4px solid #ffc107;">
-                        <MudProgress Linear="true" Indeterminate="true" Color="Color.Info" Size="Size.Small" Class="mt-1" />
+                    <MudProgress Linear="true" Indeterminate="true" Color="Color.Primary" Class="mt-4" />
+                }
+                else if (_menuDto == null)
+                {
+                    <MudText Typo="Typo.body1" Color="Color.Default" Class="ma-4">No menu assigned to this cash desk.</MudText>
+                }
+                else
+                {
+                    var rootItems = GetRootItemsOrdered();
+
+                    <MudGrid Spacing="2" Class="menu-root-grid">
+                        @foreach (var item in rootItems)
+                        {
+                            <MenuRootItem RootItem="item"
+                                          IsManagerOrAdmin="IsManagerOrAdmin"
+                                          OnProductSelected="AddToCart"
+                                          OnGroupNavigate="OnGroupNavigate" />
+                        }
+                    </MudGrid>
+
+                    @if (!rootItems.Any())
+                    {
+                        <MudText Typo="Typo.body1" Color="Color.Default" Class="ma-4 text-center">Menu is empty. Add products or groups in ZEN.Web.</MudText>
+                    }
+                }
+            }
+            else if (MenuNavigationState.IsInGroup)
+            {
+                @if (_menuDto != null && MenuNavigationState.CurrentContext != null)
+                {
+                    var context = MenuNavigationState.CurrentContext;
+                    
+                    if (context.Type == MenuNavigationType.MenuGroup)
+                    {
+                        var group = _menuDto.Groups.FirstOrDefault(g => g.Id == context.Id);
+                        if (group != null)
+                        {
+                            <MenuGroupContent GroupName="@group.Name"
+                                              Products="@group.Products"
+                                              IsSharedGroup="false"
+                                              IsManagerOrAdmin="IsManagerOrAdmin"
+                                              OnProductSelected="AddToCart"
+                                              OnBackClick="MenuNavigationState.NavigateBack" />
+                        }
+                    }
+                    else if (context.Type == MenuNavigationType.GroupReference)
+                    {
+                        var groupRef = _menuDto.GroupReferences.FirstOrDefault(g => g.Id == context.Id);
+                        if (groupRef != null)
+                        {
+                            var menuGroupProducts = groupRef.Products.Select(p => new MenuGroupProductDto(
+                                Id: Guid.NewGuid(),
+                                ProductId: p.ProductId,
+                                ProductName: p.ProductName,
+                                SalePrice: p.SalePrice,
+                                Position: p.Position
+                            )).ToList();
+                            
+                            <MenuGroupContent GroupName="@groupRef.GroupName"
+                                              Products="@menuGroupProducts"
+                                              IsSharedGroup="true"
+                                              IsManagerOrAdmin="IsManagerOrAdmin"
+                                              OnProductSelected="AddToCart"
+                                              OnBackClick="MenuNavigationState.NavigateBack" />
+                        }
+                    }
+                }
+            }
+        </ChildContent>
+        
+        <FooterContent>
+            <SellActionBar CartEmpty="Cart.Count == 0"
+                          CanProcessPayment="true"
+                          ChangeDue="0"
+                          OnNewSale="ClearCart"
+                          OnHoldSale="HoldSale"
+                          OnResumeSale="ResumeSale"
+                          OnProcessPayment="ProcessPayment" />
+            @if (IsProcessingSale)
+            {
+                <MudPaper Class="pa-2 mt-2" Style="background: #fff3cd; border-left: 4px solid #ffc107;">
+                    <MudProgress Linear="true" Indeterminate="true" Color="Color.Info" Size="Size.Small" Class="mt-1" />
 <MudText Typo="Typo.caption" Style="color: #856404;">
     Waiting for fiscal printer... (this may take some time)
 </MudText>
-                    </MudPaper>
-                }
-            </FooterContent>
-        </SellPageLayout>
-    }
+                </MudPaper>
+            }
+        </FooterContent>
+    </SellPageLayout>
+}
 
 <PaymentModal @bind-Visible="@ShowPaymentModal" 
               TotalAmount="@TotalAmount" 
@@ -66,10 +269,13 @@
               OnCancelled="@OnPaymentModalCancelled" />
 
 @code {
-    private List<ProductDto> AllProducts = new();
     private List<PosCartItem> Cart = new();
+    private MenuDto? _menuDto;
+    private bool _isLoadingMenu = true;
     private bool IsDemoCatalog = false;
     private HeldSaleDto? _resumingHeldSale = null;
+
+    private bool IsManagerOrAdmin => PosAuthState.IsManager || PosAuthState.IsAdmin;
 
     private decimal Subtotal => Cart.Sum(item => item.Quantity * item.UnitPrice);
     private decimal DiscountAmount => Cart.Sum(item => item.Quantity * item.Discount);
@@ -85,41 +291,41 @@
         {
             HeartbeatService.Start(PosAuthState.CashDeskId.Value);
         }
-        await LoadProductsAsync();
+        MenuNavigationState.OnStateChanged += OnNavigationStateChanged;
+        await LoadMenuAsync();
     }
 
-private async Task LoadProductsAsync()
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        IsDemoCatalog = false;
+        if (firstRender)
+        {
+            try
+            {
+                await JSRuntime.InvokeVoidAsync("initMenuDragDrop");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[SellPage] Failed to initialize menu drag-drop: {ex.Message}");
+            }
+        }
+    }
 
-        // Try to load from API if CashDeskId is set (endpoint is now anonymous)
+    private async Task LoadMenuAsync()
+    {
+        _isLoadingMenu = true;
+        IsDemoCatalog = false;
+        _menuDto = null;
+
         if (PosAuthState.CashDeskId.HasValue && PosAuthState.CashDeskId.Value != Guid.Empty)
         {
             try
             {
-                Console.WriteLine($"[SellPage] Loading menu items for CashDeskId={PosAuthState.CashDeskId.Value}, BaseAddress={ApiClient.BaseAddress}");
-                var items = await ApiClient.GetCashDeskMenuItemsAsync(PosAuthState.CashDeskId.Value);
-                Console.WriteLine($"[SellPage] Menu API returned {items.Count()} items");
-                if (items.Any())
+                var cashDesk = await ApiClient.GetCashDeskAsync(PosAuthState.CashDeskId.Value);
+                if (cashDesk?.MenuId.HasValue == true)
                 {
-                    AllProducts = items
-                        .Select(i => new ProductDto(
-                            i.ProductId,
-                            i.Name,
-                            null,
-                            null,
-                            null,
-                            0,
-                            i.SalePrice,
-                            null,
-                            null,
-                            null,
-                            null,
-                            null,
-                            null,
-                            i.TaxRate,
-                            true))
-                        .ToList();
+                    Console.WriteLine($"[SellPage] Loading menu structure for MenuId={cashDesk.MenuId.Value}");
+                    _menuDto = await PosMenuService.GetMenuStructureAsync(cashDesk.MenuId.Value);
+                    Console.WriteLine($"[SellPage] Menu loaded: Products={_menuDto?.Products.Count() ?? 0}, Groups={_menuDto?.Groups.Count() ?? 0}, GroupRefs={_menuDto?.GroupReferences.Count() ?? 0}");
                 }
             }
             catch (Exception ex)
@@ -129,12 +335,49 @@ private async Task LoadProductsAsync()
             }
         }
 
-        if (AllProducts.Count == 0)
+        if (_menuDto == null || (!_menuDto.Products.Any() && !_menuDto.Groups.Any() && !_menuDto.GroupReferences.Any()))
         {
-            AllProducts = GenerateDemoProducts();
+            _menuDto = GenerateDemoMenu();
             IsDemoCatalog = true;
-            Snackbar.Add("Showing demo products - configure cash desk menu in ZEN.Web. Sales are DISABLED in demo mode.", Severity.Warning);
+            Snackbar.Add("Showing demo menu - configure cash desk menu in ZEN.Web. Sales are DISABLED in demo mode.", Severity.Warning);
         }
+
+        MenuNavigationState.NavigateToRoot();
+        _isLoadingMenu = false;
+        StateHasChanged();
+    }
+
+    private void OnNavigationStateChanged()
+    {
+        StateHasChanged();
+    }
+
+    private List<object> GetRootItemsOrdered()
+    {
+        if (_menuDto == null) return new List<object>();
+
+        var items = new List<(int Position, object Item)>();
+
+        foreach (var product in _menuDto.Products)
+        {
+            items.Add((product.Position, (object)product));
+        }
+        foreach (var group in _menuDto.Groups)
+        {
+            items.Add((group.Position, (object)group));
+        }
+        foreach (var groupRef in _menuDto.GroupReferences)
+        {
+            items.Add((groupRef.Position, (object)groupRef));
+        }
+
+        return items.OrderBy(x => x.Position).Select(x => x.Item).ToList();
+    }
+
+    private async Task OnGroupNavigate((Guid GroupId, bool IsSharedGroup) args)
+    {
+        var (groupId, isSharedGroup) = args;
+        MenuNavigationState.NavigateToGroup(groupId, isSharedGroup);
     }
 
     private void AddToCart(ProductDto product)
@@ -158,6 +401,8 @@ private async Task LoadProductsAsync()
             Cart.Add(cartItem);
         }
     }
+
+    // ... rest of the existing methods remain unchanged ...
 
     private void IncrementCartItem(PosCartItem item)
     {
@@ -687,9 +932,60 @@ private async Task LoadProductsAsync()
     public void Dispose()
     {
         HeartbeatService.Stop();
+        MenuNavigationState.OnStateChanged -= OnNavigationStateChanged;
     }
 
-private List<ProductDto> GenerateDemoProducts()
+    private MenuDto GenerateDemoMenu()
+    {
+        var demoProducts = GenerateDemoProducts();
+        var products = demoProducts.Select((p, i) => new MenuProductDto(
+            Id: p.Id,
+            ProductId: p.Id,
+            ProductName: p.Name,
+            SalePrice: p.SalePrice,
+            Position: i
+        )).ToList();
+
+        var groupProducts = demoProducts.Skip(3).Take(4).Select((p, i) => new MenuGroupProductDto(
+            Id: Guid.NewGuid(),
+            ProductId: p.Id,
+            ProductName: p.Name,
+            SalePrice: p.SalePrice,
+            Position: i
+        )).ToList();
+
+        var groupRefProducts = demoProducts.Skip(7).Take(3).Select((p, i) => new GroupProductDto(
+            ProductId: p.Id,
+            ProductName: p.Name,
+            SalePrice: p.SalePrice,
+            Position: i
+        )).ToList();
+
+        return new MenuDto(
+            Id: Guid.NewGuid(),
+            Name: "Demo Menu",
+            StoreId: null,
+            Products: products.Take(3), // First 3 products at root
+            Groups: new List<MenuGroupDto>
+            {
+                new MenuGroupDto(
+                    Id: Guid.NewGuid(),
+                    Name: "Food",
+                    Position: 3,
+                    Products: groupProducts)
+            },
+            GroupReferences: new List<MenuGroupReferenceDto>
+            {
+                new MenuGroupReferenceDto(
+                    Id: Guid.NewGuid(),
+                    GroupId: Guid.NewGuid(),
+                    GroupName: "Drinks",
+                    Position: 4,
+                    Products: groupRefProducts)
+            });
+    }
+
+    private List<ProductDto> GenerateDemoProducts()
     {
         return new List<ProductDto>
         {
