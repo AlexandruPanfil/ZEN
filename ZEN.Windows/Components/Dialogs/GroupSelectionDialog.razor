@@ -1,0 +1,59 @@
+@using ZEN.Application.DTOs.CashDeskMenu
+@using MudBlazor
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">@Title</MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudTextField @bind-Value="_searchTerm" Placeholder="Search groups..." Variant="Variant.Outlined" Class="w-100 mb-3" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" DebounceInterval="300" />
+        
+        <MudGrid Spacing="2" Class="group-grid">
+            @foreach (var group in _filteredGroups)
+            {
+                <MudItem xs="6" md="4" lg="3">
+                    <MudCard Class="@($"group-selection-card {(group.Id == _selectedGroupId ? "selected" : "")}")" Style="cursor: pointer;">
+                        <MudCardContent @onclick="@(() => SelectGroup(group))">
+                            <MudIcon Icon="@Icons.Material.Filled.Folder" Color="Color.Primary" Size="Size.Large" Class="mb-2" />
+                            <MudText Typo="Typo.h6">@group.Name</MudText>
+                            <MudText Typo="Typo.caption" Color="Color.Default">@group.Products.Count() products</MudText>
+                            @if (group.Id == _selectedGroupId)
+                            {
+                                <MudChip T="bool" Color="Color.Primary" Size="Size.Small" Class="mt-2">Selected</MudChip>
+                            }
+                        </MudCardContent>
+                    </MudCard>
+                </MudItem>
+            }
+        </MudGrid>
+        
+        @if (!_filteredGroups.Any())
+        {
+            <MudText Typo="Typo.body1" Color="Color.Default" Class="pa-4" Align="Align.Center">No groups found</MudText>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel" Variant="Variant.Text">Cancel</MudButton>
+        <MudButton Color="Color.Primary" OnClick="Confirm" Disabled="!_selectedGroupId.HasValue">Add Group</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [Parameter] public IEnumerable<GroupDto> Groups { get; set; } = [];
+    [Parameter] public string Title { get; set; } = "Select Group";
+    [CascadingParameter] private IMudDialogInstance Dialog { get; set; } = default!;
+
+    private string _searchTerm = "";
+    private Guid? _selectedGroupId;
+    private IEnumerable<GroupDto> _filteredGroups => string.IsNullOrWhiteSpace(_searchTerm)
+        ? Groups
+        : Groups.Where(g => g.Name.Contains(_searchTerm, StringComparison.OrdinalIgnoreCase));
+
+    private void SelectGroup(GroupDto group)
+    {
+        _selectedGroupId = group.Id;
+    }
+
+    private void Confirm() => Dialog.Close(DialogResult.Ok(Groups.First(g => g.Id == _selectedGroupId!.Value)));
+    private void Cancel() => Dialog.Close(DialogResult.Cancel());
+}

@@ -10,42 +10,85 @@
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
 @inject NavigationManager Navigation
+@inject PosAuthState PosAuthState
+@inject IJSRuntime JSRuntime
 
 <PageTitle>Edit Menu Content - ZEN POS</PageTitle>
 
-@if (_loading)
+@if (!PosAuthState.IsAuthenticated)
 {
     <MudContainer MaxWidth="MaxWidth.Large" Class="mt-4">
-        <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="mb-4" />
+        <MudAlert Severity="Severity.Warning">Please sign in to access this page.</MudAlert>
     </MudContainer>
 }
-else if (_menu == null)
+else if (!PosAuthState.IsManager && !PosAuthState.IsAdmin)
 {
     <MudContainer MaxWidth="MaxWidth.Large" Class="mt-4">
-        <MudAlert Severity="Severity.Error">Menu not found</MudAlert>
-        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="GoBack">Back to Menus</MudButton>
+        <MudAlert Severity="Severity.Error">Access denied. Manager or Administrator role required.</MudAlert>
     </MudContainer>
 }
-else
-{
-    <MudContainer MaxWidth="MaxWidth.Large" Class="mt-4">
-        <div class="d-flex justify-space-between align-center mb-4">
-            <div>
-                <MudText Typo="Typo.h5" Color="Color.Primary">@_menu.Name</MudText>
-                <MudText Typo="Typo.caption" Color="Color.Default">@(_menu.StoreId.HasValue ? $"Store: {_stores.FirstOrDefault(s => s.Id == _menu.StoreId)?.Name ?? "Unknown"}" : "All stores")</MudText>
-            </div>
-            <div class="d-flex gap-2">
-                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="AddGroup">
-                    Add Group
-                </MudButton>
-                <MudButton Variant="Variant.Filled" Color="Color.Secondary" StartIcon="@Icons.Material.Filled.AddShoppingCart" OnClick="AddProductsToRoot">
-                    Add Products (Root)
-                </MudButton>
-                <MudButton Variant="Variant.Text" Color="Color.Default" OnClick="GoBack">
-                    Back
-                </MudButton>
-            </div>
-        </div>
+    else
+    {
+        @if (_loading)
+        {
+            <MudContainer MaxWidth="MaxWidth.Large" Class="mt-4">
+                <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="mb-4" />
+            </MudContainer>
+        }
+        else if (_menu == null)
+        {
+            <MudContainer MaxWidth="MaxWidth.Large" Class="mt-4">
+                <MudAlert Severity="Severity.Error">Menu not found</MudAlert>
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="GoBack">Back to Menus</MudButton>
+            </MudContainer>
+        }
+        else
+        {
+            <MudContainer MaxWidth="MaxWidth.Large" Class="mt-4">
+                <!-- Basic Properties Section -->
+                <MudPaper Class="pa-4 mb-4" Elevation="1" Outlined="true">
+                    <MudText Typo="Typo.h6" Class="mb-3">Basic Properties</MudText>
+                    <MudGrid Spacing="2">
+                        <MudItem xs="12" md="6">
+                            <MudTextField Label="Menu Name" Variant="Variant.Outlined" @bind-Value="_basicProperties.Name" Required="true" Margin="Margin.Dense" />
+                        </MudItem>
+                        <MudItem xs="12" md="6">
+                            <MudSelect T="Guid?" Label="Store" Variant="Variant.Outlined" @bind-Value="_basicProperties.StoreId" AnchorOrigin="Origin.BottomLeft" Margin="Margin.Dense" Disabled="true">
+                                <MudSelectItem T="Guid?" Value="@((Guid?)null)">— All Stores —</MudSelectItem>
+                                @foreach (var store in _stores.Where(s => s.IsActive))
+                                {
+                                    <MudSelectItem T="Guid?" Value="@((Guid?)store.Id)">@store.Name</MudSelectItem>
+                                }
+                            </MudSelect>
+                        </MudItem>
+                    </MudGrid>
+                    <div class="d-flex gap-2 mt-3">
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Save" OnClick="SaveBasicPropertiesAsync" Disabled="@_savingBasicProperties">
+                            @(_savingBasicProperties ? "Saving..." : "Save Properties")
+                        </MudButton>
+                        <MudButton Variant="Variant.Text" Color="Color.Default" OnClick="GoBack">
+                            Back to Menus
+                        </MudButton>
+                    </div>
+                </MudPaper>
+
+                <div class="d-flex justify-space-between align-center mb-4">
+                    <div>
+                        <MudText Typo="Typo.h5" Color="Color.Primary">@_menu.Name</MudText>
+                        <MudText Typo="Typo.caption" Color="Color.Default">@(_menu.StoreId.HasValue ? $"Store: {_stores.FirstOrDefault(s => s.Id == _menu.StoreId)?.Name ?? "Unknown"}" : "All stores")</MudText>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="AddGroup">
+                            Add Group
+                        </MudButton>
+                        <MudButton Variant="Variant.Filled" Color="Color.Secondary" StartIcon="@Icons.Material.Filled.AddShoppingCart" OnClick="AddProductsToRoot">
+                            Add Products (Root)
+                        </MudButton>
+                        <MudButton Variant="Variant.Text" Color="Color.Default" OnClick="GoBack">
+                            Back
+                        </MudButton>
+                    </div>
+                </div>
 
         <MudGrid>
             <MudItem xs="12" md="4">
@@ -53,6 +96,17 @@ else
                     <div class="d-flex justify-space-between align-center mb-3">
                         <MudText Typo="Typo.h6">Groups</MudText>
                         <MudText Typo="Typo.caption" Color="Color.Default">Drag to reorder</MudText>
+                    </div>
+                    <!-- Root Products entry as first item -->
+                    <div class="draggable-group @(!_selectedGroupId.HasValue ? "selected-root" : "")" 
+                         @onclick="SelectRoot">
+                        <div class="group-content">
+                            <MudIcon Icon="@Icons.Material.Filled.Folder" Class="drag-handle" Style="color: #8b5cf6;" />
+                            <div class="group-info">
+                                <MudText Typo="Typo.body1" Style="font-weight: 600; color: #8b5cf6;">Root Products</MudText>
+                                <MudText Typo="Typo.caption" Color="Color.Default">@(_menu?.Products.Count() ?? 0) products</MudText>
+                            </div>
+                        </div>
                     </div>
                     @if (_menu.Groups.Any())
                     {
@@ -140,42 +194,108 @@ else
                     else
                     {
                         <div class="d-flex justify-space-between align-center mb-3">
-                            <MudText Typo="Typo.h6">Root Products (not in any group)</MudText>
-                            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.AddShoppingCart" OnClick="AddProductsToRoot">
-                                Add Products
-                            </MudButton>
+                            <MudText Typo="Typo.h6" Style="font-weight: 600; color: #8b5cf6;">Root Products</MudText>
+                            <div class="d-flex gap-2">
+                                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.AddShoppingCart" OnClick="AddProductsToRoot">
+                                    Add Products
+                                </MudButton>
+                                <MudButton Variant="Variant.Filled" Color="Color.Secondary" StartIcon="@Icons.Material.Filled.Folder" OnClick="AddGroupToRoot">
+                                    Add Shared Group
+                                </MudButton>
+                            </div>
                         </div>
 
-                        @if (_menu.Products.Any())
+                        @if (_menu != null && (_menu.Products.Any() || _menu.GroupReferences.Any() || _menu.Groups.Any()))
                         {
                             <div class="sortable-products" id="root-products">
-                                @foreach (var product in _menu.Products.OrderBy(p => p.Position))
+                                @foreach (var rootItem in GetRootItems())
                                 {
-                                    <div class="draggable-product @(_draggedProduct?.ProductId == product.ProductId && _draggedProduct?.GroupId == "root" ? "dragging" : "")" 
-                                         draggable="true" 
-                                         data-product-id="@product.ProductId"
-                                         data-group-id="root"
-                                         @ondragstart="@(e => OnProductDragStartRoot(e, product))"
-                                         @ondragover="@(e => OnProductDragOverRoot(e, product))"
-                                         @ondrop="@(e => OnProductDropRoot(e, product))"
-                                         @ondragend="@OnProductDragEnd">
-                                        <MudCard Class="product-grid-card">
-                                            <MudCardContent>
-                                                <MudText Typo="Typo.h6">@product.ProductName</MudText>
-                                                <MudText Typo="Typo.body2" Color="Color.Primary">@product.SalePrice.ToString("C")</MudText>
-                                            </MudCardContent>
-                                            <MudCardActions>
-                                                <MudIcon Icon="@Icons.Material.Filled.DragIndicator" Class="drag-handle" />
-                                                <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="@(async () => await RemoveProductFromRoot(product.Id))" />
-                                            </MudCardActions>
-                                        </MudCard>
-                                    </div>
+                                    if (IsProduct(rootItem))
+                                    {
+                                        var product = GetItem(rootItem) as MenuProductDto;
+                                        var isDragging = _draggedRootItem.HasValue && _draggedRootItem.Value.Type == RootDragItemType.Product && _draggedRootItem.Value.Id == product.Id;
+                                        <div class="draggable-product @(isDragging ? "dragging" : "")" 
+                                             draggable="true" 
+                                             data-product-id="@product.ProductId"
+                                             data-group-id="root"
+                                             @ondragstart="@(e => OnRootItemDragStart(e, RootDragItemType.Product, product.Id))"
+                                             @ondragover="@OnRootItemDragOver"
+                                             @ondrop="@(e => OnRootItemDrop(e, RootDragItemType.Product, product.Id))"
+                                             @ondragend="@OnRootItemDragEnd">
+                                            <MudCard Class="product-grid-card">
+                                                <MudCardContent>
+                                                    <MudText Typo="Typo.h6">@product.ProductName</MudText>
+                                                    <MudText Typo="Typo.body2" Color="Color.Primary">@product.SalePrice.ToString("C")</MudText>
+                                                </MudCardContent>
+                                                <MudCardActions>
+                                                    <MudIcon Icon="@Icons.Material.Filled.DragIndicator" Class="drag-handle" />
+                                                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="@(async () => await RemoveProductFromRoot(product.Id))" />
+                                                </MudCardActions>
+                                            </MudCard>
+                                        </div>
+                                    }
+                                    else if (IsGroupReference(rootItem))
+                                    {
+                                        var groupRef = GetItem(rootItem) as MenuGroupReferenceDto;
+                                        var isDragging = _draggedRootItem.HasValue && _draggedRootItem.Value.Type == RootDragItemType.GroupReference && _draggedRootItem.Value.Id == groupRef.Id;
+                                        <div class="draggable-group-ref @(isDragging ? "dragging" : "")" 
+                                             draggable="true" 
+                                             data-group-ref-id="@groupRef.Id"
+                                             @ondragstart="@(e => OnRootItemDragStart(e, RootDragItemType.GroupReference, groupRef.Id))"
+                                             @ondragover="@OnRootItemDragOver"
+                                             @ondrop="@(e => OnRootItemDrop(e, RootDragItemType.GroupReference, groupRef.Id))"
+                                             @ondragend="@OnRootItemDragEnd">
+                                            <MudCard Class="product-grid-card group-ref-card">
+                                                <MudCardContent>
+                                                    <div class="d-flex align-center gap-2">
+                                                        <MudIcon Icon="@Icons.Material.Filled.Folder" Color="Color.Primary" Size="Size.Large" />
+                                                        <div>
+                                                            <MudText Typo="Typo.h6">@groupRef.GroupName</MudText>
+                                                            <MudText Typo="Typo.caption" Color="Color.Default">@groupRef.Products.Count() products</MudText>
+                                                        </div>
+                                                    </div>
+                                                </MudCardContent>
+                                                <MudCardActions>
+                                                    <MudIcon Icon="@Icons.Material.Filled.DragIndicator" Class="drag-handle" />
+                                                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="@(async () => await RemoveGroupFromRoot(groupRef.Id))" />
+                                                </MudCardActions>
+                                            </MudCard>
+                                        </div>
+                                    }
+                                    else if (IsMenuGroup(rootItem))
+                                    {
+                                        var menuGroup = GetItem(rootItem) as MenuGroupDto;
+                                        var isDragging = _draggedRootItem.HasValue && _draggedRootItem.Value.Type == RootDragItemType.MenuGroup && _draggedRootItem.Value.Id == menuGroup.Id;
+                                        <div class="draggable-group-ref @(isDragging ? "dragging" : "")" 
+                                             draggable="true" 
+                                             data-group-ref-id="@menuGroup.Id"
+                                             @ondragstart="@(e => OnRootItemDragStart(e, RootDragItemType.MenuGroup, menuGroup.Id))"
+                                             @ondragover="@OnRootItemDragOver"
+                                             @ondrop="@(e => OnRootItemDrop(e, RootDragItemType.MenuGroup, menuGroup.Id))"
+                                             @ondragend="@OnRootItemDragEnd">
+                                            <MudCard Class="product-grid-card group-ref-card menu-group-card">
+                                                <MudCardContent>
+                                                    <div class="d-flex align-center gap-2">
+                                                        <MudIcon Icon="@Icons.Material.Filled.Folder" Color="Color.Secondary" Size="Size.Large" />
+                                                        <div>
+                                                            <MudText Typo="Typo.h6">@menuGroup.Name</MudText>
+                                                            <MudText Typo="Typo.caption" Color="Color.Default">@menuGroup.Products.Count() products</MudText>
+                                                        </div>
+                                                    </div>
+                                                </MudCardContent>
+                                                <MudCardActions>
+                                                    <MudIcon Icon="@Icons.Material.Filled.DragIndicator" Class="drag-handle" />
+                                                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="@(async () => await RemoveMenuGroupFromRoot(menuGroup.Id))" />
+                                                </MudCardActions>
+                                            </MudCard>
+                                        </div>
+                                    }
                                 }
                             </div>
                         }
                         else
                         {
-                            <MudText Typo="Typo.body2" Color="Color.Default" Class="pa-2">No root products. Click "Add Products (Root)" to add some.</MudText>
+                            <MudText Typo="Typo.body2" Color="Color.Default" Class="pa-2">No root products or groups. Click "Add Products" to add products, "Add Group" (left panel) to create a menu group, or "Add Shared Group" to add a shared group.</MudText>
                         }
                     }
                 </MudPaper>
@@ -312,6 +432,24 @@ else
     .product-selection-card .mud-chip {
         font-size: 0.75rem;
     }
+    
+    .group-ref-card {
+        border-left: 4px solid #8b5cf6;
+        background: #f9f7fe;
+    }
+    
+    .menu-group-card {
+        border-left: 4px solid #00acc1;
+        background: #e0f7fa;
+    }
+    
+    .draggable-group-ref {
+        transition: all 0.2s;
+    }
+    
+    .draggable-group-ref.dragging {
+        opacity: 0.5;
+    }
 </style>
 
 @code {
@@ -322,15 +460,38 @@ else
     private bool _loading = true;
     private Guid? _selectedGroupId;
     private bool _saving;
+    private bool _savingBasicProperties = false;
+    
+    // Local model for basic properties editing
+    private MenuBasicPropertiesModel _basicProperties = new();
     
     // Drag and drop state
     private Guid? _draggedGroupId;
     private (Guid ProductId, string GroupId)? _draggedProduct;
+    private (RootDragItemType Type, Guid Id)? _draggedRootItem;
+
+    // Root drag item type enum
+    private enum RootDragItemType { Product, MenuGroup, GroupReference }
 
     protected override async Task OnInitializedAsync()
     {
         await LoadMenuAsync();
         await LoadStoresAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            try
+            {
+                await JSRuntime.InvokeVoidAsync("initMenuDragDrop");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"JS interop error: {ex.Message}");
+            }
+        }
     }
 
     private async Task LoadMenuAsync()
@@ -342,6 +503,14 @@ else
             if (_menu == null)
             {
                 Snackbar.Add("Menu not found", Severity.Error);
+            }
+            else
+            {
+                _basicProperties = new MenuBasicPropertiesModel
+                {
+                    Name = _menu.Name,
+                    StoreId = _menu.StoreId
+                };
             }
         }
         catch (Exception ex)
@@ -366,6 +535,11 @@ else
     private void SelectGroup(MenuGroupDto group)
     {
         _selectedGroupId = group.Id;
+    }
+
+    private void SelectRoot()
+    {
+        _selectedGroupId = null;
     }
 
     // Group Drag and Drop
@@ -461,25 +635,124 @@ else
         _draggedProduct = null;
     }
 
-    // Root product drag handlers (separate because they use MenuProductDto)
-    private void OnProductDragStartRoot(DragEventArgs e, MenuProductDto product)
+    // Root item drag handlers (for Products, MenuGroups, and GroupReferences)
+    private void OnRootItemDragStart(DragEventArgs e, RootDragItemType type, Guid id)
     {
-        _draggedProduct = (product.ProductId, "root");
+        _draggedRootItem = (type, id);
     }
 
-    private void OnProductDragOverRoot(DragEventArgs e, MenuProductDto targetProduct)
+    private void OnRootItemDragOver(DragEventArgs e)
     {
         // In Blazor, we can't call PreventDefault on DragEventArgs
     }
 
+    private async Task OnRootItemDrop(DragEventArgs e, RootDragItemType targetType, Guid targetId)
+    {
+        if (_draggedRootItem.HasValue && (_draggedRootItem.Value.Type != targetType || _draggedRootItem.Value.Id != targetId))
+        {
+            await ReorderRootItems(_draggedRootItem.Value.Type, _draggedRootItem.Value.Id, targetType, targetId);
+        }
+        _draggedRootItem = null;
+    }
+
+    private void OnRootItemDragEnd(DragEventArgs e)
+    {
+        _draggedRootItem = null;
+    }
+
+    private async Task ReorderRootItems(RootDragItemType draggedType, Guid draggedId, RootDragItemType targetType, Guid targetId)
+    {
+        if (_menu == null) return;
+
+        try
+        {
+            // Get all root items in current order
+            var rootItems = GetRootItems().ToList();
+            
+            // Find indices
+            var draggedIndex = rootItems.FindIndex(i => 
+                (IsProduct(i) && draggedType == RootDragItemType.Product && GetItem(i).Id == draggedId) ||
+                (IsMenuGroup(i) && draggedType == RootDragItemType.MenuGroup && GetItem(i).Id == draggedId) ||
+                (IsGroupReference(i) && draggedType == RootDragItemType.GroupReference && GetItem(i).Id == draggedId));
+            
+            var targetIndex = rootItems.FindIndex(i => 
+                (IsProduct(i) && targetType == RootDragItemType.Product && GetItem(i).Id == targetId) ||
+                (IsMenuGroup(i) && targetType == RootDragItemType.MenuGroup && GetItem(i).Id == targetId) ||
+                (IsGroupReference(i) && targetType == RootDragItemType.GroupReference && GetItem(i).Id == targetId));
+
+            if (draggedIndex >= 0 && targetIndex >= 0 && draggedIndex != targetIndex)
+            {
+                // Move the item
+                var draggedItem = rootItems[draggedIndex];
+                rootItems.RemoveAt(draggedIndex);
+                rootItems.Insert(targetIndex, draggedItem);
+
+                // Build the reorder request
+                var itemsInOrder = rootItems.Select((item, index) => 
+                {
+                    var type = IsProduct(item) ? RootItemType.Product : 
+                               IsMenuGroup(item) ? RootItemType.MenuGroup : 
+                               RootItemType.GroupReference;
+                    var id = GetItem(item).Id;
+                    return new RootItemOrder(type, id, index);
+                }).ToList();
+
+                var request = new ReorderMenuRootItemsRequest(MenuId, itemsInOrder);
+                var updatedMenu = await ApiClient.ReorderMenuRootItemsAsync(request);
+                if (updatedMenu != null)
+                {
+                    _menu = updatedMenu;
+                    Snackbar.Add("Items reordered", Severity.Success);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error reordering items: {ex.Message}", Severity.Error);
+            _menu = await ApiClient.GetMenuStructureAsync(MenuId);
+        }
+    }
+
+    // Helper to get combined root items (Products + GroupReferences + MenuGroups) ordered by Position
+    private IEnumerable<object> GetRootItems()
+    {
+        if (_menu == null) return [];
+
+        var products = _menu.Products.Select(p => new { Item = p, Type = "Product", p.Position, Id = p.Id });
+        var groupRefs = _menu.GroupReferences.Select(g => new { Item = g, Type = "GroupReference", g.Position, Id = g.Id });
+        var menuGroups = _menu.Groups.Select(g => new { Item = g, Type = "MenuGroup", g.Position, Id = g.Id });
+        
+        return products.Cast<object>()
+            .Concat(groupRefs.Cast<object>())
+            .Concat(menuGroups.Cast<object>())
+            .OrderBy(x => x.GetType().GetProperty("Position")?.GetValue(x) as int? ?? 0);
+    }
+
+    // Helper to check item types
+    private bool IsProduct(object item) => item.GetType().GetProperty("Type")?.GetValue(item)?.ToString() == "Product";
+    private bool IsGroupReference(object item) => item.GetType().GetProperty("Type")?.GetValue(item)?.ToString() == "GroupReference";
+    private bool IsMenuGroup(object item) => item.GetType().GetProperty("Type")?.GetValue(item)?.ToString() == "MenuGroup";
+
+    // Helper to get the actual item
+    private dynamic GetItem(object item) => item.GetType().GetProperty("Item")?.GetValue(item)!;
+
+    // Helper to get Position
+    private int GetPosition(object item) => item.GetType().GetProperty("Position")?.GetValue(item) as int? ?? 0;
+
+    // Root product drag handlers (separate because they use MenuProductDto)
+    private void OnProductDragStartRoot(DragEventArgs e, MenuProductDto product)
+    {
+        OnRootItemDragStart(e, RootDragItemType.Product, product.Id);
+    }
+
+    private void OnProductDragOverRoot(DragEventArgs e, MenuProductDto targetProduct)
+    {
+        OnRootItemDragOver(e);
+    }
+
     private async Task OnProductDropRoot(DragEventArgs e, MenuProductDto targetProduct)
     {
-        if (_draggedProduct.HasValue && _draggedProduct.Value.ProductId != targetProduct.ProductId)
-        {
-            // For root products, we don't have reorder API yet
-            Snackbar.Add("Reordering root products not yet implemented", Severity.Warning);
-        }
-        _draggedProduct = null;
+        await OnRootItemDrop(e, RootDragItemType.Product, targetProduct.Id);
     }
 
     private async Task ReorderProducts(Guid draggedProductId, string draggedGroupId, Guid targetProductId, string targetGroupId)
@@ -694,6 +967,90 @@ else
         }
     }
 
+    private async Task AddGroupToRoot()
+    {
+        try
+        {
+            var allGroups = await ApiClient.GetGroupsAsync();
+            if (!allGroups.Any())
+            {
+                Snackbar.Add("No groups available", Severity.Warning);
+                return;
+            }
+
+            // Filter out groups already in this menu (both MenuGroups and GroupReferences)
+            var existingGroupIds = new HashSet<Guid>();
+            if (_menu != null)
+            {
+                foreach (var g in _menu.Groups) existingGroupIds.Add(g.Id);
+                foreach (var g in _menu.GroupReferences) existingGroupIds.Add(g.GroupId);
+            }
+
+            var availableGroups = allGroups.Where(g => !existingGroupIds.Contains(g.Id)).ToList();
+            if (!availableGroups.Any())
+            {
+                Snackbar.Add("All groups are already in this menu", Severity.Info);
+                return;
+            }
+
+            var parameters = new DialogParameters<GroupSelectionDialog>
+            {
+                { nameof(GroupSelectionDialog.Groups), availableGroups },
+                { nameof(GroupSelectionDialog.Title), "Select Group to Add" }
+            };
+            var dialog = await DialogService.ShowAsync<GroupSelectionDialog>("Select Group", parameters, new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true });
+            var result = await dialog.Result;
+            if (!result.Canceled && result.Data is GroupDto selectedGroup)
+            {
+                var position = GetRootItems().Count();
+                var request = new AddGroupToMenuRequest(MenuId, selectedGroup.Id, position);
+                await ApiClient.AddGroupToMenuAsync(request);
+                _menu = await ApiClient.GetMenuStructureAsync(MenuId);
+                Snackbar.Add($"Group '{selectedGroup.Name}' added to root", Severity.Success);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error adding group: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task RemoveGroupFromRoot(Guid menuGroupReferenceId)
+    {
+        try
+        {
+            var deleted = await ApiClient.RemoveMenuGroupReferenceAsync(menuGroupReferenceId);
+            if (deleted)
+            {
+                _menu = await ApiClient.GetMenuStructureAsync(MenuId);
+                Snackbar.Add("Group removed from root", Severity.Success);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error removing group: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task RemoveMenuGroupFromRoot(Guid menuGroupId)
+    {
+        try
+        {
+            // Removing a MenuGroup from root means deleting the MenuGroup entirely
+            // since MenuGroups are owned by the menu
+            var deleted = await ApiClient.DeleteMenuGroupAsync(menuGroupId);
+            if (deleted)
+            {
+                _menu = await ApiClient.GetMenuStructureAsync(MenuId);
+                Snackbar.Add("Group removed from menu", Severity.Success);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error removing group: {ex.Message}", Severity.Error);
+        }
+    }
+
     private async Task<List<ProductDto>?> ShowProductSelectionDialog()
     {
         try
@@ -729,4 +1086,42 @@ else
     {
         Navigation.NavigateTo("/manager/equipments/cash-desk-menus");
     }
+
+    private async Task SaveBasicPropertiesAsync()
+    {
+        if (_menu == null) return;
+        
+        _savingBasicProperties = true;
+        try
+        {
+            var request = new UpdateMenuRequest(_menu.Id, _basicProperties.Name, _basicProperties.StoreId);
+            var updatedMenu = await ApiClient.UpdateMenuAsync(request);
+            if (updatedMenu != null)
+            {
+                _menu = updatedMenu;
+                _basicProperties = new MenuBasicPropertiesModel
+                {
+                    Name = _menu.Name,
+                    StoreId = _menu.StoreId
+                };
+                Snackbar.Add("Menu properties saved", Severity.Success);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error saving menu properties: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _savingBasicProperties = false;
+        }
+    }
+
+    private class MenuBasicPropertiesModel
+    {
+        public string Name { get; set; } = string.Empty;
+        public Guid? StoreId { get; set; }
+    }
+}
+}
 }

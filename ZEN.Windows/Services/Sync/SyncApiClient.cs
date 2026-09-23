@@ -568,6 +568,27 @@ public class SyncApiClient
             : null;
     }
 
+    public async Task<MenuDto?> AddGroupToMenuAsync(
+        AddGroupToMenuRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        using var response = await _httpClient.PostAsJsonAsync($"api/equipments/menus/{request.MenuId}/groups", request, cancellationToken);
+        return response.IsSuccessStatusCode
+            ? await response.Content.ReadFromJsonAsync<MenuDto>(cancellationToken)
+            : null;
+    }
+
+    public async Task<bool> RemoveMenuGroupReferenceAsync(
+        Guid menuGroupReferenceId,
+        CancellationToken cancellationToken = default)
+    {
+        using var response = await _httpClient.DeleteAsync(
+            $"api/equipments/menus/groups/{menuGroupReferenceId}",
+            cancellationToken);
+        await ThrowIfConflictAsync(response, "menu group reference", cancellationToken);
+        return response.IsSuccessStatusCode;
+    }
+
     public async Task<IEnumerable<GroupDto>> GetGroupsAsync(CancellationToken cancellationToken = default)
     {
         try

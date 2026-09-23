@@ -5,8 +5,8 @@
 
 <MudCard Class="menu-group-content">
     <MudCardHeader>
-        <MudStack Direction="Direction.Row" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Gap="Gap.Medium">
-            <MudStack Direction="Direction.Row" Gap="Gap.Small" AlignItems="AlignItems.Center">
+        <div class="d-flex justify-space-between align-center">
+            <div class="d-flex align-center gap-2">
                 @if (IsSharedGroup)
                 {
                     <MudIcon Icon="@Icons.Material.Filled.FolderShared" Color="Color.Tertiary" Size="Size.Large" />
@@ -15,15 +15,15 @@
                 {
                     <MudIcon Icon="@Icons.Material.Filled.Folder" Color="Color.Secondary" Size="Size.Large" />
                 }
-                <MudStack>
-                    <MudText Typo="Typo.h5">@GroupName</MudText>
-                    <MudText Typo="Typo.caption" Color="Color.Secondary">@Products.Count() products</MudText>
-                </MudStack>
-            </MudStack>
-            <MudButton Variant="Variant.Text" Color="Color.Primary" OnClick="OnBackClick" StartIcon="@Icons.Material.Filled.ArrowBack">
+                <div>
+                    <MudText Typo="Typo.h6" Class="mb-0">@GroupName</MudText>
+                    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-0">@Products.Count() products</MudText>
+                </div>
+            </div>
+            <MudButton Variant="Variant.Text" Color="Color.Primary" OnClick="OnBackClick" StartIcon="@Icons.Material.Filled.ArrowBack" Size="Size.Small">
                 Back
             </MudButton>
-        </MudStack>
+        </div>
     </MudCardHeader>
     <MudCardContent>
         <MenuProductGrid Products="Products"
