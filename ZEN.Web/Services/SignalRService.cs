@@ -153,7 +153,8 @@ public class SignalRService : IDisposable, IAsyncDisposable
 
     public async Task StopAsync()
     {
-        if (_currentStoreId.HasValue)
+        // Leaving only makes sense on a live connection; a dead one has no group membership anyway.
+        if (_currentStoreId.HasValue && _hubConnection.State == HubConnectionState.Connected)
         {
             try
             {
@@ -164,6 +165,9 @@ public class SignalRService : IDisposable, IAsyncDisposable
                 _logger.LogError(ex, "Failed to leave store group");
             }
         }
+
+        // Clear so a repeated StopAsync / Reconnected handler doesn't act on a stale store
+        _currentStoreId = null;
 
         if (_hubConnection.State != HubConnectionState.Disconnected)
         {

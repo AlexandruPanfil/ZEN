@@ -131,13 +131,12 @@ public class ShiftService : IShiftService
         return shift == null ? null : MapToDto(shift);
     }
 
-    public async Task<IEnumerable<ShiftDto>> GetShiftsByStoreAsync(Guid storeId, DateTime? startDate = null, DateTime? endDate = null, CancellationToken cancellationToken = default)
+    public async Task<IEnumerable<ShiftDto>> GetShiftsByStoreAsync(Guid? storeId, DateTime? startDate = null, DateTime? endDate = null, CancellationToken cancellationToken = default)
     {
-        var shifts = await _shiftRepository.FindAsync(s => s.StoreId == storeId, cancellationToken);
-        if (startDate.HasValue)
-            shifts = shifts.Where(s => s.OpenTime >= startDate.Value).ToList();
-        if (endDate.HasValue)
-            shifts = shifts.Where(s => s.OpenTime <= endDate.Value).ToList();
+        var shifts = await _shiftRepository.FindAsync(s =>
+            (storeId == null || s.StoreId == storeId) &&
+            (startDate == null || s.OpenTime >= startDate) &&
+            (endDate == null || s.OpenTime <= endDate), cancellationToken);
 
         return shifts.OrderByDescending(s => s.OpenTime).Select(MapToDto);
     }

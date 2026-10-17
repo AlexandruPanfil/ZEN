@@ -14,6 +14,7 @@
 @inject IDialogService DialogService
 @inject SignalRService SignalRService
 @inject IServiceScopeFactory ScopeFactory
+@inject Microsoft.AspNetCore.Components.Authorization.AuthenticationStateProvider AuthStateProvider
 @implements IAsyncDisposable
 
 <Microsoft.AspNetCore.Components.Web.PageTitle>Held Sales</Microsoft.AspNetCore.Components.Web.PageTitle>
@@ -23,7 +24,7 @@
         <MudStack Row="true" Class="justify-between align-center">
             <MudText Typo="Typo.h4">Held Sales / Pending Transactions</MudText>
             <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center">
-                <StoreContextSelector OnStoreChanged="OnStoreChanged" />
+                <StoreContextSelector ShowAllOption="_isAdmin" OnStoreChanged="OnStoreChanged" />
                 <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="RefreshList">
                     <MudIcon Icon="@Icons.Material.Filled.Refresh" Class="mr-2" />
                     Refresh
@@ -34,16 +35,6 @@
         @if (_isLoading)
         {
             <MudProgressCircular Color="Color.Primary" Indeterminate="true" />
-        }
-        else if (!_currentStoreId.HasValue)
-        {
-            <MudPaper Class="pa-8" Elevation="0">
-                <MudStack Spacing="2" AlignItems="AlignItems.Center">
-                    <MudIcon Icon="@Icons.Material.Filled.Store" Style="font-size: 48px;" Color="Color.Default" />
-                    <MudText Typo="Typo.subtitle1">Please select a store to view held sales</MudText>
-                    <MudText Typo="Typo.body2" Class="mud-text-secondary">Use the store selector above to choose a store</MudText>
-                </MudStack>
-            </MudPaper>
         }
         else if (!FilteredHeldSales.Any())
         {
@@ -170,9 +161,15 @@
     private bool _isLoading = true;
     private Guid? _currentStoreId;
     private bool _initialized = false;
+    private bool _isAdmin;
+    private Guid? _userStoreId;
 
     protected override async Task OnInitializedAsync()
     {
+        var user = (await AuthStateProvider.GetAuthenticationStateAsync()).User;
+        _isAdmin = user.IsInRole("Administrator");
+        _userStoreId = Guid.TryParse(user.FindFirst("store_id")?.Value, out var sid) ? sid : null;
+
         SignalRService.HeldSaleCreated += OnHeldSaleCreated;
         SignalRService.HeldSaleCompleted += OnHeldSaleCompleted;
     }
@@ -185,12 +182,8 @@
             
             try
             {
-                // Check if a store is already selected in context
-                var storeId = StoreContext.GetCurrentStoreId();
-                if (storeId.HasValue)
-                {
-                    await LoadHeldSalesAsync(storeId);
-                }
+                // No store in context = all stores
+                await LoadHeldSalesAsync(StoreContext.GetCurrentStoreId());
             }
             catch (Exception ex)
             {
@@ -201,82 +194,49 @@
         }
     }
 
-    private async Task AutoSelectDefaultStoreAsync()
-    {
-        _isLoading = true;
-        StateHasChanged();
-        
-        try
-        {
-            // Use a separate scope to avoid concurrency issues with StoreContextSelector
-            using var scope = ScopeFactory.CreateScope();
-            var context = scope.ServiceProvider.GetRequiredService<ZenDbContext>();
-            var firstActiveStore = await context.Stores
-                .Where(s => s.IsActive && !s.IsDeleted)
-                .OrderBy(s => s.Name)
-                .FirstOrDefaultAsync();
-            
-            if (firstActiveStore != null)
-            {
-                await LoadHeldSalesAsync(firstActiveStore.Id);
-                await StoreContext.SetCurrentStoreAsync(firstActiveStore.Id);
-            }
-            else
-            {
-                // No active stores found - stop loading
-                _isLoading = false;
-                StateHasChanged();
-                Snackbar.Add("No active stores configured", Severity.Warning);
-            }
-        }
-        catch (Exception ex)
-        {
-            _isLoading = false;
-            StateHasChanged();
-            Snackbar.Add($"Error auto-selecting store: {ex.Message}", Severity.Error);
-        }
-    }
-
-    private async Task LoadHeldSalesAsync(Guid? storeId = null)
+    // storeId == null => all stores
+    private async Task LoadHeldSalesAsync(Guid? storeId)
     {
         try
         {
             _isLoading = true;
             StateHasChanged();
 
-            storeId ??= StoreContext.GetCurrentStoreId();
-            if (storeId.HasValue)
-            {
-                _currentStoreId = storeId.Value;
-                
-                // Use a separate scope to avoid concurrency issues with StoreContextSelector
-                using var scope = ScopeFactory.CreateScope();
-                var saleService = scope.ServiceProvider.GetRequiredService<ISaleService>();
-                
-                _heldSales = (await saleService.GetHeldSalesAsync(storeId.Value)).ToList();
-                
-                // Start SignalR connection
-                await SignalRService.StartAsync(storeId.Value);
-            }
-            else
-            {
-                _currentStoreId = null;
-                _heldSales.Clear();
-                
-                // Stop SignalR connection if no store
-                await SignalRService.StopAsync();
-            }
+            // "All stores" is admin-only; others fall back to their own store (Guid.Empty = nothing)
+            if (!storeId.HasValue && !_isAdmin)
+                storeId = _userStoreId ?? Guid.Empty;
+
+            _currentStoreId = storeId;
+
+            // Use a separate scope to avoid concurrency issues with StoreContextSelector
+            using var scope = ScopeFactory.CreateScope();
+            var saleService = scope.ServiceProvider.GetRequiredService<ISaleService>();
+
+            _heldSales = (await saleService.GetHeldSalesAsync(storeId)).ToList();
         }
         catch (Exception ex)
         {
             Snackbar.Add($"Error loading held sales: {ex.Message}", Severity.Error);
-            _currentStoreId = null;
             _heldSales.Clear();
         }
         finally
         {
             _isLoading = false;
             StateHasChanged();
+        }
+
+        // Own try: a hub failure must not wipe the data that loaded fine.
+        // ponytail: live updates only for a single store (hub groups are per store); "All" relies on Refresh
+        try
+        {
+            if (storeId.HasValue)
+                await SignalRService.StartAsync(storeId.Value);
+            else
+                await SignalRService.StopAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Live updates unavailable: {ex.Message}", Severity.Warning);
         }
     }
 
@@ -391,14 +351,7 @@
 
     private async Task RefreshList()
     {
-        var storeId = StoreContext.GetCurrentStoreId();
-        if (!storeId.HasValue)
-        {
-            Snackbar.Add("Please select a store first", Severity.Warning);
-            return;
-        }
-        
-        await LoadHeldSalesAsync(storeId);
+        await LoadHeldSalesAsync(_currentStoreId);
         Snackbar.Add("List refreshed", Severity.Info);
     }
 
@@ -424,7 +377,7 @@
         {
             // The held sale will be removed from the list when completed in POS
             // For now, refresh the list
-            await LoadHeldSalesAsync();
+            await LoadHeldSalesAsync(_currentStoreId);
             Snackbar.Add("Sale resumed - will be removed when completed in POS", Severity.Success);
         }
     }
@@ -440,7 +393,7 @@
         {
             // In a real implementation, you'd call a service to delete the held sale
             // For now, just refresh
-            await LoadHeldSalesAsync();
+            await LoadHeldSalesAsync(_currentStoreId);
             Snackbar.Add("Sale discarded", Severity.Warning);
         }
     }

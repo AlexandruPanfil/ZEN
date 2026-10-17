@@ -646,9 +646,9 @@ private async Task<(bool Attempted, bool Success, string? ErrorMessage)> SendToF
         return new HeldSaleDto(heldSale.Id, heldSale.StoreId, heldSale.HeldAt, heldSale.CustomerId?.ToString(), heldSale.SerializedItems, heldSale.CompletedAt, heldSale.CompletedBy);
     }
 
-    public async Task<IEnumerable<HeldSaleDto>> GetHeldSalesAsync(Guid storeId, CancellationToken cancellationToken = default)
+    public async Task<IEnumerable<HeldSaleDto>> GetHeldSalesAsync(Guid? storeId, CancellationToken cancellationToken = default)
     {
-        var heldSales = await _heldSaleRepository.FindAsync(h => h.StoreId == storeId, cancellationToken);
+        var heldSales = await _heldSaleRepository.FindAsync(h => storeId == null || h.StoreId == storeId, cancellationToken);
         return heldSales.Select(h => new HeldSaleDto(h.Id, h.StoreId, h.HeldAt, h.CustomerId?.ToString(), h.SerializedItems, h.CompletedAt, h.CompletedBy));
     }
 

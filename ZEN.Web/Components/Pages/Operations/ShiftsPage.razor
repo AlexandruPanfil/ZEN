@@ -15,6 +15,7 @@
 @inject IDialogService DialogService
 @inject SignalRService SignalRService
 @inject IServiceScopeFactory ScopeFactory
+@inject Microsoft.AspNetCore.Components.Authorization.AuthenticationStateProvider AuthStateProvider
 @implements IAsyncDisposable
 
 <Microsoft.AspNetCore.Components.Web.PageTitle>Shifts Management</Microsoft.AspNetCore.Components.Web.PageTitle>
@@ -24,8 +25,8 @@
         <MudStack Row="true" Class="justify-between align-center">
             <MudText Typo="Typo.h4">Shifts</MudText>
             <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center">
-                <StoreContextSelector OnStoreChanged="OnStoreChanged" />
-                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="OpenShiftDialog" Disabled="_currentShift != null">
+                <StoreContextSelector ShowAllOption="_isAdmin" OnStoreChanged="OnStoreChanged" />
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="OpenShiftDialog" Disabled="@(_currentShift != null || !_currentStoreId.HasValue)">
                     <MudIcon Icon="@Icons.Material.Filled.Add" Class="mr-2" />
                     Open New Shift
                 </MudButton>
@@ -91,16 +92,6 @@
         {
             <MudProgressCircular Color="Color.Primary" Indeterminate="true" />
         }
-        else if (!_currentStoreId.HasValue)
-        {
-            <MudPaper Class="pa-8" Elevation="0">
-                <MudStack Spacing="2" AlignItems="AlignItems.Center">
-                    <MudIcon Icon="@Icons.Material.Filled.Store" Style="font-size: 48px;" Color="Color.Default" />
-                    <MudText Typo="Typo.subtitle1">Please select a store to view shifts</MudText>
-                    <MudText Typo="Typo.body2" Class="mud-text-secondary">Use the store selector above to choose a store</MudText>
-                </MudStack>
-            </MudPaper>
-        }
         else
         {
             <MudTable T="ShiftDto" Items="FilteredShifts" Hover="true" Striped="true" Dense="false">
@@ -150,9 +141,15 @@
     private bool _isLoading = true;
     private Guid? _currentStoreId;
     private bool _initialized = false;
+    private bool _isAdmin;
+    private Guid? _userStoreId;
 
     protected override async Task OnInitializedAsync()
     {
+        var user = (await AuthStateProvider.GetAuthenticationStateAsync()).User;
+        _isAdmin = user.IsInRole("Administrator");
+        _userStoreId = Guid.TryParse(user.FindFirst("store_id")?.Value, out var sid) ? sid : null;
+
         SignalRService.ShiftOpened += OnShiftOpened;
         SignalRService.ShiftClosed += OnShiftClosed;
     }
@@ -165,12 +162,8 @@
             
             try
             {
-                // Check if a store is already selected in context
-                var storeId = StoreContext.GetCurrentStoreId();
-                if (storeId.HasValue)
-                {
-                    await LoadShiftsAsync(storeId);
-                }
+                // No store in context = all stores
+                await LoadShiftsAsync(StoreContext.GetCurrentStoreId());
             }
             catch (Exception ex)
             {
@@ -181,82 +174,33 @@
         }
     }
 
-    private async Task AutoSelectDefaultStoreAsync()
-    {
-        _isLoading = true;
-        StateHasChanged();
-        
-        try
-        {
-            // Use a separate scope to avoid concurrency issues with StoreContextSelector
-            using var scope = ScopeFactory.CreateScope();
-            var context = scope.ServiceProvider.GetRequiredService<ZenDbContext>();
-            var firstActiveStore = await context.Stores
-                .Where(s => s.IsActive && !s.IsDeleted)
-                .OrderBy(s => s.Name)
-                .FirstOrDefaultAsync();
-            
-            if (firstActiveStore != null)
-            {
-                await LoadShiftsAsync(firstActiveStore.Id);
-                await StoreContext.SetCurrentStoreAsync(firstActiveStore.Id);
-            }
-            else
-            {
-                // No active stores found - stop loading
-                _isLoading = false;
-                StateHasChanged();
-                Snackbar.Add("No active stores configured", Severity.Warning);
-            }
-        }
-        catch (Exception ex)
-        {
-            _isLoading = false;
-            StateHasChanged();
-            Snackbar.Add($"Error auto-selecting store: {ex.Message}", Severity.Error);
-        }
-    }
-
-    private async Task LoadShiftsAsync(Guid? storeId = null)
+    // storeId == null => all stores
+    private async Task LoadShiftsAsync(Guid? storeId)
     {
         try
         {
             _isLoading = true;
             StateHasChanged();
 
-            storeId ??= StoreContext.GetCurrentStoreId();
-            if (storeId.HasValue)
-            {
-                _currentStoreId = storeId.Value;
-                
-                // Use a separate scope to avoid concurrency issues with StoreContextSelector
-                using var scope = ScopeFactory.CreateScope();
-                var shiftService = scope.ServiceProvider.GetRequiredService<IShiftService>();
-                
-                var startDate = DateTime.Today.AddDays(-30);
-                var endDate = DateTime.Today;
-                _shifts = (await shiftService.GetShiftsByStoreAsync(storeId.Value, startDate, endDate)).ToList();
-                
-                // Get current shift
-                _currentShift = await shiftService.GetCurrentShiftAsync(storeId.Value);
-                
-                // Start SignalR connection
-                await SignalRService.StartAsync(storeId.Value);
-            }
-            else
-            {
-                _currentStoreId = null;
-                _shifts.Clear();
-                _currentShift = null;
-                
-                // Stop SignalR connection if no store
-                await SignalRService.StopAsync();
-            }
+            // "All stores" is admin-only; others fall back to their own store (Guid.Empty = nothing)
+            if (!storeId.HasValue && !_isAdmin)
+                storeId = _userStoreId ?? Guid.Empty;
+
+            _currentStoreId = storeId;
+
+            // Use a separate scope to avoid concurrency issues with StoreContextSelector
+            using var scope = ScopeFactory.CreateScope();
+            var shiftService = scope.ServiceProvider.GetRequiredService<IShiftService>();
+
+            // No end date: DateTime.Today (midnight) would hide shifts opened today
+            _shifts = (await shiftService.GetShiftsByStoreAsync(storeId, DateTime.Today.AddDays(-30))).ToList();
+
+            // "Current shift" only makes sense for a single store
+            _currentShift = storeId.HasValue ? await shiftService.GetCurrentShiftAsync(storeId.Value) : null;
         }
         catch (Exception ex)
         {
             Snackbar.Add($"Error loading shifts: {ex.Message}", Severity.Error);
-            _currentStoreId = null;
             _shifts.Clear();
             _currentShift = null;
         }
@@ -264,6 +208,20 @@
         {
             _isLoading = false;
             StateHasChanged();
+        }
+
+        // Own try: a hub failure must not wipe the data that loaded fine.
+        // ponytail: live updates only for a single store (hub groups are per store); "All" relies on Refresh
+        try
+        {
+            if (storeId.HasValue)
+                await SignalRService.StartAsync(storeId.Value);
+            else
+                await SignalRService.StopAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Live updates unavailable: {ex.Message}", Severity.Warning);
         }
     }
 
@@ -369,23 +327,16 @@
 
     private async Task RefreshShifts()
     {
-        var storeId = StoreContext.GetCurrentStoreId();
-        if (!storeId.HasValue)
-        {
-            Snackbar.Add("Please select a store first", Severity.Warning);
-            return;
-        }
-        
-        await LoadShiftsAsync(storeId);
+        await LoadShiftsAsync(_currentStoreId);
         Snackbar.Add("Shifts refreshed", Severity.Info);
     }
 
     private async Task OpenShiftDialog()
     {
-        var storeId = StoreContext.GetCurrentStoreId();
+        var storeId = _currentStoreId;
         if (!storeId.HasValue)
         {
-            Snackbar.Add("No store context available", Severity.Error);
+            Snackbar.Add("Select a store to open a shift", Severity.Warning);
             return;
         }
 

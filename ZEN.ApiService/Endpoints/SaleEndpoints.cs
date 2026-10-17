@@ -104,7 +104,7 @@ public static class SaleEndpoints
         group.MapPost("/held/{heldSaleId:guid}/complete", async (Guid heldSaleId, [FromBody] string completedBy, ISaleService saleService, IHubContext<CashDeskHub> hubContext, CancellationToken ct) =>
         {
             // First get the held sale to know the store ID
-            var heldSales = await saleService.GetHeldSalesAsync(Guid.Empty, ct);
+            var heldSales = await saleService.GetHeldSalesAsync(null, ct);
             var heldSale = heldSales.FirstOrDefault(h => h.Id == heldSaleId);
             
             var completed = await saleService.CompleteHeldSaleAsync(heldSaleId, completedBy, ct);
