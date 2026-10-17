@@ -10,6 +10,7 @@ public class SignalRService : IDisposable, IAsyncDisposable
     private readonly HubConnection _hubConnection;
     private readonly ILogger<SignalRService> _logger;
     private readonly string _baseUrl;
+    private readonly Func<string> _tokenFactory;
     private Guid? _currentStoreId;
     private bool _isConnected = false;
 
@@ -20,13 +21,17 @@ public class SignalRService : IDisposable, IAsyncDisposable
     public event Action<object>? ShiftOpened;
     public event Action<object>? ShiftClosed;
 
-    public SignalRService(string baseUrl, ILogger<SignalRService> logger)
+    public SignalRService(string baseUrl, Func<string> tokenFactory, ILogger<SignalRService> logger)
     {
         _baseUrl = baseUrl.TrimEnd('/');
+        _tokenFactory = tokenFactory;
         _logger = logger;
 
         _hubConnection = new HubConnectionBuilder()
-            .WithUrl($"{_baseUrl}/hubs/cashdesk")
+            .WithUrl($"{_baseUrl}/hubs/cashdesk", options =>
+            {
+                options.AccessTokenProvider = () => Task.FromResult<string?>(_tokenFactory());
+            })
             .WithAutomaticReconnect()
             .Build();
 

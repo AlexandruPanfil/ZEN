@@ -170,12 +170,10 @@ builder.Services.AddHttpClient("ApiClient", (sp, client) =>
 {
     var configuration = sp.GetRequiredService<IConfiguration>();
     
-    // In Aspire, the API service URL is provided via service discovery
-    // The environment variable format is: services__<service-name>__<protocol>__<port-index>
-    var apiBaseUrl = configuration["services__apiservice__https__0"] 
-                  ?? configuration["services__apiservice__http__0"]
-                  ?? configuration["ApiService:BaseUrl"] 
-                  ?? configuration["ApiService__BaseUrl"] 
+    // Aspire injects env var services__apiservice__https__0; IConfiguration exposes it with ':' separators
+    var apiBaseUrl = configuration["services:apiservice:https:0"]
+                  ?? configuration["services:apiservice:http:0"]
+                  ?? configuration["ApiService:BaseUrl"]
                   ?? "https://localhost:7000";
     
     client.BaseAddress = new Uri(apiBaseUrl);
@@ -183,20 +181,21 @@ builder.Services.AddHttpClient("ApiClient", (sp, client) =>
 });
 
 // Add SignalR service
+builder.Services.AddScoped<JwtTokenProvider>();
 builder.Services.AddScoped<SignalRService>(sp =>
 {
     var logger = sp.GetRequiredService<ILogger<SignalRService>>();
     var configuration = sp.GetRequiredService<IConfiguration>();
+    var tokenProvider = sp.GetRequiredService<JwtTokenProvider>();
     
-    // In Aspire, the API service URL is provided via service discovery
-    // The environment variable format is: services__<service-name>__<protocol>__<port-index>
-    var apiBaseUrl = configuration["services__apiservice__https__0"] 
-                  ?? configuration["services__apiservice__http__0"]
-                  ?? configuration["ApiService:BaseUrl"] 
-                  ?? configuration["ApiService__BaseUrl"] 
+    // Aspire injects env var services__apiservice__https__0; IConfiguration exposes it with ':' separators
+    var apiBaseUrl = configuration["services:apiservice:https:0"]
+                  ?? configuration["services:apiservice:http:0"]
+                  ?? configuration["ApiService:BaseUrl"]
                   ?? "https://localhost:7000";
     
-    return new SignalRService(apiBaseUrl, logger);
+    // Mint a fresh token on every (re)connect; a captured one expires after 8h
+    return new SignalRService(apiBaseUrl, tokenProvider.GetToken, logger);
 });
 
 builder.Services.AddRazorPages()
